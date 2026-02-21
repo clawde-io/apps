@@ -1,10 +1,10 @@
-# Local Daemon (clawded)
+# Local Daemon (clawd)
 
 The always-on background service that powers all ClawDE functionality. Written in Rust for performance and reliability.
 
 ## Overview
 
-`clawded` is a long-running process that starts at login and runs in the background. It owns the filesystem, manages sessions, runs validators, and serves the API that all UIs connect to. When you close the desktop app, the daemon keeps running — your AI sessions continue in the background.
+`clawd` is a long-running process that starts at login and runs in the background. It owns the filesystem, manages sessions, runs validators, and serves the API that all UIs connect to. When you close the desktop app, the daemon keeps running — your AI sessions continue in the background.
 
 ## Capabilities
 
@@ -35,7 +35,7 @@ clawde daemon uninstall # Remove from OS service manager
 
 1. On first install, `clawde daemon install` registers with your OS service manager
 2. The daemon starts automatically at login
-3. It opens a local HTTP + WebSocket server (default: `localhost:31415`)
+3. It opens a local HTTP + WebSocket server (default: `localhost:4300`)
 4. Desktop, web, and mobile apps connect to this API
 5. All state is stored locally in `~/.clawde/` (SQLite database + JSONL logs)
 
@@ -45,7 +45,7 @@ The daemon reads `~/.clawde/config.toml`:
 
 ```toml
 [daemon]
-port = 31415
+port = 4300
 log_level = "info"
 
 [storage]

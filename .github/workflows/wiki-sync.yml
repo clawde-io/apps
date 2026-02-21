@@ -1,0 +1,39 @@
+name: Sync Wiki
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".wiki/**"
+
+concurrency:
+  group: wiki-sync
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    name: Push .wiki/ to GitHub Wiki
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync to GitHub Wiki
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+
+          WIKI_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git"
+
+          cd /tmp
+          git clone "${WIKI_URL}" wiki 2>&1
+          cp -rf "$GITHUB_WORKSPACE/.wiki/." wiki/
+          cd wiki
+          git add -A
+          if git diff --staged --quiet; then
+            echo "No wiki changes to push."
+          else
+            git commit -m "docs: sync wiki from ${GITHUB_SHA::7}"
+            git push
+          fi
