@@ -1,0 +1,54 @@
+name: clawde
+description: ClawDE — host-first AI developer environment (macOS, Windows, Linux, iOS, Android)
+publish_to: "none"
+version: 0.1.0
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # ClawDE packages
+  clawd_proto:
+    path: ../packages/clawd_proto
+  clawd_client:
+    path: ../packages/clawd_client
+  clawd_core:
+    path: ../packages/clawd_core
+  clawd_ui:
+    path: ../packages/clawd_ui
+
+  # WebSocket / JSON-RPC transport (clawd IPC on port 4300)
+  web_socket_channel: ^3.0.1
+
+  # State management
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+
+  # Navigation
+  go_router: ^14.6.3
+
+  # Code editor — CodeMirror 6 via WebView
+  webview_flutter: ^4.10.0
+
+  # Local storage (session persistence)
+  sqflite_common_ffi: ^2.3.4
+  path_provider: ^2.1.5
+  path: ^1.9.0
+
+  # JSON serialization
+  json_annotation: ^4.9.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  build_runner: ^2.4.13
+  json_serializable: ^6.8.0
+  riverpod_generator: ^2.6.1
+
+flutter:
+  uses-material-design: true

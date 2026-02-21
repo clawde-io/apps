@@ -1,0 +1,39 @@
+name: clawde_mobile
+description: ClawDE — AI developer environment companion app (iOS + Android).
+publish_to: "none"
+version: 0.1.0
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # ClawDE packages
+  clawd_proto:
+    path: ../packages/clawd_proto
+  clawd_client:
+    path: ../packages/clawd_client
+  clawd_core:
+    path: ../packages/clawd_core
+  clawd_ui:
+    path: ../packages/clawd_ui
+
+  # State management
+  flutter_riverpod: ^2.6.1
+
+  # Navigation
+  go_router: ^14.6.3
+
+  # Local storage (session persistence)
+  shared_preferences: ^2.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

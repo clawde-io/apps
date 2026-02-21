@@ -1,0 +1,89 @@
+name: clawde
+repository: https://github.com/clawde-io/apps
+
+packages:
+  - desktop
+  - mobile
+  - packages/*
+
+command:
+  version:
+    workspaceChangelog: true
+
+scripts:
+  # ─── Desktop ─────────────────────────────────────────────────────
+  dev:
+    run: flutter run -d macos
+    exec:
+      concurrency: 1
+      packageFilters:
+        - scope: "clawde"  # desktop app name
+
+  dev:linux:
+    run: flutter run -d linux
+    exec:
+      concurrency: 1
+      packageFilters:
+        - scope: "clawde"
+
+  dev:windows:
+    run: flutter run -d windows
+    exec:
+      concurrency: 1
+      packageFilters:
+        - scope: "clawde"
+
+  # ─── Mobile ──────────────────────────────────────────────────────
+  dev:ios:
+    run: flutter run -d ios
+    exec:
+      concurrency: 1
+      packageFilters:
+        - scope: "clawde_mobile"
+
+  dev:android:
+    run: flutter run -d android
+    exec:
+      concurrency: 1
+      packageFilters:
+        - scope: "clawde_mobile"
+
+  # ─── Daemon ──────────────────────────────────────────────────────
+  dev:daemon:
+    run: cargo run
+    exec:
+      workingDirectory: daemon
+
+  build:daemon:
+    run: cargo build --release
+    exec:
+      workingDirectory: daemon
+
+  # ─── Dart workspace ──────────────────────────────────────────────
+  get:
+    run: flutter pub get
+    exec:
+      failFast: false
+
+  analyze:
+    run: flutter analyze
+    exec:
+      failFast: false
+
+  format:
+    run: dart format .
+    exec:
+      failFast: false
+
+  test:
+    run: flutter test
+    exec:
+      failFast: false
+
+  # ─── Codegen (Riverpod + JSON serialization) ─────────────────────
+  gen:
+    run: dart run build_runner build --delete-conflicting-outputs
+    exec:
+      failFast: false
+      packageFilters:
+        - dependsOn: "build_runner"

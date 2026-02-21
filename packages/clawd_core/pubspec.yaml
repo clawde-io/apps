@@ -1,0 +1,29 @@
+name: clawd_core
+description: ClawDE — shared state management and business logic (Riverpod providers for daemon connection, sessions, messages, tool calls).
+publish_to: "none"
+version: 0.1.0
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # ClawDE packages
+  clawd_proto:
+    path: ../clawd_proto
+  clawd_client:
+    path: ../clawd_client
+
+  # State management
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  build_runner: ^2.4.13
+  riverpod_generator: ^2.6.1

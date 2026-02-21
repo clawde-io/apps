@@ -1,0 +1,20 @@
+name: clawd_client
+description: ClawDE typed WebSocket/JSON-RPC 2.0 client for Flutter apps. Connects to the clawd daemon on port 4300.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  clawd_proto:
+    path: ../clawd_proto
+  web_socket_channel: ^3.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0

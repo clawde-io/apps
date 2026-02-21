@@ -1,0 +1,65 @@
+[package]
+name = "clawd"
+version = "0.1.0"
+edition = "2021"
+description = "ClawDE Host — always-on background daemon"
+
+[[bin]]
+name = "clawd"
+path = "src/main.rs"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# WebSocket server (JSON-RPC 2.0 transport)
+tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+futures-util = "0.3"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Database (SQLite, WAL mode — crash-safe session persistence)
+sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio", "tls-none", "migrate"] }
+
+# Git integration — no subprocess spawning
+git2 = "0.19"
+
+# File watching (cross-platform, debounced)
+notify = "7"
+notify-debouncer-full = "0.3"
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+# Logging & tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+# CLI argument parsing
+clap = { version = "4", features = ["derive", "env"] }
+
+# UUIDs for session/message IDs
+uuid = { version = "1", features = ["v4"] }
+
+# Timestamps
+chrono = { version = "0.4", features = ["serde"] }
+
+# Async trait (for Runner trait)
+async-trait = "0.1"
+
+# Library crate for integration tests
+[lib]
+name = "clawd"
+path = "src/lib.rs"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

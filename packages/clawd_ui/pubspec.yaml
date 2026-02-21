@@ -1,0 +1,26 @@
+name: clawd_ui
+description: ClawDE — shared Flutter widgets and design system (ChatBubble, SessionListTile, ToolCallCard, theme).
+publish_to: "none"
+version: 0.1.0
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # ClawDE packages
+  clawd_proto:
+    path: ../clawd_proto
+  clawd_core:
+    path: ../clawd_core
+
+  # State management (for widgets that consume providers directly)
+  flutter_riverpod: ^2.6.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0

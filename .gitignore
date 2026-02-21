@@ -1,0 +1,75 @@
+# AI agent directories (private — never commit)
+.claude/
+.codex/
+.cursor/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE & editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment & credentials
+.env
+.env.local
+.env.*.local
+.secrets/
+*.key
+*.pem
+
+# Rust
+target/
+
+# Flutter / Dart — generated files
+.dart_tool/
+*.g.dart
+*.freezed.dart
+
+# Flutter — plugin caches
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Flutter apps — platform-generated files
+desktop/build/
+desktop/macos/Pods/
+desktop/windows/flutter/generated_plugin_registrant.cc
+desktop/windows/flutter/generated_plugins.cmake
+desktop/linux/flutter/generated_plugin_registrant.cc
+desktop/linux/flutter/generated_plugins.cmake
+
+mobile/build/
+mobile/ios/Pods/
+mobile/ios/.symlinks/
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/android/GeneratedPluginRegistrant.java
+
+# Dart packages — don't track lock files (apps commit theirs)
+packages/*/pubspec.lock
+
+# Logs
+*.log
+logs/
+
+# Cache & temp
+.cache/
+*.tmp
+*.temp
+tmp/
+
+# Test output
+coverage/
+test-results/
+
+# Planning & working documents
+TODO.md
+DONE.md
+FEEDBACK.md
+NEXT.md
+TRACKING.md
+PLAN.md

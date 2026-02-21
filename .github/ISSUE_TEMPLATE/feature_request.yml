@@ -1,0 +1,43 @@
+name: Feature request
+description: Suggest an idea or improvement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before opening a feature request, check the [roadmap](../../wiki/Features) to see if it's already planned.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - clawd (daemon)
+        - Desktop app
+        - Mobile app
+        - Dart packages
+        - Other / cross-cutting
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      placeholder: "I'm frustrated when…"
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      placeholder: A clear description of what you'd like.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      placeholder: Any other approaches you've thought of.
