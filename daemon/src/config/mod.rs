@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
-use tracing::warn;
+use tracing::error;
 
 const DEFAULT_PORT: u16 = 4300;
 const DEFAULT_MAX_SESSIONS: usize = 10;
@@ -14,13 +14,19 @@ const DEFAULT_PRUNE_DAYS: u32 = 30;
 /// Priority: CLI / env var  >  TOML  >  built-in default.
 #[derive(Deserialize, Default)]
 struct TomlConfig {
+    /// WebSocket server port (default: 4300).
     port: Option<u16>,
+    /// Maximum concurrent sessions; 0 = unlimited (default: 10).
     max_sessions: Option<usize>,
+    /// Log level filter string, e.g. "debug", "info,clawd=trace" (default: "info").
     log: Option<String>,
+    /// License JWT for verifying relay / auto-switch features. Omit for Free tier.
     license_token: Option<String>,
+    /// Override the ClawDE API base URL (default: https://api.clawde.io).
     api_base_url: Option<String>,
+    /// Override the relay WebSocket URL (default: wss://api.clawde.io/relay/ws).
     relay_url: Option<String>,
-    /// How many days of idle/error sessions to keep before pruning (default 30).
+    /// How many days of idle/error sessions to keep before pruning (default: 30; 0 = never).
     session_prune_days: Option<u32>,
 }
 
@@ -30,7 +36,7 @@ fn load_toml(data_dir: &Path) -> Option<TomlConfig> {
     match toml::from_str::<TomlConfig>(&contents) {
         Ok(cfg) => Some(cfg),
         Err(e) => {
-            warn!(path = %path.display(), err = %e, "failed to parse config.toml — using defaults");
+            error!(path = %path.display(), err = %e, "failed to parse config.toml — using defaults");
             None
         }
     }

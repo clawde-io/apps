@@ -36,14 +36,14 @@ pub async fn create(params: Value, ctx: &AppContext) -> Result<Value> {
     let p: CreateParams = serde_json::from_value(params)?;
     let title = p.title.unwrap_or_else(|| "New Session".to_string());
 
-    let max = ctx.config.max_sessions;
-    if max > 0 && ctx.session_manager.active_count().await >= max {
-        anyhow::bail!("session limit reached ({max} active sessions)");
+    // Validate repo_path exists before creating the session record.
+    if !std::path::Path::new(&p.repo_path).exists() {
+        anyhow::bail!("REPO_NOT_FOUND: repo path does not exist: {}", p.repo_path);
     }
 
     let session = ctx
         .session_manager
-        .create(&p.provider, &p.repo_path, &title)
+        .create(&p.provider, &p.repo_path, &title, ctx.config.max_sessions)
         .await?;
     ctx.telemetry
         .send(TelemetryEvent::new("session.start").with_provider(&p.provider));

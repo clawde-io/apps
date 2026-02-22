@@ -1,5 +1,7 @@
 /// Integration tests for the clawd JSON-RPC server.
 /// Spins up a real daemon on a free port and tests all RPC methods.
+use std::io::{Read as _, Write as _};
+use std::net::TcpStream;
 use clawd::{
     account::AccountRegistry, config::DaemonConfig, ipc::event::EventBroadcaster,
     repo::RepoRegistry, session::SessionManager, storage::Storage, telemetry, update, AppContext,
@@ -214,4 +216,35 @@ async fn test_get_messages_empty() {
     )
     .await;
     assert!(msgs["result"].as_array().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn test_health_endpoint() {
+    let (_url, ctx) = start_test_daemon().await;
+    let port = ctx.config.port;
+
+    // Give the server a moment to be ready
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+
+    // Use a blocking TCP connection in a spawn_blocking to avoid mixing sync I/O
+    let result = tokio::task::spawn_blocking(move || {
+        let mut stream = TcpStream::connect(format!("127.0.0.1:{port}"))?;
+        stream.write_all(b"GET /health HTTP/1.0\r\nHost: localhost\r\n\r\n")?;
+        let mut response = String::new();
+        stream.read_to_string(&mut response)?;
+        Ok::<String, std::io::Error>(response)
+    })
+    .await
+    .unwrap()
+    .expect("TCP connect failed");
+
+    // Extract the JSON body (after the blank line separating headers from body)
+    let body = result.split("\r\n\r\n").nth(1).unwrap_or(&result);
+    let json: serde_json::Value = serde_json::from_str(body).expect("health body is not JSON");
+
+    assert_eq!(json["status"], "ok");
+    assert!(json["version"].is_string());
+    assert!(json["uptime"].is_number());
+    assert!(json["activeSessions"].is_number());
+    assert!(json["port"].is_number());
 }

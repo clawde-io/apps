@@ -86,6 +86,9 @@ async fn main() -> Result<()> {
 /// Initialize the tracing subscriber.
 /// If `log_file` is set, logs go to both stdout and a daily-rolling file.
 /// Returns a `WorkerGuard` that must stay alive for the process lifetime.
+///
+/// If the log directory cannot be created, falls back to stdout-only logging
+/// with a warning — never panics.
 fn setup_logging(
     log_level: &str,
     log_file: Option<&std::path::Path>,
@@ -97,6 +100,21 @@ fn setup_logging(
         let filename = path
             .file_name()
             .unwrap_or_else(|| std::ffi::OsStr::new("clawd.log"));
+
+        // Ensure the directory exists before tracing-appender tries to open it.
+        if let Err(e) = std::fs::create_dir_all(dir) {
+            // Fall back to stdout-only — don't panic on a bad log path.
+            eprintln!(
+                "warn: could not create log directory '{}': {e} — falling back to stdout",
+                dir.display()
+            );
+            tracing_subscriber::fmt()
+                .with_env_filter(log_level)
+                .compact()
+                .init();
+            return None;
+        }
+
         let appender = tracing_appender::rolling::daily(dir, filename);
         let (non_blocking, guard) = tracing_appender::non_blocking(appender);
 
@@ -188,11 +206,28 @@ async fn run_server(
         tokio::spawn(async move {
             // First run after 1 hour, then every 24 hours
             tokio::time::sleep(std::time::Duration::from_secs(60 * 60)).await;
+            let mut consecutive_prune_failures: u32 = 0;
             loop {
                 match storage.prune_old_sessions(prune_days).await {
-                    Ok(n) if n > 0 => info!(pruned = n, days = prune_days, "pruned old sessions"),
-                    Ok(_) => {}
-                    Err(e) => warn!(err = %e, "session pruning failed"),
+                    Ok(n) if n > 0 => {
+                        consecutive_prune_failures = 0;
+                        info!(pruned = n, days = prune_days, "pruned old sessions");
+                    }
+                    Ok(_) => {
+                        consecutive_prune_failures = 0;
+                    }
+                    Err(e) => {
+                        consecutive_prune_failures += 1;
+                        if consecutive_prune_failures >= 3 {
+                            warn!(
+                                err = %e,
+                                failures = consecutive_prune_failures,
+                                "session pruning failing repeatedly"
+                            );
+                        } else {
+                            warn!(err = %e, "session pruning failed");
+                        }
+                    }
                 }
                 if let Err(e) = storage.vacuum().await {
                     warn!(err = %e, "sqlite vacuum failed");

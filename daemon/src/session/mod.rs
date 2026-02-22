@@ -1,6 +1,8 @@
 pub mod claude;
+pub mod codex;
 pub mod events;
 pub mod runner;
+pub mod worktree;
 
 use crate::{ipc::event::EventBroadcaster, storage::Storage, AppContext};
 use anyhow::{Context, Result};
@@ -11,6 +13,7 @@ use tokio::sync::RwLock;
 use tracing::{error, info};
 
 use claude::ClaudeCodeRunner;
+use codex::CodexRunner;
 use runner::Runner;
 
 // ─── View types (matching @clawde/proto) ─────────────────────────────────────
@@ -42,7 +45,7 @@ pub struct MessageView {
 // ─── In-memory session handle ─────────────────────────────────────────────────
 
 struct SessionHandle {
-    runner: Arc<ClaudeCodeRunner>,
+    runner: Arc<dyn Runner>,
 }
 
 // ─── Manager ─────────────────────────────────────────────────────────────────
@@ -80,6 +83,7 @@ impl SessionManager {
         provider: &str,
         repo_path: &str,
         title: &str,
+        max_sessions: usize,
     ) -> Result<SessionView> {
         // Validate provider — must match ProviderType.name values from Dart
         match provider {
@@ -87,11 +91,27 @@ impl SessionManager {
             _ => return Err(anyhow::anyhow!("unknown provider: {}", provider)),
         }
 
+        // Enforce session limit.  Checked here (inside the manager) rather than
+        // in the handler so the check and creation are logically coupled; SQLite
+        // serialises concurrent writes, so this is free of TOCTOU races.
+        if max_sessions > 0 {
+            let count = self.storage.count_sessions().await?;
+            if count >= max_sessions as u64 {
+                anyhow::bail!("session limit reached ({max_sessions} max)");
+            }
+        }
+
         let row = self
             .storage
             .create_session(provider, repo_path, title)
             .await?;
         info!(id = %row.id, provider = %provider, "session created");
+
+        // Create an isolated git worktree for this session (non-fatal).
+        // The runner will use the worktree path instead of the main repo,
+        // preventing file-level conflicts between concurrent sessions.
+        let wt_path = worktree::worktree_path(&self.data_dir, &row.id);
+        worktree::try_create(std::path::Path::new(repo_path), &wt_path).await;
 
         let view = row_to_view(row);
         self.broadcaster.broadcast(
@@ -116,7 +136,8 @@ impl SessionManager {
 
     pub async fn delete(&self, session_id: &str) -> Result<()> {
         // Validate session exists before deleting.
-        self.storage
+        let row = self
+            .storage
             .get_session(session_id)
             .await?
             .context("SESSION_NOT_FOUND")?;
@@ -124,6 +145,10 @@ impl SessionManager {
         if let Some(handle) = self.handles.write().await.remove(session_id) {
             let _ = handle.runner.stop().await;
         }
+        // Clean up worktree if one was created for this session (non-fatal).
+        let wt_path = worktree::worktree_path(&self.data_dir, session_id);
+        worktree::try_remove(std::path::Path::new(&row.repo_path), &wt_path).await;
+
         self.storage.delete_session(session_id).await?;
         info!(id = %session_id, "session deleted");
         Ok(())
@@ -228,12 +253,11 @@ impl SessionManager {
             _ => {} // "idle" | "error" — allow
         }
 
-        // Persist user message
+        // Persist user message and increment count atomically.
         let msg = self
             .storage
-            .create_message(session_id, "user", content, "done")
+            .create_message_and_increment_count(session_id, "user", content, "done")
             .await?;
-        self.storage.increment_message_count(session_id).await?;
 
         let msg_view = msg_row_to_view(msg.clone());
         self.broadcaster.broadcast(
@@ -244,32 +268,48 @@ impl SessionManager {
             }),
         );
 
-        // Get or create a runner for this session
-        let runner = {
+        // Use worktree path if one was created for this session, otherwise
+        // fall back to the original repo path for isolation-free operation.
+        let effective_path = worktree::effective_repo_path(
+            &self.data_dir,
+            session_id,
+            &session_row.repo_path,
+        );
+
+        // Get or create a runner for this session.
+        // Provider is matched from the persisted session row so the correct
+        // CLI binary is used for each provider type.
+        let runner: Arc<dyn Runner> = {
             let mut handles = self.handles.write().await;
             if let Some(h) = handles.get(session_id) {
                 h.runner.clone()
             } else {
-                let runner = ClaudeCodeRunner::new(
-                    session_id.to_string(),
-                    session_row.repo_path.clone(),
-                    self.storage.clone(),
-                    self.data_dir.clone(),
-                    self.broadcaster.clone(),
-                    ctx.account_registry.clone(),
-                    ctx.license.clone(),
-                );
-                let handle = Arc::new(SessionHandle {
-                    runner: runner.clone(),
-                });
+                let r: Arc<dyn Runner> = match session_row.provider.as_str() {
+                    "codex" => CodexRunner::new(
+                        session_id.to_string(),
+                        effective_path,
+                        self.storage.clone(),
+                        self.broadcaster.clone(),
+                    ),
+                    _ => ClaudeCodeRunner::new(
+                        session_id.to_string(),
+                        effective_path,
+                        self.storage.clone(),
+                        self.data_dir.clone(),
+                        self.broadcaster.clone(),
+                        ctx.account_registry.clone(),
+                        ctx.license.clone(),
+                    ),
+                };
+                let handle = Arc::new(SessionHandle { runner: r.clone() });
                 handles.insert(session_id.to_string(), handle);
-                runner
+                r
             }
         };
 
         // Spawn the turn in the background so the RPC returns immediately.
         // Events (messageCreated, messageUpdated, statusChanged) are pushed
-        // via the broadcaster as the claude process runs.
+        // via the broadcaster as the provider process runs.
         let content_owned = content.to_string();
         let session_id_owned = session_id.to_string();
         let storage_bg = self.storage.clone();
@@ -318,15 +358,17 @@ impl SessionManager {
             map.drain().collect()
         };
         for (session_id, handle) in handles {
-            let _ = handle.runner.stop().await;
+            // Give each runner up to 5 seconds to stop cleanly; kill if it hangs.
+            let stop_result =
+                tokio::time::timeout(std::time::Duration::from_secs(5), handle.runner.stop())
+                    .await;
+            if stop_result.is_err() {
+                tracing::warn!(id = %session_id, "runner did not stop within 5s during drain");
+            }
             let _ = self
                 .storage
                 .update_session_status(&session_id, "idle")
                 .await;
-        }
-        if !self.handles.read().await.is_empty() {
-            // should be empty, but guard against races
-            self.handles.write().await.clear();
         }
         info!("all active sessions drained");
     }

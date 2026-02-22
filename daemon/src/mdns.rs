@@ -15,8 +15,12 @@ pub struct MdnsGuard {
 
 impl Drop for MdnsGuard {
     fn drop(&mut self) {
-        let _ = self.daemon.unregister(&self.fullname);
-        let _ = self.daemon.shutdown();
+        if let Err(e) = self.daemon.unregister(&self.fullname) {
+            warn!(err = %e, "mDNS unregister failed on shutdown");
+        }
+        if let Err(e) = self.daemon.shutdown() {
+            warn!(err = %e, "mDNS daemon shutdown failed");
+        }
         info!("mDNS advertisement unregistered");
     }
 }
@@ -43,7 +47,17 @@ fn try_advertise(daemon_id: &str, port: u16) -> anyhow::Result<MdnsGuard> {
     let mdns = ServiceDaemon::new()?;
 
     // Instance name: clawd-{first 8 chars of daemon_id}
-    let short_id = &daemon_id[..8.min(daemon_id.len())];
+    let id_len = daemon_id.len();
+    let truncated_len = 8.min(id_len);
+    if id_len > truncated_len {
+        info!(
+            full_len = id_len,
+            used_len = truncated_len,
+            "mDNS instance name uses first {} chars of daemon_id",
+            truncated_len
+        );
+    }
+    let short_id = &daemon_id[..truncated_len];
     let instance_name = format!("clawd-{short_id}");
 
     // Build TXT properties

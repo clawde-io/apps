@@ -1,5 +1,6 @@
 use serde_json::Value;
 use tokio::sync::broadcast;
+use tracing::warn;
 
 /// Broadcasts JSON-RPC notification strings to all connected WebSocket clients.
 #[derive(Clone)]
@@ -15,7 +16,9 @@ impl Default for EventBroadcaster {
 
 impl EventBroadcaster {
     pub fn new() -> Self {
-        let (tx, _) = broadcast::channel(1024);
+        // 4096-message channel gives headroom for bursts of tool-call events
+        // across many concurrent sessions before lagging receivers are dropped.
+        let (tx, _) = broadcast::channel(4096);
         Self { tx }
     }
 
@@ -26,10 +29,15 @@ impl EventBroadcaster {
             "method": method,
             "params": params
         });
-        // Ignore errors — no subscribers is fine
-        let _ = self
-            .tx
-            .send(serde_json::to_string(&notification).unwrap_or_default());
+        match serde_json::to_string(&notification) {
+            Ok(json) => {
+                // Ignore send errors — no subscribers is fine
+                let _ = self.tx.send(json);
+            }
+            Err(e) => {
+                warn!(method = method, err = %e, "failed to serialize broadcast event");
+            }
+        }
     }
 
     /// Subscribe to all broadcast events.

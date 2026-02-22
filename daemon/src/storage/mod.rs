@@ -135,6 +135,13 @@ impl Storage {
         )
     }
 
+    pub async fn count_sessions(&self) -> Result<u64> {
+        let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM sessions")
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(row.0 as u64)
+    }
+
     pub async fn update_session_status(&self, id: &str, status: &str) -> Result<()> {
         let now = Utc::now().to_rfc3339();
         sqlx::query("UPDATE sessions SET status = ?, updated_at = ? WHERE id = ?")
@@ -189,6 +196,43 @@ impl Storage {
         .bind(&now)
         .execute(&self.pool)
         .await?;
+        self.get_message(&id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("message not found after insert"))
+    }
+
+    /// Create a message and increment the session's message_count atomically.
+    /// Prefer this over calling `create_message` + `increment_message_count` separately.
+    pub async fn create_message_and_increment_count(
+        &self,
+        session_id: &str,
+        role: &str,
+        content: &str,
+        status: &str,
+    ) -> Result<MessageRow> {
+        let id = Uuid::new_v4().to_string();
+        let now = Utc::now().to_rfc3339();
+        let mut tx = self.pool.begin().await?;
+        sqlx::query(
+            "INSERT INTO messages (id, session_id, role, content, status, created_at)
+             VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&id)
+        .bind(session_id)
+        .bind(role)
+        .bind(content)
+        .bind(status)
+        .bind(&now)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query(
+            "UPDATE sessions SET message_count = message_count + 1, updated_at = ? WHERE id = ?",
+        )
+        .bind(&now)
+        .bind(session_id)
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
         self.get_message(&id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("message not found after insert"))
@@ -369,6 +413,7 @@ impl Storage {
         if days == 0 {
             return Ok(0);
         }
+        // Safe: `days` is u32 (max ~4.3 billion) and i64 can hold any u32 value without overflow.
         let cutoff = (chrono::Utc::now() - chrono::Duration::days(days as i64)).to_rfc3339();
         let n =
             sqlx::query("DELETE FROM sessions WHERE status IN ('idle','error') AND updated_at < ?")

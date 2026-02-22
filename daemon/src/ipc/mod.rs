@@ -46,6 +46,7 @@ struct RpcError {
 // unauthorized         = -32004
 // repoNotFound         = -32005
 // sessionPaused        = -32006  (session is paused — call session.resume first)
+// sessionLimitReached  = -32007  (max session count reached)
 
 const PARSE_ERROR: i32 = -32700;
 const INVALID_REQUEST: i32 = -32600;
@@ -59,6 +60,9 @@ const REPO_NOT_FOUND: i32 = -32005;
 const SESSION_BUSY: i32 = -32002;
 /// Session is paused — must call session.resume before sending messages.
 const SESSION_PAUSED_CODE: i32 = -32006;
+/// Max session count reached — delete an existing session before creating a new one.
+/// NOTE: clawd_proto ClawdError.sessionLimitReached must also use -32007.
+const SESSION_LIMIT_CODE: i32 = -32007;
 
 // ─── Server ──────────────────────────────────────────────────────────────────
 
@@ -121,8 +125,8 @@ pub async fn run(ctx: Arc<AppContext>) -> Result<()> {
 async fn handle_health_check(mut stream: tokio::net::TcpStream, ctx: &AppContext) -> Result<()> {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-    // Consume the request (we don't inspect it — any GET /health is fine).
-    let mut req_buf = vec![0u8; 2048];
+    // Consume the request headers (stack buffer — we don't inspect the body).
+    let mut req_buf = [0u8; 256];
     let _ = stream.read(&mut req_buf).await;
 
     let uptime_secs = ctx.started_at.elapsed().as_secs();
@@ -170,11 +174,12 @@ async fn handle_connection(stream: tokio::net::TcpStream, ctx: Arc<AppContext>) 
     // with "GET " but has an "Upgrade: websocket" header — we detect health checks by
     // looking for paths that don't have WebSocket headers.
     //
-    // Simpler approach: peek for "GET /health" specifically. All other GET requests
-    // (including WebSocket upgrades) fall through to the WS handshake as normal.
+    // Simpler approach: peek for "GET /health " (with trailing space) specifically.
+    // Checking 12 bytes prevents false matches on paths like "GET /health-check".
+    // All other GET requests (including WebSocket upgrades) fall through to the WS handshake.
     let mut peek_buf = [0u8; 12];
     let n = stream.peek(&mut peek_buf).await.unwrap_or(0);
-    if n >= 11 && &peek_buf[..11] == b"GET /health" {
+    if n >= 12 && &peek_buf[..12] == b"GET /health " {
         return handle_health_check(stream, &ctx).await;
     }
 
@@ -372,7 +377,7 @@ fn classify_error(e: &anyhow::Error, _method: &str) -> (i32, String) {
         return (METHOD_NOT_FOUND, "Method not found".to_string());
     }
     if msg.contains("session limit reached") {
-        return (INTERNAL_ERROR, format!("Session limit reached: {msg}"));
+        return (SESSION_LIMIT_CODE, "Session limit reached".to_string());
     }
     if msg.contains("session not found") || msg.contains("SESSION_NOT_FOUND") {
         return (SESSION_NOT_FOUND, "Session not found".to_string());

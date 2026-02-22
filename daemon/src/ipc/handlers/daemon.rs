@@ -9,6 +9,7 @@ pub async fn ping(_params: Value, _ctx: &AppContext) -> Result<Value> {
 pub async fn status(_params: Value, ctx: &AppContext) -> Result<Value> {
     let uptime = ctx.started_at.elapsed().as_secs();
     let active_sessions = ctx.session_manager.active_count().await;
+    let total_sessions = ctx.storage.count_sessions().await.unwrap_or(0);
     let watched_repos = ctx.repo_registry.watched_count().await;
     let pending_update = ctx.updater.pending_update().await.map(|u| u.version);
     Ok(json!({
@@ -16,6 +17,7 @@ pub async fn status(_params: Value, ctx: &AppContext) -> Result<Value> {
         "daemonId": ctx.daemon_id,
         "uptime": uptime,
         "activeSessions": active_sessions,
+        "totalSessions": total_sessions,
         "watchedRepos": watched_repos,
         "port": ctx.config.port,
         "pendingUpdate": pending_update
