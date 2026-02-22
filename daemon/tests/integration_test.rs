@@ -1,8 +1,8 @@
 /// Integration tests for the clawd JSON-RPC server.
 /// Spins up a real daemon on a free port and tests all RPC methods.
 use clawd::{
-    config::DaemonConfig, ipc::event::EventBroadcaster, repo::RepoRegistry,
-    session::SessionManager, storage::Storage, AppContext,
+    account::AccountRegistry, config::DaemonConfig, ipc::event::EventBroadcaster,
+    repo::RepoRegistry, session::SessionManager, storage::Storage, telemetry, update, AppContext,
 };
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
@@ -28,12 +28,27 @@ async fn start_test_daemon() -> (String, Arc<AppContext>) {
         data_dir.clone(),
     ));
 
+    let config_arc = Arc::clone(&config);
+    let account_registry = Arc::new(AccountRegistry::new(storage.clone(), broadcaster.clone()));
+    let updater = Arc::new(update::spawn(config_arc.clone(), broadcaster.clone()));
     let ctx = Arc::new(AppContext {
         config,
         storage,
         broadcaster,
         repo_registry,
         session_manager,
+        daemon_id: "test-daemon-id".to_string(),
+        license: Arc::new(tokio::sync::RwLock::new(
+            clawd::license::LicenseInfo::free(),
+        )),
+        telemetry: Arc::new(telemetry::spawn(
+            config_arc,
+            "test-daemon-id".to_string(),
+            "free".to_string(),
+        )),
+        relay_client: None,
+        account_registry,
+        updater,
         started_at: std::time::Instant::now(),
     });
 

@@ -27,6 +27,25 @@ pub struct MessageRow {
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
+pub struct LicenseCacheRow {
+    pub id: i64,
+    pub tier: String,
+    pub features: String,    // JSON string
+    pub cached_at: String,
+    pub valid_until: String,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct AccountRow {
+    pub id: String,
+    pub name: String,
+    pub provider: String,
+    pub credentials_path: String,
+    pub priority: i64,
+    pub limited_until: Option<String>,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
 pub struct ToolCallRow {
     pub id: String,
     pub message_id: String,
@@ -60,12 +79,15 @@ impl Storage {
     }
 
     async fn migrate(pool: &SqlitePool) -> Result<()> {
-        let sql = include_str!("migrations/001_init.sql");
-        // Execute each statement separately
-        for stmt in sql.split(';') {
-            let stmt = stmt.trim();
-            if !stmt.is_empty() {
-                sqlx::query(stmt).execute(pool).await?;
+        for sql in [
+            include_str!("migrations/001_init.sql"),
+            include_str!("migrations/002_license.sql"),
+        ] {
+            for stmt in sql.split(';') {
+                let stmt = stmt.trim();
+                if !stmt.is_empty() {
+                    sqlx::query(stmt).execute(pool).await?;
+                }
             }
         }
         Ok(())
@@ -283,6 +305,23 @@ impl Storage {
         )
     }
 
+    // ─── Startup recovery ───────────────────────────────────────────────────
+
+    /// On daemon startup, any session left in 'running' or 'waiting' state
+    /// from a previous (crashed/killed) process is marked as 'error'.
+    /// Returns the number of sessions recovered.
+    pub async fn recover_stale_sessions(&self) -> Result<u64> {
+        let now = Utc::now().to_rfc3339();
+        let result = sqlx::query(
+            "UPDATE sessions SET status = 'error', updated_at = ?
+             WHERE status IN ('running', 'waiting')",
+        )
+        .bind(&now)
+        .execute(&self.pool)
+        .await?;
+        Ok(result.rows_affected())
+    }
+
     // ─── Settings ───────────────────────────────────────────────────────────
 
     pub async fn get_setting(&self, key: &str) -> Result<Option<String>> {
@@ -302,6 +341,97 @@ impl Storage {
         .bind(value)
         .execute(&self.pool)
         .await?;
+        Ok(())
+    }
+
+    // ─── License cache ───────────────────────────────────────────────────────
+
+    pub async fn get_license_cache(&self) -> Result<Option<LicenseCacheRow>> {
+        Ok(sqlx::query_as("SELECT * FROM license_cache WHERE id = 1")
+            .fetch_optional(&self.pool)
+            .await?)
+    }
+
+    pub async fn set_license_cache(
+        &self,
+        tier: &str,
+        features: &str,
+        cached_at: &str,
+        valid_until: &str,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO license_cache (id, tier, features, cached_at, valid_until)
+             VALUES (1, ?, ?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET
+               tier = excluded.tier,
+               features = excluded.features,
+               cached_at = excluded.cached_at,
+               valid_until = excluded.valid_until",
+        )
+        .bind(tier)
+        .bind(features)
+        .bind(cached_at)
+        .bind(valid_until)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    // ─── Accounts ────────────────────────────────────────────────────────────
+
+    pub async fn list_accounts(&self) -> Result<Vec<AccountRow>> {
+        Ok(
+            sqlx::query_as("SELECT * FROM accounts ORDER BY priority ASC")
+                .fetch_all(&self.pool)
+                .await?,
+        )
+    }
+
+    pub async fn create_account(
+        &self,
+        name: &str,
+        provider: &str,
+        credentials_path: &str,
+        priority: i64,
+    ) -> Result<AccountRow> {
+        let id = uuid::Uuid::new_v4().to_string();
+        sqlx::query(
+            "INSERT INTO accounts (id, name, provider, credentials_path, priority)
+             VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(&id)
+        .bind(name)
+        .bind(provider)
+        .bind(credentials_path)
+        .bind(priority)
+        .execute(&self.pool)
+        .await?;
+        self.get_account(&id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("account not found after insert"))
+    }
+
+    pub async fn get_account(&self, id: &str) -> Result<Option<AccountRow>> {
+        Ok(sqlx::query_as("SELECT * FROM accounts WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?)
+    }
+
+    pub async fn delete_account(&self, id: &str) -> Result<()> {
+        sqlx::query("DELETE FROM accounts WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn set_account_limited(&self, id: &str, limited_until: Option<&str>) -> Result<()> {
+        sqlx::query("UPDATE accounts SET limited_until = ? WHERE id = ?")
+            .bind(limited_until)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 }

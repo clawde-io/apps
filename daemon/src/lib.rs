@@ -1,16 +1,27 @@
+pub mod account;
 pub mod config;
+pub mod identity;
 pub mod ipc;
+pub mod license;
+pub mod relay;
 pub mod repo;
+pub mod service;
 pub mod session;
 pub mod storage;
+pub mod telemetry;
+pub mod update;
 
 use std::sync::Arc;
 
+use account::AccountRegistry;
 use config::DaemonConfig;
 use ipc::event::EventBroadcaster;
+use license::LicenseInfo;
 use repo::RepoRegistry;
 use session::SessionManager;
 use storage::Storage;
+use telemetry::TelemetrySender;
+use update::Updater;
 
 /// Shared application state passed to every RPC handler and background task.
 #[derive(Clone)]
@@ -21,4 +32,16 @@ pub struct AppContext {
     pub repo_registry: Arc<RepoRegistry>,
     pub session_manager: Arc<SessionManager>,
     pub started_at: std::time::Instant,
+    /// Stable machine identity (SHA-256 of platform hardware ID).
+    pub daemon_id: String,
+    /// Current license tier and feature flags.
+    pub license: Arc<tokio::sync::RwLock<LicenseInfo>>,
+    /// Telemetry event sender (fire-and-forget).
+    pub telemetry: Arc<TelemetrySender>,
+    /// Relay client — Some if Personal Remote tier and relay feature enabled.
+    pub relay_client: Option<Arc<relay::RelayClient>>,
+    /// Multi-account pool manager.
+    pub account_registry: Arc<AccountRegistry>,
+    /// Self-update manager.
+    pub updater: Arc<Updater>,
 }

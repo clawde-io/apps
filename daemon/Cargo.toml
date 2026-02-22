@@ -44,6 +44,15 @@ clap = { version = "4", features = ["derive", "env"] }
 # UUIDs for session/message IDs
 uuid = { version = "1", features = ["v4"] }
 
+# SHA-256 for daemon_id fingerprint
+sha2 = "0.10"
+
+# HTTP client for license verification, telemetry, and auto-update
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+
+# Semver for auto-update version comparison
+semver = "1"
+
 # Timestamps
 chrono = { version = "0.4", features = ["serde"] }
 

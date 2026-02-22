@@ -12,6 +12,7 @@ pub async fn status(_params: Value, ctx: &AppContext) -> Result<Value> {
     let watched_repos = ctx.repo_registry.watched_count();
     Ok(json!({
         "version": env!("CARGO_PKG_VERSION"),
+        "daemonId": ctx.daemon_id,
         "uptime": uptime,
         "activeSessions": active_sessions,
         "watchedRepos": watched_repos,

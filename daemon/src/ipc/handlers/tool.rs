@@ -1,4 +1,4 @@
-use crate::AppContext;
+use crate::{telemetry::TelemetryEvent, AppContext};
 use anyhow::Result;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -16,6 +16,7 @@ pub async fn approve(params: Value, ctx: &AppContext) -> Result<Value> {
     ctx.session_manager
         .approve_tool(&p.session_id, &p.tool_call_id)
         .await?;
+    ctx.telemetry.send(TelemetryEvent::new("tool.approved"));
     Ok(json!({}))
 }
 
@@ -24,5 +25,6 @@ pub async fn reject(params: Value, ctx: &AppContext) -> Result<Value> {
     ctx.session_manager
         .reject_tool(&p.session_id, &p.tool_call_id)
         .await?;
+    ctx.telemetry.send(TelemetryEvent::new("tool.denied"));
     Ok(json!({}))
 }

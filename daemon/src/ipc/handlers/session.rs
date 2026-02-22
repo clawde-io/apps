@@ -1,4 +1,4 @@
-use crate::AppContext;
+use crate::{telemetry::TelemetryEvent, AppContext};
 use anyhow::Result;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -39,6 +39,8 @@ pub async fn create(params: Value, ctx: &AppContext) -> Result<Value> {
         .session_manager
         .create(&p.provider, &p.repo_path, &title)
         .await?;
+    ctx.telemetry
+        .send(TelemetryEvent::new("session.start").with_provider(&p.provider));
     Ok(serde_json::to_value(session)?)
 }
 
@@ -56,6 +58,7 @@ pub async fn get(params: Value, ctx: &AppContext) -> Result<Value> {
 pub async fn delete(params: Value, ctx: &AppContext) -> Result<Value> {
     let p: SessionIdParams = serde_json::from_value(params)?;
     ctx.session_manager.delete(&p.session_id).await?;
+    ctx.telemetry.send(TelemetryEvent::new("session.end"));
     Ok(json!({}))
 }
 
