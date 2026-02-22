@@ -222,22 +222,31 @@ impl Storage {
         limit: i64,
         before: Option<&str>,
     ) -> Result<Vec<MessageRow>> {
-        // The `before` parameter is a message *ID*, not a timestamp.
-        // We resolve it to a timestamp via a subquery so the pagination cursor
-        // works correctly.  Results are always returned in chronological order
-        // (oldest first) for the chat UI to render in the correct direction.
+        // The `before` parameter is a message *ID*.  We use a composite
+        // (created_at, id) cursor to guarantee stable pagination even when
+        // multiple messages share the same timestamp.  Results are always
+        // returned in chronological order (oldest first) for the chat UI.
         let rows = if let Some(msg_id) = before {
-            // Get the last `limit` messages older than the given message ID,
-            // returned in ascending order for display.
+            // Get the last `limit` messages strictly before the cursor,
+            // using (created_at DESC, id DESC) ordering for the inner query
+            // so ties are broken deterministically, then flip to ASC for display.
             sqlx::query_as(
                 "SELECT * FROM (
                      SELECT * FROM messages
                      WHERE session_id = ?
-                       AND created_at < (SELECT created_at FROM messages WHERE id = ?)
-                     ORDER BY created_at DESC LIMIT ?
-                 ) ORDER BY created_at ASC",
+                       AND (
+                           created_at < (SELECT created_at FROM messages WHERE id = ? AND session_id = ?)
+                           OR (
+                               created_at = (SELECT created_at FROM messages WHERE id = ? AND session_id = ?)
+                               AND id < ?
+                           )
+                       )
+                     ORDER BY created_at DESC, id DESC LIMIT ?
+                 ) ORDER BY created_at ASC, id ASC",
             )
             .bind(session_id)
+            .bind(msg_id).bind(session_id)
+            .bind(msg_id).bind(session_id)
             .bind(msg_id)
             .bind(limit)
             .fetch_all(&self.pool)
@@ -248,8 +257,8 @@ impl Storage {
             sqlx::query_as(
                 "SELECT * FROM (
                      SELECT * FROM messages WHERE session_id = ?
-                     ORDER BY created_at DESC LIMIT ?
-                 ) ORDER BY created_at ASC",
+                     ORDER BY created_at DESC, id DESC LIMIT ?
+                 ) ORDER BY created_at ASC, id ASC",
             )
             .bind(session_id)
             .bind(limit)
@@ -322,19 +331,34 @@ impl Storage {
 
     // ─── Startup recovery ───────────────────────────────────────────────────
 
-    /// On daemon startup, any session left in 'running' or 'waiting' state
-    /// from a previous (crashed/killed) process is marked as 'error'.
-    /// Returns the number of sessions recovered.
+    /// On daemon startup, any session left in a transient state from a
+    /// previous (crashed/killed) process is recovered:
+    ///
+    /// - 'running' / 'waiting' → 'error'  (turn was in progress; lost)
+    /// - 'paused' → 'idle'                (runner is gone; allow new message)
+    ///
+    /// Returns the total number of sessions recovered.
     pub async fn recover_stale_sessions(&self) -> Result<u64> {
         let now = Utc::now().to_rfc3339();
-        let result = sqlx::query(
+        let crashed = sqlx::query(
             "UPDATE sessions SET status = 'error', updated_at = ?
              WHERE status IN ('running', 'waiting')",
         )
         .bind(&now)
         .execute(&self.pool)
-        .await?;
-        Ok(result.rows_affected())
+        .await?
+        .rows_affected();
+
+        let paused = sqlx::query(
+            "UPDATE sessions SET status = 'idle', updated_at = ?
+             WHERE status = 'paused'",
+        )
+        .bind(&now)
+        .execute(&self.pool)
+        .await?
+        .rows_affected();
+
+        Ok(crashed + paused)
     }
 
     // ─── Settings ───────────────────────────────────────────────────────────

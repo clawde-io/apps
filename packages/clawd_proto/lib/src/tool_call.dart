@@ -1,6 +1,8 @@
 /// Tool call and result types for clawd sessions.
 library;
 
+import 'dart:convert';
+
 enum ToolCallStatus { pending, running, completed, error }
 
 class ToolCall {
@@ -42,12 +44,22 @@ class ToolCall {
   static ToolCallStatus _parseStatus(String s) {
     // Daemon uses "done" for completed tool calls; map to completed.
     if (s == 'done') return ToolCallStatus.completed;
-    return ToolCallStatus.values.byName(s);
+    try {
+      return ToolCallStatus.values.byName(s);
+    } catch (_) {
+      return ToolCallStatus.error;
+    }
   }
 
   static Map<String, dynamic> _parseInput(dynamic raw) {
     if (raw is Map<String, dynamic>) return raw;
     // Daemon may store input as a JSON string (from serde_json::to_string).
+    if (raw is String && raw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map<String, dynamic>) return decoded;
+      } catch (_) {}
+    }
     return const {};
   }
 }

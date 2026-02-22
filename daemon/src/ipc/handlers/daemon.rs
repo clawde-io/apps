@@ -9,7 +9,7 @@ pub async fn ping(_params: Value, _ctx: &AppContext) -> Result<Value> {
 pub async fn status(_params: Value, ctx: &AppContext) -> Result<Value> {
     let uptime = ctx.started_at.elapsed().as_secs();
     let active_sessions = ctx.session_manager.active_count().await;
-    let watched_repos = ctx.repo_registry.watched_count();
+    let watched_repos = ctx.repo_registry.watched_count().await;
     let pending_update = ctx.updater.pending_update().await.map(|u| u.version);
     Ok(json!({
         "version": env!("CARGO_PKG_VERSION"),
@@ -32,6 +32,15 @@ pub async fn check_update(_params: Value, ctx: &AppContext) -> Result<Value> {
 }
 
 pub async fn apply_update(_params: Value, ctx: &AppContext) -> Result<Value> {
+    // Refuse to apply an update while sessions are active to avoid interrupting
+    // in-flight AI turns.  The Flutter UI should check activeSessions first.
+    let active = ctx.session_manager.active_count().await;
+    if active > 0 {
+        return Err(anyhow::anyhow!(
+            "SESSION_BUSY: {} active session(s) — wait for them to finish before updating",
+            active
+        ));
+    }
     let applied = ctx.updater.apply_if_ready().await?;
     Ok(json!({ "applied": applied }))
 }

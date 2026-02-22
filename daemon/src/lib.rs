@@ -41,8 +41,6 @@ pub struct AppContext {
     pub license: Arc<tokio::sync::RwLock<LicenseInfo>>,
     /// Telemetry event sender (fire-and-forget).
     pub telemetry: Arc<TelemetrySender>,
-    /// Relay client — Some if Personal Remote tier and relay feature enabled.
-    pub relay_client: Option<Arc<relay::RelayClient>>,
     /// Multi-account pool manager.
     pub account_registry: Arc<AccountRegistry>,
     /// Self-update manager.

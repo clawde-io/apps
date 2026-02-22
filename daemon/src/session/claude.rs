@@ -138,6 +138,11 @@ impl ClaudeCodeRunner {
     /// Callers must run this inside `tokio::spawn` — it blocks until the
     /// turn completes (i.e., the claude process exits).
     pub async fn run_turn(&self, content: &str) -> Result<()> {
+        // Reset from any prior stop() call so the event_loop safety net
+        // works correctly if this runner is reused for a subsequent turn.
+        self.cancelled
+            .store(false, std::sync::atomic::Ordering::Release);
+
         let claude_sid = self.claude_session_id.read().await.clone();
 
         // Pick the best available account for this turn.
@@ -332,6 +337,9 @@ impl ClaudeCodeRunner {
                     let tool_msg = self
                         .storage
                         .create_message(&self.session_id, "tool", "", "done")
+                        .await?;
+                    self.storage
+                        .increment_message_count(&self.session_id)
                         .await?;
                     let input_str = serde_json::to_string(&input).unwrap_or_default();
                     let tool_call = self

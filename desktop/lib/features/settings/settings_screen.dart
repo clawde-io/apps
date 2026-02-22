@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:clawd_core/clawd_core.dart';
 import 'package:clawd_proto/clawd_proto.dart';
 import 'package:clawd_ui/clawd_ui.dart';
@@ -606,14 +607,16 @@ class _AboutPaneState extends State<_AboutPane> {
               const SizedBox(height: 8),
               const _Row2('License', 'MIT'),
               const SizedBox(height: 8),
-              const _Row2('Source', 'github.com/clawde-io/clawde'),
+              const _Row2('Source', 'github.com/clawde-io/apps'),
             ],
           ),
         ),
         const SizedBox(height: 16),
         InkWell(
-          onTap: () => Clipboard.setData(const ClipboardData(
-              text: 'https://github.com/clawde-io/clawde')),
+          onTap: () => launchUrl(
+            Uri.parse('https://github.com/clawde-io/apps'),
+            mode: LaunchMode.externalApplication,
+          ),
           borderRadius: BorderRadius.circular(8),
           child: Container(
             padding:
@@ -634,13 +637,13 @@ class _AboutPaneState extends State<_AboutPane> {
                       Text('View on GitHub',
                           style: TextStyle(
                               fontSize: 13, color: Colors.white)),
-                      Text('github.com/clawde-io/clawde',
+                      Text('github.com/clawde-io/apps',
                           style: TextStyle(
                               fontSize: 11, color: Colors.white38)),
                     ],
                   ),
                 ),
-                Icon(Icons.copy, size: 14, color: Colors.white38),
+                Icon(Icons.open_in_new, size: 14, color: Colors.white38),
               ],
             ),
           ),

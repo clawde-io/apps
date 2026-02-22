@@ -115,6 +115,11 @@ impl SessionManager {
     }
 
     pub async fn delete(&self, session_id: &str) -> Result<()> {
+        // Validate session exists before deleting.
+        self.storage
+            .get_session(session_id)
+            .await?
+            .context("SESSION_NOT_FOUND")?;
         // Stop runner if active
         if let Some(handle) = self.handles.write().await.remove(session_id) {
             let _ = handle.runner.stop().await;
@@ -125,6 +130,11 @@ impl SessionManager {
     }
 
     pub async fn pause(&self, session_id: &str) -> Result<()> {
+        // Validate session exists before modifying status.
+        self.storage
+            .get_session(session_id)
+            .await?
+            .context("SESSION_NOT_FOUND")?;
         self.storage
             .update_session_status(session_id, "paused")
             .await?;
@@ -146,7 +156,11 @@ impl SessionManager {
             .get_session(session_id)
             .await?
             .context("SESSION_NOT_FOUND")?;
-        let new_status = if session.status == "paused" {
+        // Only return to "running" if a subprocess is actually active.
+        // A paused session with no live runner (e.g. paused then restarted)
+        // goes back to "idle" so the client knows it can send a new message.
+        let has_runner = self.handles.read().await.contains_key(session_id);
+        let new_status = if session.status == "paused" && has_runner {
             "running"
         } else {
             "idle"
@@ -176,7 +190,7 @@ impl SessionManager {
             .await?
             .context("SESSION_NOT_FOUND")?;
 
-        if let Some(handle) = self.handles.read().await.get(session_id) {
+        if let Some(handle) = self.handles.write().await.remove(session_id) {
             let _ = handle.runner.stop().await;
         }
 
@@ -282,6 +296,11 @@ impl SessionManager {
         limit: i64,
         before: Option<&str>,
     ) -> Result<Vec<MessageView>> {
+        // Validate session exists before querying messages.
+        self.storage
+            .get_session(session_id)
+            .await?
+            .context("SESSION_NOT_FOUND")?;
         let rows = self
             .storage
             .list_messages(session_id, limit, before)

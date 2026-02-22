@@ -41,10 +41,11 @@ struct RpcError {
 // ─── Error codes — must match ClawdError in clawd_proto/lib/src/rpc.dart ────
 //
 // sessionNotFound      = -32001
-// providerNotAvailable = -32002  (session busy or paused — use error message to distinguish)
+// providerNotAvailable = -32002  (session busy — a turn is in progress)
 // rateLimited          = -32003  (rate-limit from AI provider, not user-initiated)
 // unauthorized         = -32004
 // repoNotFound         = -32005
+// sessionPaused        = -32006  (session is paused — call session.resume first)
 
 const PARSE_ERROR: i32 = -32700;
 const INVALID_REQUEST: i32 = -32600;
@@ -57,7 +58,7 @@ const REPO_NOT_FOUND: i32 = -32005;
 /// Session is currently running — cannot accept a new message turn.
 const SESSION_BUSY: i32 = -32002;
 /// Session is paused — must call session.resume before sending messages.
-const SESSION_PAUSED_CODE: i32 = -32002;
+const SESSION_PAUSED_CODE: i32 = -32006;
 
 // ─── Server ──────────────────────────────────────────────────────────────────
 
@@ -253,7 +254,7 @@ async fn handle_connection(stream: tokio::net::TcpStream, ctx: Arc<AppContext>) 
     Ok(())
 }
 
-async fn dispatch_text(text: &str, ctx: &AppContext) -> String {
+pub(crate) async fn dispatch_text(text: &str, ctx: &AppContext) -> String {
     // Parse
     let req: RpcRequest = match serde_json::from_str(text) {
         Ok(r) => r,

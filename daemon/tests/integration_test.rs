@@ -44,7 +44,6 @@ async fn start_test_daemon() -> (String, Arc<AppContext>) {
             "test-daemon-id".to_string(),
             "free".to_string(),
         )),
-        relay_client: None,
         account_registry,
         updater,
         started_at: std::time::Instant::now(),

@@ -27,7 +27,11 @@ class HostsScreen extends ConsumerWidget {
       ),
       body: hostsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => ErrorState(
+          icon: Icons.wifi_off,
+          title: 'Failed to load hosts',
+          description: e.toString(),
+        ),
         data: (hosts) {
           if (hosts.isEmpty) {
             return const Center(

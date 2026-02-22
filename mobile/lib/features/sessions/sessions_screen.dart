@@ -42,7 +42,12 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
       ),
       body: sessionsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => ErrorState(
+          icon: Icons.error_outline,
+          title: 'Failed to load sessions',
+          description: e.toString(),
+          onRetry: _refresh,
+        ),
         data: (list) {
           final visible = _applyFilter(list);
           return RefreshIndicator(
@@ -165,8 +170,15 @@ class _SwipeableSessionTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(sessionListProvider.notifier);
 
+    // Completed/error sessions cannot be paused — disable right swipe.
+    final canPauseResume = session.status == SessionStatus.running ||
+        session.status == SessionStatus.paused;
+
     return Dismissible(
       key: ValueKey(session.id),
+      direction: canPauseResume
+          ? DismissDirection.horizontal
+          : DismissDirection.endToStart,
       // Right swipe = pause / resume
       background: Container(
         color: session.status == SessionStatus.running

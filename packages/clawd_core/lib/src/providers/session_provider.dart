@@ -24,7 +24,12 @@ class SessionListNotifier extends AsyncNotifier<List<Session>> {
           final id = params?['sessionId'] as String?;
           final rawStatus = params?['status'] as String?;
           if (id != null && rawStatus != null) {
-            final newStatus = SessionStatus.values.byName(rawStatus);
+            final SessionStatus newStatus;
+            try {
+              newStatus = SessionStatus.values.byName(rawStatus);
+            } catch (_) {
+              return; // Unknown status — skip optimistic update
+            }
             final current = state.valueOrNull;
             if (current != null) {
               state = AsyncValue.data(current
@@ -88,6 +93,12 @@ class SessionListNotifier extends AsyncNotifier<List<Session>> {
     await refresh();
   }
 
+  Future<void> cancel(String sessionId) async {
+    final client = ref.read(daemonProvider.notifier).client;
+    await client.call<void>('session.cancel', {'sessionId': sessionId});
+    await refresh();
+  }
+
   Future<void> delete(String sessionId) async {
     final client = ref.read(daemonProvider.notifier).client;
     await client.call<void>('session.delete', {'sessionId': sessionId});
@@ -97,12 +108,12 @@ class SessionListNotifier extends AsyncNotifier<List<Session>> {
   Session _patchStatus(Session s, SessionStatus newStatus) => Session(
         id: s.id,
         repoPath: s.repoPath,
+        title: s.title,
         provider: s.provider,
         status: newStatus,
         createdAt: s.createdAt,
-        startedAt: s.startedAt,
-        endedAt: s.endedAt,
-        metadata: s.metadata,
+        updatedAt: s.updatedAt,
+        messageCount: s.messageCount,
       );
 }
 

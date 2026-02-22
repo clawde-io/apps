@@ -44,6 +44,9 @@ dependencies:
   # App version
   package_info_plus: ^8.1.2
 
+  # Open URLs in browser (GitHub links, release notes)
+  url_launcher: ^6.3.1
+
   # QR code display (Connection settings — scan from mobile)
   qr_flutter: ^4.1.0
 

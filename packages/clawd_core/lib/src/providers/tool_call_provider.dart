@@ -16,6 +16,10 @@ class ToolCallNotifier
         final params = event['params'] as Map<String, dynamic>?;
         if (params == null) return;
 
+        // Guard: only process events for this session.
+        final evtSessionId = params['sessionId'] as String?;
+        if (evtSessionId != arg) return;
+
         if (method == 'session.toolCallCreated') {
           // sessionId is in outer params; toolCall sub-object lacks it.
           final tcJson = params['toolCall'] as Map<String, dynamic>?;
@@ -47,15 +51,23 @@ class ToolCallNotifier
       state = AsyncValue.data(
         calls.map((tc) {
           if (tc.id != tcId) return tc;
+          ToolCallStatus parsedStatus;
+          if (status == 'done') {
+            parsedStatus = ToolCallStatus.completed;
+          } else {
+            try {
+              parsedStatus = ToolCallStatus.values.byName(status);
+            } catch (_) {
+              parsedStatus = ToolCallStatus.error;
+            }
+          }
           return ToolCall(
             id: tc.id,
             sessionId: tc.sessionId,
             messageId: tc.messageId,
             toolName: tc.toolName,
             input: tc.input,
-            status: status == 'done'
-                ? ToolCallStatus.completed
-                : ToolCallStatus.values.byName(status),
+            status: parsedStatus,
             createdAt: tc.createdAt,
             completedAt: tc.completedAt,
           );

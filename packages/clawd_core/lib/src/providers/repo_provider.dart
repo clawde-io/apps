@@ -51,7 +51,7 @@ class RepoNotifier extends AsyncNotifier<RepoState> {
       final client = ref.read(daemonProvider.notifier).client;
       final result = await client.call<Map<String, dynamic>>(
         'repo.open',
-        {'path': repoPath},
+        {'repoPath': repoPath},
       );
       final repoStatus = RepoStatus.fromJson(result);
       state = AsyncValue.data(RepoState(
@@ -73,7 +73,7 @@ class RepoNotifier extends AsyncNotifier<RepoState> {
       final client = ref.read(daemonProvider.notifier).client;
       final result = await client.call<Map<String, dynamic>>(
         'repo.status',
-        {'path': currentPath},
+        {'repoPath': currentPath},
       );
       final repoStatus = RepoStatus.fromJson(result);
       state = AsyncValue.data(RepoState(
@@ -85,18 +85,10 @@ class RepoNotifier extends AsyncNotifier<RepoState> {
     }
   }
 
-  /// Close the active repository — stops the file watcher.
+  /// Clear the active repository state. The daemon has no repo.close method —
+  /// the repo watcher stops automatically when the session ends.
   Future<void> close() async {
-    final currentPath = state.valueOrNull?.currentPath;
-    if (currentPath == null) return;
-    try {
-      final client = ref.read(daemonProvider.notifier).client;
-      await client.call<void>('repo.close', {'path': currentPath});
-    } catch (_) {
-      // Best-effort
-    } finally {
-      state = const AsyncValue.data(RepoState());
-    }
+    state = const AsyncValue.data(RepoState());
   }
 
   /// Get full diff of all unstaged changes in the active repo.
@@ -104,7 +96,7 @@ class RepoNotifier extends AsyncNotifier<RepoState> {
     final currentPath = state.valueOrNull?.currentPath;
     if (currentPath == null) throw StateError('No repository open');
     final client = ref.read(daemonProvider.notifier).client;
-    return await client.call<String>('repo.diff', {'path': currentPath});
+    return await client.call<String>('repo.diff', {'repoPath': currentPath});
   }
 
   /// Get diff for a single file. Pass [staged] = true for staged changes.
@@ -113,8 +105,8 @@ class RepoNotifier extends AsyncNotifier<RepoState> {
     if (currentPath == null) throw StateError('No repository open');
     final client = ref.read(daemonProvider.notifier).client;
     return await client.call<String>('repo.fileDiff', {
-      'path': currentPath,
-      'file': filePath,
+      'repoPath': currentPath,
+      'path': filePath,
       'staged': staged,
     });
   }

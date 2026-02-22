@@ -24,7 +24,11 @@ class SettingsScreen extends ConsumerWidget {
           ),
           ListTile(
             title: const Text('Connection'),
-            subtitle: const Text('clawd on localhost:4300'),
+            subtitle: Text(
+              ref.watch(settingsProvider).valueOrNull?.daemonUrl ??
+                  'ws://127.0.0.1:4300',
+              style: const TextStyle(fontSize: 12),
+            ),
             trailing: const ConnectionStatusIndicator(),
             onTap: () => ref.read(daemonProvider.notifier).reconnect(),
           ),

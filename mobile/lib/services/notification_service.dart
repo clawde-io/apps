@@ -74,8 +74,8 @@ class NotificationService {
     int count,
   ) async {
     // Only notify when in background (approximated by lifecycle state).
-    if (WidgetsBinding.instance.lifecycleState ==
-        AppLifecycleState.resumed) {
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (lifecycle == null || lifecycle == AppLifecycleState.resumed) {
       return;
     }
     final id = _toolCallIdBase + sessionId.hashCode.abs() % 900;
@@ -94,8 +94,8 @@ class NotificationService {
     String sessionName,
     String error,
   ) async {
-    if (WidgetsBinding.instance.lifecycleState ==
-        AppLifecycleState.resumed) {
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (lifecycle == null || lifecycle == AppLifecycleState.resumed) {
       return;
     }
     final id = _sessionErrorIdBase + sessionId.hashCode.abs() % 900;
@@ -113,8 +113,8 @@ class NotificationService {
     String sessionId,
     String sessionName,
   ) async {
-    if (WidgetsBinding.instance.lifecycleState ==
-        AppLifecycleState.resumed) {
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (lifecycle == null || lifecycle == AppLifecycleState.resumed) {
       return;
     }
     final id = _sessionCompleteIdBase + sessionId.hashCode.abs() % 900;

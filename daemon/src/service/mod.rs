@@ -212,12 +212,15 @@ fn linux_status() -> Result<()> {
 // ─── Windows (sc.exe / Windows Service) ──────────────────────────────────────
 
 #[cfg(target_os = "windows")]
+const WINDOWS_SERVICE_NAME: &str = "clawd";
+
+#[cfg(target_os = "windows")]
 fn windows_install(exe: &std::path::Path) -> Result<()> {
     run_cmd(
         "sc",
         &[
             "create",
-            "clawd",
+            WINDOWS_SERVICE_NAME,
             "binPath=",
             &format!("{} serve", exe.display()),
             "start=",
@@ -226,15 +229,15 @@ fn windows_install(exe: &std::path::Path) -> Result<()> {
             "ClawDE Host Daemon",
         ],
     )?;
-    run_cmd("sc", &["start", "clawd"])?;
+    run_cmd("sc", &["start", WINDOWS_SERVICE_NAME])?;
     println!("clawd installed and started (Windows Service).");
     Ok(())
 }
 
 #[cfg(target_os = "windows")]
 fn windows_uninstall() -> Result<()> {
-    let _ = run_cmd("sc", &["stop", "clawd"]);
-    run_cmd("sc", &["delete", "clawd"])?;
+    let _ = run_cmd("sc", &["stop", WINDOWS_SERVICE_NAME]);
+    run_cmd("sc", &["delete", WINDOWS_SERVICE_NAME])?;
     println!("clawd uninstalled.");
     Ok(())
 }
@@ -242,7 +245,7 @@ fn windows_uninstall() -> Result<()> {
 #[cfg(target_os = "windows")]
 fn windows_status() -> Result<()> {
     let out = std::process::Command::new("sc")
-        .args(["query", "clawd"])
+        .args(["query", WINDOWS_SERVICE_NAME])
         .output()?;
     println!("{}", String::from_utf8_lossy(&out.stdout));
     Ok(())

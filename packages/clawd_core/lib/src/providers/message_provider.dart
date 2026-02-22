@@ -13,12 +13,24 @@ class MessageListNotifier
 
   @override
   Future<List<Message>> build(String sessionId) async {
+    // Drain pending queue when daemon reconnects. Registered once in build()
+    // so Riverpod tracks and cancels it; do NOT register inside send().
+    ref.listen(daemonProvider, (prev, next) {
+      if (!next.isConnected) return;
+      if (prev?.isConnected == true) return;
+      _drainQueue();
+    });
+
     ref.listen(daemonPushEventsProvider, (_, next) {
       next.whenData((event) {
         final method = event['method'] as String?;
         if (method == null) return;
         final params = event['params'] as Map<String, dynamic>?;
         if (params == null) return;
+
+        // Guard: only process events for this session.
+        final evtSessionId = params['sessionId'] as String?;
+        if (evtSessionId != arg) return;
 
         if (method == 'session.messageCreated') {
           final msgJson = params['message'] as Map<String, dynamic>?;
@@ -119,12 +131,7 @@ class MessageListNotifier
         createdAt: DateTime.now(),
         metadata: const {},
       ));
-      // When daemon reconnects, drain the queue.
-      ref.listen(daemonProvider, (prev, next) {
-        if (!next.isConnected) return;
-        if (prev?.isConnected == true) return; // already connected — skip
-        _drainQueue();
-      });
+      // Drain listener is registered once in build() — no extra listener here.
       return;
     }
     final client = ref.read(daemonProvider.notifier).client;

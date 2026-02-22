@@ -7,6 +7,7 @@ import 'package:clawd_ui/clawd_ui.dart';
 import 'package:clawde_mobile/features/sessions/sessions_screen.dart';
 import 'package:clawde_mobile/features/session_detail/session_detail_screen.dart';
 import 'package:clawde_mobile/features/hosts/hosts_screen.dart';
+import 'package:clawde_mobile/features/hosts/host_provider.dart';
 import 'package:clawde_mobile/features/settings/settings_screen.dart';
 import 'package:clawde_mobile/services/notification_service.dart';
 
@@ -74,6 +75,8 @@ class _MobileShellState extends ConsumerState<_MobileShell> {
     // MN-01: Request permissions after first frame.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NotificationService.instance.requestPermissions();
+      // FA-C2: Restore active daemon host so the right URL is used from first connect.
+      _restoreActiveHost();
       // SH-05: Restore last active session.
       _restoreLastSession();
     });
@@ -82,6 +85,19 @@ class _MobileShellState extends ConsumerState<_MobileShell> {
       _router.go('/session/$sessionId');
       _persistLastSession(sessionId);
     };
+  }
+
+  /// FA-C2: Restore the previously active daemon host on cold start.
+  /// Reads the persisted host ID, finds the host, and reconnects to it.
+  Future<void> _restoreActiveHost() async {
+    final hostId = await ref.read(persistedActiveHostProvider.future);
+    if (hostId == null || !mounted) return;
+    final hosts = await ref.read(hostListProvider.future);
+    final host = hosts.where((h) => h.id == hostId).firstOrNull;
+    if (host != null && mounted) {
+      ref.read(activeHostIdProvider.notifier).state = host.id;
+      await ref.read(settingsProvider.notifier).setDaemonUrl(host.url);
+    }
   }
 
   /// SH-05: Navigate to the last active session on app restart.

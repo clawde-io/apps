@@ -136,11 +136,6 @@ async fn run_server(port: u16, data_dir: Option<std::path::PathBuf>, log: String
 
     let telemetry = Arc::new(telemetry::spawn(config.clone(), daemon_id.clone(), tier));
 
-    let relay_client = {
-        let lic = license.read().await;
-        relay::spawn_if_enabled(config.clone(), &lic, daemon_id.clone(), broadcaster.clone()).await
-    };
-
     let account_registry = Arc::new(AccountRegistry::new(storage.clone(), broadcaster.clone()));
     let updater = Arc::new(update::spawn(config.clone(), broadcaster.clone()));
 
@@ -156,20 +151,26 @@ async fn run_server(port: u16, data_dir: Option<std::path::PathBuf>, log: String
     };
 
     let ctx = Arc::new(AppContext {
-        config,
+        config: config.clone(),
         storage,
-        broadcaster,
+        broadcaster: broadcaster.clone(),
         repo_registry,
         session_manager,
-        daemon_id,
-        license,
+        daemon_id: daemon_id.clone(),
+        license: license.clone(),
         telemetry,
-        relay_client,
         account_registry,
         updater,
         auth_token,
         started_at: std::time::Instant::now(),
     });
+
+    // Spawn relay AFTER ctx is built so it can dispatch inbound RPC frames
+    // through the full IPC handler and forward push events to remote clients.
+    {
+        let lic = license.read().await;
+        relay::spawn_if_enabled(config, &lic, daemon_id, ctx.clone()).await;
+    }
 
     clawd::ipc::run(ctx).await
 }

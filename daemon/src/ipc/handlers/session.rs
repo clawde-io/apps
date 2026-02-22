@@ -73,9 +73,10 @@ pub async fn send_message(params: Value, ctx: &AppContext) -> Result<Value> {
 
 pub async fn get_messages(params: Value, ctx: &AppContext) -> Result<Value> {
     let p: GetMessagesParams = serde_json::from_value(params)?;
+    let limit = p.limit.unwrap_or(50).min(200); // cap at 200 to prevent DoS
     let messages = ctx
         .session_manager
-        .get_messages(&p.session_id, p.limit.unwrap_or(50), p.before.as_deref())
+        .get_messages(&p.session_id, limit, p.before.as_deref())
         .await?;
     Ok(json!(messages))
 }

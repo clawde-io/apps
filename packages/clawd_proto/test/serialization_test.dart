@@ -10,35 +10,38 @@ void main() {
     final baseJson = {
       'id': 'sess-1',
       'repoPath': '/home/user/myapp',
+      'title': 'My Session',
       'provider': 'claude',
       'status': 'running',
       'createdAt': '2024-01-15T10:00:00.000Z',
-      'startedAt': '2024-01-15T10:00:01.000Z',
-      'endedAt': null,
-      'metadata': <String, dynamic>{},
+      'updatedAt': '2024-01-15T10:00:01.000Z',
+      'messageCount': 3,
     };
 
     test('parses required fields', () {
       final s = Session.fromJson(baseJson);
       expect(s.id, 'sess-1');
       expect(s.repoPath, '/home/user/myapp');
+      expect(s.title, 'My Session');
       expect(s.provider, ProviderType.claude);
       expect(s.status, SessionStatus.running);
+      expect(s.messageCount, 3);
     });
 
-    test('parses optional fields when present', () {
+    test('parses timestamps', () {
       final s = Session.fromJson(baseJson);
-      expect(s.startedAt, isNotNull);
-      expect(s.endedAt, isNull);
+      expect(s.createdAt, DateTime.parse('2024-01-15T10:00:00.000Z'));
+      expect(s.updatedAt, DateTime.parse('2024-01-15T10:00:01.000Z'));
     });
 
-    test('null optional fields become null', () {
-      final json = Map<String, dynamic>.from(baseJson)
-        ..['startedAt'] = null
-        ..['endedAt'] = null;
-      final s = Session.fromJson(json);
-      expect(s.startedAt, isNull);
-      expect(s.endedAt, isNull);
+    test('title defaults to empty when absent', () {
+      final json = Map<String, dynamic>.from(baseJson)..remove('title');
+      expect(Session.fromJson(json).title, '');
+    });
+
+    test('messageCount defaults to 0 when absent', () {
+      final json = Map<String, dynamic>.from(baseJson)..remove('messageCount');
+      expect(Session.fromJson(json).messageCount, 0);
     });
 
     test('all SessionStatus values parse', () {
@@ -49,6 +52,12 @@ void main() {
       }
     });
 
+    test('unknown status falls back to idle', () {
+      final json = Map<String, dynamic>.from(baseJson)
+        ..['status'] = 'unknown_future_status';
+      expect(Session.fromJson(json).status, SessionStatus.idle);
+    });
+
     test('all ProviderType values parse', () {
       for (final provider in ProviderType.values) {
         final json = Map<String, dynamic>.from(baseJson)
@@ -57,10 +66,10 @@ void main() {
       }
     });
 
-    test('metadata defaults to empty when absent', () {
-      final json = Map<String, dynamic>.from(baseJson)..remove('metadata');
-      final s = Session.fromJson(json);
-      expect(s.metadata, isEmpty);
+    test('unknown provider falls back to claude', () {
+      final json = Map<String, dynamic>.from(baseJson)
+        ..['provider'] = 'unknown_provider';
+      expect(Session.fromJson(json).provider, ProviderType.claude);
     });
   });
 

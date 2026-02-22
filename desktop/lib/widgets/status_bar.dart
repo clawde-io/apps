@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:clawd_core/clawd_core.dart';
 import 'package:clawd_proto/clawd_proto.dart';
 import 'package:clawd_ui/clawd_ui.dart';
 import 'package:clawde/features/repo/repo_context_provider.dart';
+
+final _appVersionProvider = FutureProvider<String>((ref) async {
+  final info = await PackageInfo.fromPlatform();
+  return 'v${info.version}';
+});
 
 /// Thin 28px status bar at the bottom of the app window.
 /// Shows daemon connection status, active session count, and app version.
@@ -18,6 +24,7 @@ class StatusBar extends ConsumerWidget {
         sessions.where((s) => s.status == SessionStatus.running).length;
     final repoAsync = ref.watch(activeRepoStatusProvider);
     final repo = repoAsync.valueOrNull;
+    final version = ref.watch(_appVersionProvider).valueOrNull ?? 'v…';
 
     return Container(
       height: 28,
@@ -83,7 +90,7 @@ class StatusBar extends ConsumerWidget {
           const SizedBox(width: 16),
           // Version
           Text(
-            'v0.1.0',
+            version,
             style: TextStyle(
               fontSize: 11,
               color: Colors.white.withValues(alpha: 0.4),

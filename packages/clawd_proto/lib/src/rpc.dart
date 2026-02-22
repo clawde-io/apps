@@ -69,4 +69,5 @@ abstract final class ClawdError {
   static const int rateLimited = -32003;
   static const int unauthorized = -32004;
   static const int repoNotFound = -32005;
+  static const int sessionPaused = -32006;
 }

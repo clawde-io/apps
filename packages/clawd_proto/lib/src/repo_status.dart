@@ -2,40 +2,54 @@
 library;
 
 class RepoStatus {
-  final String path;
+  final String repoPath;
   final String? branch;
-  final bool isDirty;
-  final int aheadBy;
-  final int behindBy;
+  final int ahead;
+  final int behind;
+  final bool hasConflicts;
+  final String? lastUpdated;
   final List<FileStatus> files;
 
   const RepoStatus({
-    required this.path,
+    required this.repoPath,
     this.branch,
-    required this.isDirty,
-    required this.aheadBy,
-    required this.behindBy,
+    required this.ahead,
+    required this.behind,
+    required this.hasConflicts,
+    this.lastUpdated,
     required this.files,
   });
 
   factory RepoStatus.fromJson(Map<String, dynamic> json) => RepoStatus(
-        path: json['path'] as String,
+        repoPath: json['repoPath'] as String,
         branch: json['branch'] as String?,
-        isDirty: json['is_dirty'] as bool,
-        aheadBy: json['ahead_by'] as int,
-        behindBy: json['behind_by'] as int,
+        ahead: json['ahead'] as int,
+        behind: json['behind'] as int,
+        hasConflicts: json['hasConflicts'] as bool? ?? false,
+        lastUpdated: json['lastUpdated'] as String?,
         files: (json['files'] as List<dynamic>)
             .map((f) => FileStatus.fromJson(f as Map<String, dynamic>))
             .toList(),
       );
 }
 
-enum FileState { untracked, modified, staged, deleted, renamed, conflicted }
+/// Matches the daemon's FileStatusKind enum (serde lowercase).
+enum FileState {
+  clean,
+  modified,
+  staged,
+  deleted,
+  untracked,
+  conflict;
+
+  static FileState fromString(String s) =>
+      FileState.values.asNameMap()[s] ?? FileState.untracked;
+}
 
 class FileStatus {
   final String path;
   final FileState state;
-  final String? oldPath; // for renames
+  final String? oldPath;
 
   const FileStatus({
     required this.path,
@@ -45,7 +59,8 @@ class FileStatus {
 
   factory FileStatus.fromJson(Map<String, dynamic> json) => FileStatus(
         path: json['path'] as String,
-        state: FileState.values.byName(json['state'] as String),
-        oldPath: json['old_path'] as String?,
+        // Daemon sends 'status' key with lowercase enum value (e.g. "modified")
+        state: FileState.fromString(json['status'] as String? ?? 'untracked'),
+        oldPath: json['oldPath'] as String?,
       );
 }

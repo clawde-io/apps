@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:clawde/app.dart';
 import 'package:clawde/services/daemon_manager.dart';
+import 'package:clawde/services/snackbar_service.dart';
 import 'package:clawde/services/updater_service.dart';
 import 'package:clawd_core/clawd_core.dart';
 
@@ -42,6 +43,15 @@ void main() async {
     ],
     child: const ClawDEApp(),
   ));
+
+  // FA-H1: Show error banner if the bundled daemon failed to start.
+  if (DaemonManager.instance.startFailed) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      SnackbarService.instance.showError(
+        'clawd daemon failed to start. Sessions will not be available.',
+      );
+    });
+  }
 }
 
 class _AppWindowListener extends WindowListener {

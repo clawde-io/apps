@@ -4,11 +4,8 @@ pub mod watcher;
 use crate::ipc::event::EventBroadcaster;
 use anyhow::{Context, Result};
 use git2::Repository;
-use std::{
-    collections::HashMap,
-    path::PathBuf,
-    sync::{Arc, RwLock},
-};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use tokio::sync::RwLock;
 use tracing::info;
 
 use git::{FileDiff, RepoStatus};
@@ -36,8 +33,8 @@ impl RepoRegistry {
         }
     }
 
-    pub fn watched_count(&self) -> usize {
-        self.repos.read().unwrap().len()
+    pub async fn watched_count(&self) -> usize {
+        self.repos.read().await.len()
     }
 
     /// Register a repo path, start watching it, return its current status.
@@ -48,9 +45,9 @@ impl RepoRegistry {
 
         // Already registered?
         {
-            let repos = self.repos.read().unwrap();
+            let repos = self.repos.read().await;
             if let Some(entry) = repos.get(&key) {
-                return Ok(entry.last_status.read().unwrap().clone());
+                return Ok(entry.last_status.read().await.clone());
             }
         }
 
@@ -92,7 +89,7 @@ impl RepoRegistry {
             last_status: RwLock::new(status.clone()),
         });
 
-        self.repos.write().unwrap().insert(key, entry);
+        self.repos.write().await.insert(key, entry);
         info!(path = %repo_path, "repo opened");
         Ok(status)
     }
@@ -111,8 +108,8 @@ impl RepoRegistry {
         .await??;
 
         // Update cached entry if tracked
-        if let Some(entry) = self.repos.read().unwrap().get(&key) {
-            *entry.last_status.write().unwrap() = status.clone();
+        if let Some(entry) = self.repos.read().await.get(&key) {
+            *entry.last_status.write().await = status.clone();
         }
 
         Ok(status)

@@ -27,7 +27,7 @@ class DaemonInfo {
   factory DaemonInfo.fromJson(Map<String, dynamic> json) => DaemonInfo(
         version: json['version'] as String,
         uptime: json['uptime'] as int,
-        activeSessions: json['active_sessions'] as int,
+        activeSessions: json['activeSessions'] as int,
         port: json['port'] as int,
       );
 }
@@ -69,6 +69,7 @@ class DaemonNotifier extends Notifier<DaemonState> {
   String? _authToken;
   int _reconnectAttempt = 0;
   Timer? _reconnectTimer;
+  StreamSubscription<Map<String, dynamic>>? _pushSubscription;
   bool _disposed = false;
 
   static const int _maxReconnectAttempts = 8;
@@ -88,6 +89,7 @@ class DaemonNotifier extends Notifier<DaemonState> {
     ref.onDispose(() {
       _disposed = true;
       _reconnectTimer?.cancel();
+      _pushSubscription?.cancel();
       _client.disconnect();
     });
 
@@ -110,6 +112,8 @@ class DaemonNotifier extends Notifier<DaemonState> {
     if (_disposed) return;
     _reconnectTimer?.cancel();
     _reconnectAttempt = 0;
+    _pushSubscription?.cancel();
+    _pushSubscription = null;
     _client.disconnect();
     _client = ClawdClient(url: newUrl, authToken: _authToken);
     await _connect();
@@ -222,7 +226,7 @@ class DaemonNotifier extends Notifier<DaemonState> {
   }
 
   void _listenForPushEvents() {
-    _client.pushEvents.listen(
+    _pushSubscription = _client.pushEvents.listen(
       (event) {
         // Push events are handled by individual providers via ref.listen.
         // This stream is exposed via daemonPushEventsProvider.
@@ -255,7 +259,15 @@ final daemonProvider = NotifierProvider<DaemonNotifier, DaemonState>(
 
 /// Exposes the raw push-event stream from the daemon for providers that need
 /// to react to server-pushed notifications (e.g. new messages, tool calls).
+///
+/// Watches the daemon STATE (not just the notifier) so that when the daemon
+/// reconnects with a new client (e.g. after a URL switch), this provider
+/// rebuilds and re-subscribes to the new client's stream.
 final daemonPushEventsProvider = StreamProvider<Map<String, dynamic>>((ref) {
+  // Watching state triggers rebuild on every DaemonState change.
+  // When daemon reaches `connected` after a URL switch, the new client's
+  // stream is picked up here.
+  ref.watch(daemonProvider);
   final notifier = ref.watch(daemonProvider.notifier);
   return notifier.client.pushEvents;
 });

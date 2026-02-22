@@ -44,6 +44,7 @@ class ClawdClient {
   final WebSocketChannel Function(Uri) _channelFactory;
 
   WebSocketChannel? _channel;
+  StreamSubscription<dynamic>? _subscription;
   int _idCounter = 0;
   final Map<int, Completer<dynamic>> _pending = {};
   final StreamController<Map<String, dynamic>> _pushEvents =
@@ -56,7 +57,7 @@ class ClawdClient {
 
   Future<void> connect() async {
     _channel = _channelFactory(Uri.parse(url));
-    _channel!.stream.listen(
+    _subscription = _channel!.stream.listen(
       _onMessage,
       onDone: _onDisconnect,
       onError: (_) => _onDisconnect(),
@@ -71,6 +72,8 @@ class ClawdClient {
   }
 
   void disconnect() {
+    _subscription?.cancel();
+    _subscription = null;
     _channel?.sink.close();
     _channel = null;
   }

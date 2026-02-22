@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:developer' as dev;
 import 'dart:io';
 
@@ -16,6 +17,10 @@ class DaemonManager {
 
   Process? _process;
   String? _tokenOverride;
+  bool _startFailed = false;
+
+  /// True when the bundled daemon was found but failed to start within 5 s.
+  bool get startFailed => _startFailed;
 
   static const int _port = 4300;
 
@@ -48,12 +53,17 @@ class DaemonManager {
       ['serve'],
       mode: ProcessStartMode.detachedWithStdio,
     );
-    // Drain stdio so the process is not blocked by a full pipe buffer.
+    // Drain stdout and log stderr so the process is not blocked by full pipe buffers.
     unawaited(_process!.stdout.drain<List<int>>());
-    unawaited(_process!.stderr.drain<List<int>>());
+    unawaited(
+      _process!.stderr
+          .transform(const Utf8Decoder())
+          .forEach((chunk) => dev.log(chunk.trimRight(), name: 'DaemonManager')),
+    );
 
     _tokenOverride = await _pollForToken(const Duration(seconds: 5));
     if (_tokenOverride == null) {
+      _startFailed = true;
       dev.log('clawd token did not appear within 5 s', name: 'DaemonManager');
     } else {
       dev.log('clawd token ready', name: 'DaemonManager');
