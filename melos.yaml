@@ -79,6 +79,8 @@ scripts:
     run: flutter test
     exec:
       failFast: false
+      packageFilters:
+        - dirExists: "test"
 
   # ─── Codegen (Riverpod + JSON serialization) ─────────────────────
   gen:
