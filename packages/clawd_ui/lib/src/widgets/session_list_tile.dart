@@ -21,7 +21,7 @@ class SessionListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       selected: isSelected,
-      selectedTileColor: ClawdTheme.claw.withValues(alpha:0.12),
+      selectedTileColor: ClawdTheme.claw.withValues(alpha: 0.12),
       onTap: onTap,
       leading: _StatusDot(status: session.status),
       title: Text(
@@ -62,7 +62,7 @@ class _StatusDot extends StatelessWidget {
         shape: BoxShape.circle,
         color: _color,
         boxShadow: status == SessionStatus.running
-            ? [BoxShadow(color: _color.withValues(alpha:0.5), blurRadius: 4)]
+            ? [BoxShadow(color: _color.withValues(alpha: 0.5), blurRadius: 4)]
             : null,
       ),
     );
