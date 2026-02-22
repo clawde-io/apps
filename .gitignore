@@ -51,6 +51,7 @@ mobile/android/GeneratedPluginRegistrant.java
 
 # Dart packages — don't track lock files (apps commit theirs)
 packages/*/pubspec.lock
+packages/*/build/
 
 # Logs
 *.log
