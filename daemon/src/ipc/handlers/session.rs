@@ -35,6 +35,12 @@ struct GetMessagesParams {
 pub async fn create(params: Value, ctx: &AppContext) -> Result<Value> {
     let p: CreateParams = serde_json::from_value(params)?;
     let title = p.title.unwrap_or_else(|| "New Session".to_string());
+
+    let max = ctx.config.max_sessions;
+    if max > 0 && ctx.session_manager.active_count().await >= max {
+        anyhow::bail!("session limit reached ({max} active sessions)");
+    }
+
     let session = ctx
         .session_manager
         .create(&p.provider, &p.repo_path, &title)

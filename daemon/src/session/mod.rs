@@ -308,6 +308,29 @@ impl SessionManager {
         Ok(rows.into_iter().map(msg_row_to_view).collect())
     }
 
+    // ─── Graceful shutdown ────────────────────────────────────────────────────
+
+    /// Stop all active runners and mark their sessions idle.
+    /// Called during graceful shutdown to prevent orphaned subprocesses.
+    pub async fn drain(&self) {
+        let handles: Vec<(String, Arc<SessionHandle>)> = {
+            let mut map = self.handles.write().await;
+            map.drain().collect()
+        };
+        for (session_id, handle) in handles {
+            let _ = handle.runner.stop().await;
+            let _ = self
+                .storage
+                .update_session_status(&session_id, "idle")
+                .await;
+        }
+        if !self.handles.read().await.is_empty() {
+            // should be empty, but guard against races
+            self.handles.write().await.clear();
+        }
+        info!("all active sessions drained");
+    }
+
     // ─── Tool approval ────────────────────────────────────────────────────────
 
     pub async fn approve_tool(&self, _session_id: &str, _tool_call_id: &str) -> Result<()> {

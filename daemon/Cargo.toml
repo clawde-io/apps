@@ -37,6 +37,13 @@ thiserror = "2"
 # Logging & tracing
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tracing-appender = "0.2"
+
+# TOML config file support
+toml = { version = "0.8", features = ["parse"] }
+
+# mDNS service advertisement (_clawde._tcp.local for LAN discovery)
+mdns-sd = "0.11"
 
 # CLI argument parsing
 clap = { version = "4", features = ["derive", "env"] }

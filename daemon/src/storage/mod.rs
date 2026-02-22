@@ -361,6 +361,30 @@ impl Storage {
         Ok(crashed + paused)
     }
 
+    // ─── Maintenance ────────────────────────────────────────────────────────
+
+    /// Delete idle/error sessions older than `days` days and return the count.
+    /// Pass `0` to skip pruning.
+    pub async fn prune_old_sessions(&self, days: u32) -> Result<u64> {
+        if days == 0 {
+            return Ok(0);
+        }
+        let cutoff = (chrono::Utc::now() - chrono::Duration::days(days as i64)).to_rfc3339();
+        let n =
+            sqlx::query("DELETE FROM sessions WHERE status IN ('idle','error') AND updated_at < ?")
+                .bind(&cutoff)
+                .execute(&self.pool)
+                .await?
+                .rows_affected();
+        Ok(n)
+    }
+
+    /// Run SQLite VACUUM to reclaim disk space after pruning.
+    pub async fn vacuum(&self) -> Result<()> {
+        sqlx::query("VACUUM").execute(&self.pool).await?;
+        Ok(())
+    }
+
     // ─── Settings ───────────────────────────────────────────────────────────
 
     pub async fn get_setting(&self, key: &str) -> Result<Option<String>> {

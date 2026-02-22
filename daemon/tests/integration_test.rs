@@ -15,9 +15,10 @@ async fn start_test_daemon() -> (String, Arc<AppContext>) {
     let port = get_free_port();
 
     let config = Arc::new(DaemonConfig::new(
-        port,
+        Some(port),
         Some(data_dir.clone()),
-        "warn".into(),
+        Some("warn".to_string()),
+        None,
     ));
     let storage = Arc::new(Storage::new(&data_dir).await.unwrap());
     let broadcaster = Arc::new(EventBroadcaster::new());

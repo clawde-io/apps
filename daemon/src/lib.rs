@@ -3,6 +3,7 @@ pub mod config;
 pub mod identity;
 pub mod ipc;
 pub mod license;
+pub mod mdns;
 pub mod relay;
 pub mod repo;
 pub mod service;

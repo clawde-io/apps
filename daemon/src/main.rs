@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use clawd::{
     account::AccountRegistry, auth, config::DaemonConfig, identity, ipc::event::EventBroadcaster,
-    license, relay, repo::RepoRegistry, service, session::SessionManager, storage::Storage,
+    license, mdns, relay, repo::RepoRegistry, service, session::SessionManager, storage::Storage,
     telemetry, update, AppContext,
 };
 use std::sync::Arc;
@@ -18,17 +18,25 @@ struct Args {
     #[command(subcommand)]
     command: Option<Command>,
 
-    /// JSON-RPC WebSocket server port (serve command only)
-    #[arg(long, default_value_t = 4300, env = "CLAWD_PORT")]
-    port: u16,
+    /// JSON-RPC WebSocket server port
+    #[arg(long, env = "CLAWD_PORT")]
+    port: Option<u16>,
 
     /// Data directory for sessions, config, and SQLite database
     #[arg(long, env = "CLAWD_DATA_DIR")]
     data_dir: Option<std::path::PathBuf>,
 
     /// Log level (trace, debug, info, warn, error)
-    #[arg(long, default_value = "info", env = "CLAWD_LOG")]
-    log: String,
+    #[arg(long, env = "CLAWD_LOG")]
+    log: Option<String>,
+
+    /// Maximum concurrent sessions (0 = unlimited)
+    #[arg(long, env = "CLAWD_MAX_SESSIONS")]
+    max_sessions: Option<usize>,
+
+    /// Write logs to this file path (rotated daily). Optional.
+    #[arg(long, env = "CLAWD_LOG_FILE")]
+    log_file: Option<std::path::PathBuf>,
 }
 
 #[derive(Subcommand)]
@@ -56,10 +64,10 @@ enum ServiceAction {
 async fn main() -> Result<()> {
     let args = Args::parse();
 
-    tracing_subscriber::fmt()
-        .with_env_filter(&args.log)
-        .compact()
-        .init();
+    // ── Logging setup ────────────────────────────────────────────────────────
+    // Init once — must happen before any tracing calls.
+    let log_level = args.log.as_deref().unwrap_or("info").to_owned();
+    let _file_guard = setup_logging(&log_level, args.log_file.as_deref());
 
     match args.command {
         Some(Command::Service { action }) => match action {
@@ -68,22 +76,61 @@ async fn main() -> Result<()> {
             ServiceAction::Status => service::status()?,
         },
         None | Some(Command::Serve) => {
-            run_server(args.port, args.data_dir, args.log).await?;
+            run_server(args.port, args.data_dir, args.log, args.max_sessions).await?;
         }
     }
 
     Ok(())
 }
 
-async fn run_server(port: u16, data_dir: Option<std::path::PathBuf>, log: String) -> Result<()> {
-    info!(
-        version = env!("CARGO_PKG_VERSION"),
-        port = port,
-        "clawd starting"
-    );
+/// Initialize the tracing subscriber.
+/// If `log_file` is set, logs go to both stdout and a daily-rolling file.
+/// Returns a `WorkerGuard` that must stay alive for the process lifetime.
+fn setup_logging(
+    log_level: &str,
+    log_file: Option<&std::path::Path>,
+) -> Option<tracing_appender::non_blocking::WorkerGuard> {
+    use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-    let config = Arc::new(DaemonConfig::new(port, data_dir, log));
-    info!(data_dir = %config.data_dir.display(), "data directory");
+    if let Some(path) = log_file {
+        let dir = path.parent().unwrap_or_else(|| std::path::Path::new("."));
+        let filename = path
+            .file_name()
+            .unwrap_or_else(|| std::ffi::OsStr::new("clawd.log"));
+        let appender = tracing_appender::rolling::daily(dir, filename);
+        let (non_blocking, guard) = tracing_appender::non_blocking(appender);
+
+        tracing_subscriber::registry()
+            .with(tracing_subscriber::EnvFilter::new(log_level))
+            .with(tracing_subscriber::fmt::layer().compact())
+            .with(tracing_subscriber::fmt::layer().with_writer(non_blocking))
+            .init();
+
+        Some(guard)
+    } else {
+        tracing_subscriber::fmt()
+            .with_env_filter(log_level)
+            .compact()
+            .init();
+        None
+    }
+}
+
+async fn run_server(
+    port: Option<u16>,
+    data_dir: Option<std::path::PathBuf>,
+    log: Option<String>,
+    max_sessions: Option<usize>,
+) -> Result<()> {
+    info!(version = env!("CARGO_PKG_VERSION"), "clawd starting");
+
+    let config = Arc::new(DaemonConfig::new(port, data_dir, log, max_sessions));
+    info!(
+        data_dir = %config.data_dir.display(),
+        port = config.port,
+        max_sessions = config.max_sessions,
+        "config loaded"
+    );
 
     let storage = Arc::new(Storage::new(&config.data_dir).await?);
 
@@ -134,6 +181,27 @@ async fn run_server(port: u16, data_dir: Option<std::path::PathBuf>, log: String
         });
     }
 
+    // ── DB pruning + vacuum (daily, offset 1 h to stagger with license check) ─
+    {
+        let storage = storage.clone();
+        let prune_days = config.session_prune_days;
+        tokio::spawn(async move {
+            // First run after 1 hour, then every 24 hours
+            tokio::time::sleep(std::time::Duration::from_secs(60 * 60)).await;
+            loop {
+                match storage.prune_old_sessions(prune_days).await {
+                    Ok(n) if n > 0 => info!(pruned = n, days = prune_days, "pruned old sessions"),
+                    Ok(_) => {}
+                    Err(e) => warn!(err = %e, "session pruning failed"),
+                }
+                if let Err(e) = storage.vacuum().await {
+                    warn!(err = %e, "sqlite vacuum failed");
+                }
+                tokio::time::sleep(std::time::Duration::from_secs(24 * 60 * 60)).await;
+            }
+        });
+    }
+
     let telemetry = Arc::new(telemetry::spawn(config.clone(), daemon_id.clone(), tier));
 
     let account_registry = Arc::new(AccountRegistry::new(storage.clone(), broadcaster.clone()));
@@ -164,6 +232,10 @@ async fn run_server(port: u16, data_dir: Option<std::path::PathBuf>, log: String
         auth_token,
         started_at: std::time::Instant::now(),
     });
+
+    // ── mDNS advertisement ────────────────────────────────────────────────────
+    // Non-blocking: if mDNS fails (e.g. system restriction), daemon continues.
+    let _mdns_guard = mdns::advertise(&daemon_id, config.port);
 
     // Spawn relay AFTER ctx is built so it can dispatch inbound RPC frames
     // through the full IPC handler and forward push events to remote clients.

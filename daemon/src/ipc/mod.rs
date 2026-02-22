@@ -65,7 +65,7 @@ const SESSION_PAUSED_CODE: i32 = -32006;
 pub async fn run(ctx: Arc<AppContext>) -> Result<()> {
     let addr = format!("127.0.0.1:{}", ctx.config.port);
     let listener = TcpListener::bind(&addr).await?;
-    info!(addr = %addr, "IPC server listening");
+    info!(addr = %addr, "IPC server listening (WebSocket + HTTP health on same port)");
 
     // Broadcast daemon.ready to anyone who subscribes after connect
     ctx.broadcaster.broadcast(
@@ -86,7 +86,8 @@ pub async fn run(ctx: Arc<AppContext>) -> Result<()> {
             biased;
 
             _ = &mut shutdown => {
-                info!("shutdown signal received — stopping IPC server");
+                info!("shutdown signal received — draining sessions and stopping IPC server");
+                ctx.session_manager.drain().await;
                 break;
             }
 
@@ -113,6 +114,36 @@ pub async fn run(ctx: Arc<AppContext>) -> Result<()> {
     Ok(())
 }
 
+/// Respond to an HTTP `GET /health` request with a JSON status document.
+///
+/// The daemon shares port 4300 for both WebSocket (JSON-RPC) and a plain
+/// HTTP health endpoint so clients can check liveness without a WS library.
+async fn handle_health_check(mut stream: tokio::net::TcpStream, ctx: &AppContext) -> Result<()> {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    // Consume the request (we don't inspect it — any GET /health is fine).
+    let mut req_buf = vec![0u8; 2048];
+    let _ = stream.read(&mut req_buf).await;
+
+    let uptime_secs = ctx.started_at.elapsed().as_secs();
+    let active = ctx.session_manager.active_count().await;
+    let body = serde_json::json!({
+        "status": "ok",
+        "version": env!("CARGO_PKG_VERSION"),
+        "uptime": uptime_secs,
+        "activeSessions": active,
+        "port": ctx.config.port,
+    });
+    let body_str = body.to_string();
+    let response = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        body_str.len(),
+        body_str
+    );
+    stream.write_all(response.as_bytes()).await?;
+    Ok(())
+}
+
 /// Returns a future that resolves when a shutdown signal is received.
 ///
 /// On Unix we listen for SIGTERM *and* Ctrl-C.
@@ -134,6 +165,19 @@ async fn make_shutdown_future() {
 }
 
 async fn handle_connection(stream: tokio::net::TcpStream, ctx: Arc<AppContext>) -> Result<()> {
+    // Peek at the first bytes to distinguish HTTP health checks from WebSocket upgrades.
+    // Both share the same port. An HTTP GET starts with "GET "; WS upgrade also starts
+    // with "GET " but has an "Upgrade: websocket" header — we detect health checks by
+    // looking for paths that don't have WebSocket headers.
+    //
+    // Simpler approach: peek for "GET /health" specifically. All other GET requests
+    // (including WebSocket upgrades) fall through to the WS handshake as normal.
+    let mut peek_buf = [0u8; 12];
+    let n = stream.peek(&mut peek_buf).await.unwrap_or(0);
+    if n >= 11 && &peek_buf[..11] == b"GET /health" {
+        return handle_health_check(stream, &ctx).await;
+    }
+
     let ws = accept_async(stream).await?;
     let (mut sink, mut stream) = ws.split();
 
@@ -326,6 +370,9 @@ fn classify_error(e: &anyhow::Error, _method: &str) -> (i32, String) {
     let msg = e.to_string();
     if msg.starts_with("METHOD_NOT_FOUND:") {
         return (METHOD_NOT_FOUND, "Method not found".to_string());
+    }
+    if msg.contains("session limit reached") {
+        return (INTERNAL_ERROR, format!("Session limit reached: {msg}"));
     }
     if msg.contains("session not found") || msg.contains("SESSION_NOT_FOUND") {
         return (SESSION_NOT_FOUND, "Session not found".to_string());
