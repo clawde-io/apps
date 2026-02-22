@@ -9,12 +9,12 @@ void main() {
   group('Session.fromJson', () {
     final baseJson = {
       'id': 'sess-1',
-      'repo_path': '/home/user/myapp',
+      'repoPath': '/home/user/myapp',
       'provider': 'claude',
       'status': 'running',
-      'created_at': '2024-01-15T10:00:00.000Z',
-      'started_at': '2024-01-15T10:00:01.000Z',
-      'ended_at': null,
+      'createdAt': '2024-01-15T10:00:00.000Z',
+      'startedAt': '2024-01-15T10:00:01.000Z',
+      'endedAt': null,
       'metadata': <String, dynamic>{},
     };
 
@@ -34,8 +34,8 @@ void main() {
 
     test('null optional fields become null', () {
       final json = Map<String, dynamic>.from(baseJson)
-        ..['started_at'] = null
-        ..['ended_at'] = null;
+        ..['startedAt'] = null
+        ..['endedAt'] = null;
       final s = Session.fromJson(json);
       expect(s.startedAt, isNull);
       expect(s.endedAt, isNull);
