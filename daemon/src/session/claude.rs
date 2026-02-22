@@ -151,6 +151,7 @@ impl ClaudeCodeRunner {
         cmd.args([
             "--output-format",
             "stream-json",
+            "--verbose",
             "--dangerously-skip-permissions",
             "-p",
             content,
