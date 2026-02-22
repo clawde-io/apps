@@ -1,11 +1,19 @@
 use super::events::EventLog;
 use super::runner::Runner;
-use crate::{ipc::event::EventBroadcaster, storage::Storage};
+use crate::{
+    account::{AccountRegistry, PickHint},
+    ipc::event::EventBroadcaster,
+    license::LicenseInfo,
+    storage::Storage,
+};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicU32, Ordering},
+    Arc,
+};
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::{Child, Command},
@@ -83,6 +91,12 @@ pub struct ClaudeCodeRunner {
     /// Set to true by stop() so the event_loop safety net does not overwrite
     /// the "idle" status broadcast by SessionManager::cancel().
     cancelled: Arc<std::sync::atomic::AtomicBool>,
+    /// Multi-account pool — used to pick the best account before each turn
+    /// and to detect + record rate-limit events from stderr output.
+    account_registry: Arc<AccountRegistry>,
+    /// Current license tier — needed by mark_limited() to decide between
+    /// auto-switch (Personal Remote+) and manual-prompt (Free) behaviour.
+    license: Arc<tokio::sync::RwLock<LicenseInfo>>,
 }
 
 impl ClaudeCodeRunner {
@@ -92,6 +106,8 @@ impl ClaudeCodeRunner {
         storage: Arc<Storage>,
         data_dir: std::path::PathBuf,
         broadcaster: Arc<EventBroadcaster>,
+        account_registry: Arc<AccountRegistry>,
+        license: Arc<tokio::sync::RwLock<LicenseInfo>>,
     ) -> Arc<Self> {
         Arc::new(Self {
             event_log: EventLog::new(&data_dir, &session_id),
@@ -103,6 +119,8 @@ impl ClaudeCodeRunner {
             paused: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             current_child: Arc::new(Mutex::new(None)),
             cancelled: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            account_registry,
+            license,
         })
     }
 
@@ -118,6 +136,13 @@ impl ClaudeCodeRunner {
     pub async fn run_turn(&self, content: &str) -> Result<()> {
         let claude_sid = self.claude_session_id.read().await.clone();
 
+        // Pick the best available account for this turn.
+        // On rate-limit detection (via stderr) we'll call mark_limited() on it.
+        let hint = PickHint {
+            provider: Some("claude-code".to_string()),
+        };
+        let picked_account = self.account_registry.pick_account(&hint).await?;
+
         let mut cmd = Command::new("claude");
         cmd.args([
             "--output-format",
@@ -128,6 +153,16 @@ impl ClaudeCodeRunner {
         ]);
         if let Some(ref sid) = claude_sid {
             cmd.args(["--resume", sid]);
+        }
+
+        // Apply per-account credentials if configured.
+        // The `credentials_path` is an alternative config directory that the
+        // claude CLI will use instead of the default ~/.claude.  This allows
+        // multiple accounts to coexist on the same machine.
+        if let Some(ref account) = picked_account {
+            if !account.credentials_path.is_empty() {
+                cmd.env("CLAUDE_CONFIG_DIR", &account.credentials_path);
+            }
         }
 
         let mut child = cmd
@@ -141,11 +176,25 @@ impl ClaudeCodeRunner {
         let stdout = child.stdout.take().context("no stdout")?;
         let stderr = child.stderr.take().context("no stderr")?;
 
-        // Drain stderr to avoid blocking the process
+        // Drain stderr and detect rate-limit signals in real time.
+        // On detection, mark the account limited and broadcast the appropriate
+        // event (auto-switch for Personal Remote+, manual prompt for Free).
+        let picked_account_id = picked_account.map(|a| a.id);
+        let account_registry = self.account_registry.clone();
+        let license = self.license.clone();
+        let session_id_for_limit = self.session_id.clone();
         tokio::spawn(async move {
             let mut lines = BufReader::new(stderr).lines();
             while let Ok(Some(line)) = lines.next_line().await {
                 debug!(target: "claude_stderr", "{}", line);
+                if let Some(cooldown) = AccountRegistry::detect_limit_signal(&line) {
+                    if let Some(ref acct_id) = picked_account_id {
+                        let lic = license.read().await;
+                        let _ = account_registry
+                            .mark_limited(acct_id, &session_id_for_limit, cooldown, &lic)
+                            .await;
+                    }
+                }
             }
         });
 

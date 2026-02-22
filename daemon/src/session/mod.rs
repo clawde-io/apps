@@ -81,9 +81,9 @@ impl SessionManager {
         repo_path: &str,
         title: &str,
     ) -> Result<SessionView> {
-        // Validate provider
+        // Validate provider — must match ProviderType.name values from Dart
         match provider {
-            "claude-code" | "codex" | "cursor" => {}
+            "claude" | "codex" | "cursor" => {}
             _ => return Err(anyhow::anyhow!("unknown provider: {}", provider)),
         }
 
@@ -139,15 +139,27 @@ impl SessionManager {
     }
 
     pub async fn resume(&self, session_id: &str) -> Result<()> {
+        // If the session was paused mid-turn it returns to "running"; if it
+        // was idle and resume is called defensively it stays "idle".
+        let session = self
+            .storage
+            .get_session(session_id)
+            .await?
+            .context("SESSION_NOT_FOUND")?;
+        let new_status = if session.status == "paused" {
+            "running"
+        } else {
+            "idle"
+        };
         self.storage
-            .update_session_status(session_id, "idle")
+            .update_session_status(session_id, new_status)
             .await?;
         if let Some(handle) = self.handles.read().await.get(session_id) {
             handle.runner.resume().await?;
         }
         self.broadcaster.broadcast(
             "session.statusChanged",
-            json!({ "sessionId": session_id, "status": "idle" }),
+            json!({ "sessionId": session_id, "status": new_status }),
         );
         Ok(())
     }
@@ -185,7 +197,7 @@ impl SessionManager {
         &self,
         session_id: &str,
         content: &str,
-        _ctx: &AppContext,
+        ctx: &AppContext,
     ) -> Result<MessageView> {
         // Ensure session exists
         let session_row = self
@@ -193,6 +205,14 @@ impl SessionManager {
             .get_session(session_id)
             .await?
             .context("SESSION_NOT_FOUND")?;
+
+        // Guard against concurrent turns — claude is one-shot per turn.
+        // Reject immediately rather than silently spawning a second subprocess.
+        match session_row.status.as_str() {
+            "running" => return Err(anyhow::anyhow!("SESSION_BUSY")),
+            "paused" => return Err(anyhow::anyhow!("SESSION_PAUSED")),
+            _ => {} // "idle" | "error" — allow
+        }
 
         // Persist user message
         let msg = self
@@ -222,6 +242,8 @@ impl SessionManager {
                     self.storage.clone(),
                     self.data_dir.clone(),
                     self.broadcaster.clone(),
+                    ctx.account_registry.clone(),
+                    ctx.license.clone(),
                 );
                 let handle = Arc::new(SessionHandle {
                     runner: runner.clone(),
@@ -270,17 +292,17 @@ impl SessionManager {
     // ─── Tool approval ────────────────────────────────────────────────────────
 
     pub async fn approve_tool(&self, _session_id: &str, _tool_call_id: &str) -> Result<()> {
-        // Tool calls are auto-approved when running with --dangerously-skip-permissions.
-        // Manual approval is not supported in the current mode.
-        Err(anyhow::anyhow!(
-            "tool auto-approved; manual approval not available in --dangerously-skip-permissions mode"
-        ))
+        // All tool calls run under --dangerously-skip-permissions, so the
+        // approve / reject UI buttons are no-ops — tools are always auto-
+        // approved by the claude subprocess itself.  We return Ok so the
+        // Flutter UI does not see an error when the user taps Approve.
+        Ok(())
     }
 
     pub async fn reject_tool(&self, _session_id: &str, _tool_call_id: &str) -> Result<()> {
-        Err(anyhow::anyhow!(
-            "tool auto-approved; manual rejection not available in --dangerously-skip-permissions mode"
-        ))
+        // Same rationale as approve_tool.  Rejection is not meaningful in
+        // auto-approve mode, but we return Ok to avoid surfacing errors.
+        Ok(())
     }
 }
 

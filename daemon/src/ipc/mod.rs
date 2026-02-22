@@ -48,6 +48,8 @@ const INTERNAL_ERROR: i32 = -32603;
 const UNAUTHORIZED: i32 = -32004;
 const SESSION_NOT_FOUND: i32 = -32000;
 const REPO_NOT_FOUND: i32 = -32001;
+const SESSION_BUSY: i32 = -32002;
+const SESSION_PAUSED_CODE: i32 = -32003;
 
 // ─── Server ──────────────────────────────────────────────────────────────────
 
@@ -65,21 +67,60 @@ pub async fn run(ctx: Arc<AppContext>) -> Result<()> {
         }),
     );
 
+    // Graceful shutdown: resolve on SIGTERM (Unix) or Ctrl-C (all platforms).
+    // Pinned so we can use it in the select! loop without moving.
+    let shutdown = make_shutdown_future();
+    tokio::pin!(shutdown);
+
     loop {
-        let (stream, peer) = match listener.accept().await {
-            Ok(conn) => conn,
-            Err(e) => {
-                error!(err = %e, "accept error");
-                continue;
+        tokio::select! {
+            biased;
+
+            _ = &mut shutdown => {
+                info!("shutdown signal received — stopping IPC server");
+                break;
             }
-        };
-        debug!(peer = %peer, "new connection");
-        let ctx = ctx.clone();
-        tokio::spawn(async move {
-            if let Err(e) = handle_connection(stream, ctx).await {
-                warn!(peer = %peer, err = %e, "connection error");
+
+            conn = listener.accept() => {
+                let (stream, peer) = match conn {
+                    Ok(c) => c,
+                    Err(e) => {
+                        error!(err = %e, "accept error");
+                        continue;
+                    }
+                };
+                debug!(peer = %peer, "new connection");
+                let ctx = ctx.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = handle_connection(stream, ctx).await {
+                        warn!(peer = %peer, err = %e, "connection error");
+                    }
+                });
             }
-        });
+        }
+    }
+
+    info!("IPC server stopped");
+    Ok(())
+}
+
+/// Returns a future that resolves when a shutdown signal is received.
+///
+/// On Unix we listen for SIGTERM *and* Ctrl-C.
+/// On other platforms we listen for Ctrl-C only.
+async fn make_shutdown_future() {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{signal, SignalKind};
+        let mut sigterm = signal(SignalKind::terminate()).expect("failed to register SIGTERM");
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {}
+            _ = sigterm.recv() => {}
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        tokio::signal::ctrl_c().await.ok();
     }
 }
 
@@ -95,11 +136,7 @@ async fn handle_connection(stream: tokio::net::TcpStream, ctx: Arc<AppContext>) 
     // Token is stored at {data_dir}/auth_token with mode 0600.  The Flutter
     // desktop/mobile app reads this file and sends it here on every connect.
     if !ctx.auth_token.is_empty() {
-        let first = tokio::time::timeout(
-            std::time::Duration::from_secs(10),
-            stream.next(),
-        )
-        .await;
+        let first = tokio::time::timeout(std::time::Duration::from_secs(10), stream.next()).await;
 
         let text = match first {
             Ok(Some(Ok(Message::Text(t)))) => t,
@@ -255,6 +292,8 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
     match method {
         "daemon.ping" => handlers::daemon::ping(params, ctx).await,
         "daemon.status" => handlers::daemon::status(params, ctx).await,
+        "daemon.checkUpdate" => handlers::daemon::check_update(params, ctx).await,
+        "daemon.applyUpdate" => handlers::daemon::apply_update(params, ctx).await,
         "repo.open" => handlers::repo::open(params, ctx).await,
         "repo.status" => handlers::repo::status(params, ctx).await,
         "repo.diff" => handlers::repo::diff(params, ctx).await,
@@ -282,8 +321,23 @@ fn classify_error(e: &anyhow::Error, _method: &str) -> (i32, String) {
     if msg.contains("session not found") || msg.contains("SESSION_NOT_FOUND") {
         return (SESSION_NOT_FOUND, "Session not found".to_string());
     }
-    if msg.contains("repo not found") || msg.contains("REPO_NOT_FOUND") {
+    if msg.contains("repo not found")
+        || msg.contains("REPO_NOT_FOUND")
+        || msg.contains("not a git repository")
+    {
         return (REPO_NOT_FOUND, "Repo not found".to_string());
+    }
+    if msg.contains("SESSION_BUSY") {
+        return (
+            SESSION_BUSY,
+            "Session is busy — cancel or wait for the current turn".to_string(),
+        );
+    }
+    if msg.contains("SESSION_PAUSED") {
+        return (
+            SESSION_PAUSED_CODE,
+            "Session is paused — resume before sending messages".to_string(),
+        );
     }
     if msg.contains("missing field") || msg.contains("invalid type") {
         return (INVALID_PARAMS, format!("Invalid params: {}", msg));

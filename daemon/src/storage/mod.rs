@@ -222,19 +222,34 @@ impl Storage {
         limit: i64,
         before: Option<&str>,
     ) -> Result<Vec<MessageRow>> {
-        let rows = if let Some(cursor) = before {
+        // The `before` parameter is a message *ID*, not a timestamp.
+        // We resolve it to a timestamp via a subquery so the pagination cursor
+        // works correctly.  Results are always returned in chronological order
+        // (oldest first) for the chat UI to render in the correct direction.
+        let rows = if let Some(msg_id) = before {
+            // Get the last `limit` messages older than the given message ID,
+            // returned in ascending order for display.
             sqlx::query_as(
-                "SELECT * FROM messages WHERE session_id = ? AND created_at < ?
-                 ORDER BY created_at DESC LIMIT ?",
+                "SELECT * FROM (
+                     SELECT * FROM messages
+                     WHERE session_id = ?
+                       AND created_at < (SELECT created_at FROM messages WHERE id = ?)
+                     ORDER BY created_at DESC LIMIT ?
+                 ) ORDER BY created_at ASC",
             )
             .bind(session_id)
-            .bind(cursor)
+            .bind(msg_id)
             .bind(limit)
             .fetch_all(&self.pool)
             .await?
         } else {
+            // Initial load: return the *last* `limit` messages in chronological
+            // order so the chat view shows the most recent conversation.
             sqlx::query_as(
-                "SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC LIMIT ?",
+                "SELECT * FROM (
+                     SELECT * FROM messages WHERE session_id = ?
+                     ORDER BY created_at DESC LIMIT ?
+                 ) ORDER BY created_at ASC",
             )
             .bind(session_id)
             .bind(limit)
