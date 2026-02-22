@@ -31,6 +31,13 @@ dependencies:
   # Navigation
   go_router: ^14.6.3
 
+  # Window management + resizable split panes
+  window_manager: ^0.4.3
+  split_view: ^3.0.0
+
+  # Native folder/file picker
+  file_selector: ^1.0.3
+
   # Code editor — CodeMirror 6 via WebView
   webview_flutter: ^4.10.0
 

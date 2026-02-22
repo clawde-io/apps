@@ -4,21 +4,50 @@ import 'package:clawd_client/clawd_client.dart';
 /// The connection state of the local clawd daemon.
 enum DaemonStatus { disconnected, connecting, connected, error }
 
+/// Runtime information returned by the `daemon.status` RPC.
+class DaemonInfo {
+  final String version;
+  final int uptime; // seconds
+  final int activeSessions;
+  final int port;
+
+  const DaemonInfo({
+    required this.version,
+    required this.uptime,
+    required this.activeSessions,
+    required this.port,
+  });
+
+  factory DaemonInfo.fromJson(Map<String, dynamic> json) => DaemonInfo(
+        version: json['version'] as String,
+        uptime: json['uptime'] as int,
+        activeSessions: json['active_sessions'] as int,
+        port: json['port'] as int,
+      );
+}
+
 class DaemonState {
   final DaemonStatus status;
   final String? errorMessage;
+  final DaemonInfo? daemonInfo;
 
   const DaemonState({
     this.status = DaemonStatus.disconnected,
     this.errorMessage,
+    this.daemonInfo,
   });
 
   bool get isConnected => status == DaemonStatus.connected;
 
-  DaemonState copyWith({DaemonStatus? status, String? errorMessage}) =>
+  DaemonState copyWith({
+    DaemonStatus? status,
+    String? errorMessage,
+    DaemonInfo? daemonInfo,
+  }) =>
       DaemonState(
         status: status ?? this.status,
         errorMessage: errorMessage ?? this.errorMessage,
+        daemonInfo: daemonInfo ?? this.daemonInfo,
       );
 }
 
@@ -42,6 +71,8 @@ class DaemonNotifier extends Notifier<DaemonState> {
       await _client.connect();
       state = const DaemonState(status: DaemonStatus.connected);
       _listenForPushEvents();
+      // Best-effort: fetch daemon info after connecting.
+      await refreshStatus();
     } on ClawdDisconnectedError catch (e) {
       state = DaemonState(status: DaemonStatus.error, errorMessage: e.toString());
     } catch (e) {
@@ -51,6 +82,17 @@ class DaemonNotifier extends Notifier<DaemonState> {
 
   /// Reconnect (e.g. after app foreground or explicit user retry).
   Future<void> reconnect() => _connect();
+
+  /// Fetch daemon runtime info (version, uptime, active sessions, port).
+  /// Graceful: failures set daemonInfo to null without disconnecting.
+  Future<void> refreshStatus() async {
+    try {
+      final result = await _client.call<Map<String, dynamic>>('daemon.status');
+      state = state.copyWith(daemonInfo: DaemonInfo.fromJson(result));
+    } catch (_) {
+      state = state.copyWith(daemonInfo: null);
+    }
+  }
 
   void _listenForPushEvents() {
     _client.pushEvents.listen(

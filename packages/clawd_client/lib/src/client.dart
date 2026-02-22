@@ -9,6 +9,10 @@ import 'exceptions.dart';
 /// Default clawd daemon port.
 const int kClawdPort = 4300;
 
+/// Default timeout for RPC calls. Long-running operations (e.g. session.create,
+/// session.sendMessage) inherit this; callers can override per-call if needed.
+const Duration kDefaultCallTimeout = Duration(seconds: 30);
+
 /// JSON-RPC 2.0 WebSocket client for the clawd daemon.
 ///
 /// Usage:
@@ -18,9 +22,15 @@ const int kClawdPort = 4300;
 /// final session = Session.fromJson(await client.call('session.create', {...}));
 /// ```
 class ClawdClient {
-  ClawdClient({this.url = 'ws://127.0.0.1:$kClawdPort'});
+  ClawdClient({
+    this.url = 'ws://127.0.0.1:$kClawdPort',
+    this.callTimeout = kDefaultCallTimeout,
+  });
 
   final String url;
+
+  /// How long to wait for a response before throwing [ClawdTimeoutError].
+  final Duration callTimeout;
 
   WebSocketChannel? _channel;
   int _idCounter = 0;
@@ -49,8 +59,9 @@ class ClawdClient {
 
   /// Send a JSON-RPC 2.0 request and return the decoded result.
   ///
-  /// Throws [ClawdDisconnectedError] if not connected.
+  /// Throws [ClawdDisconnectedError] if not connected or connection drops.
   /// Throws [ClawdRpcError] if the daemon returns an error response.
+  /// Throws [ClawdTimeoutError] if no response arrives within [callTimeout].
   Future<T> call<T>(String method, [Map<String, dynamic>? params]) async {
     if (_channel == null) throw const ClawdDisconnectedError();
 
@@ -62,7 +73,18 @@ class ClawdClient {
       RpcRequest(method: method, params: params, id: id).toJson(),
     ));
 
-    return (await completer.future) as T;
+    try {
+      return (await completer.future.timeout(
+        callTimeout,
+        onTimeout: () {
+          _pending.remove(id);
+          throw ClawdTimeoutError(method);
+        },
+      )) as T;
+    } catch (_) {
+      _pending.remove(id);
+      rethrow;
+    }
   }
 
   void _onMessage(dynamic raw) {

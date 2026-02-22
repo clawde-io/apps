@@ -12,14 +12,28 @@ class SessionListNotifier extends AsyncNotifier<List<Session>> {
       if (next.isConnected) refresh();
     });
 
-    // Re-fetch on push events that change session state.
+    // Re-fetch or patch state on push events that change session state.
     ref.listen(daemonPushEventsProvider, (_, next) {
       next.whenData((event) {
         final method = event['method'] as String?;
-        if (method != null &&
-            (method == 'session.created' ||
-                method == 'session.updated' ||
-                method == 'session.closed')) {
+        if (method == null) return;
+
+        if (method == 'session.statusChanged') {
+          // Optimistic in-place update to avoid flicker.
+          final id = event['params']?['session_id'] as String?;
+          final rawStatus = event['params']?['status'] as String?;
+          if (id != null && rawStatus != null) {
+            final newStatus = SessionStatus.values.byName(rawStatus);
+            final current = state.valueOrNull;
+            if (current != null) {
+              state = AsyncValue.data(current
+                  .map((s) => s.id == id ? _patchStatus(s, newStatus) : s)
+                  .toList());
+            }
+          }
+        } else if (method == 'session.created' ||
+            method == 'session.updated' ||
+            method == 'session.closed') {
           refresh();
         }
       });
@@ -63,6 +77,35 @@ class SessionListNotifier extends AsyncNotifier<List<Session>> {
     await client.call<void>('session.close', {'session_id': sessionId});
     await refresh();
   }
+
+  Future<void> pause(String sessionId) async {
+    final client = ref.read(daemonProvider.notifier).client;
+    await client.call<void>('session.pause', {'session_id': sessionId});
+    await refresh();
+  }
+
+  Future<void> resume(String sessionId) async {
+    final client = ref.read(daemonProvider.notifier).client;
+    await client.call<void>('session.resume', {'session_id': sessionId});
+    await refresh();
+  }
+
+  Future<void> delete(String sessionId) async {
+    final client = ref.read(daemonProvider.notifier).client;
+    await client.call<void>('session.delete', {'session_id': sessionId});
+    await refresh();
+  }
+
+  Session _patchStatus(Session s, SessionStatus newStatus) => Session(
+        id: s.id,
+        repoPath: s.repoPath,
+        provider: s.provider,
+        status: newStatus,
+        createdAt: s.createdAt,
+        startedAt: s.startedAt,
+        endedAt: s.endedAt,
+        metadata: s.metadata,
+      );
 }
 
 final sessionListProvider =

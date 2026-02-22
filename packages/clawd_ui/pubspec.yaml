@@ -20,6 +20,10 @@ dependencies:
   # State management (for widgets that consume providers directly)
   flutter_riverpod: ^2.6.1
 
+  # Markdown rendering + syntax highlighting
+  flutter_markdown: ^0.7.3
+  flutter_highlight: ^0.7.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

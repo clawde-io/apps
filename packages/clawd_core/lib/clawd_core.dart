@@ -6,3 +6,5 @@ export 'src/providers/daemon_provider.dart';
 export 'src/providers/session_provider.dart';
 export 'src/providers/message_provider.dart';
 export 'src/providers/tool_call_provider.dart';
+export 'src/providers/repo_provider.dart';
+export 'src/providers/settings_provider.dart';

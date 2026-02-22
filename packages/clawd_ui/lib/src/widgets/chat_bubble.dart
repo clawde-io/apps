@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:clawd_proto/clawd_proto.dart';
 import '../theme/clawd_theme.dart';
+import 'markdown_message.dart';
 
 /// Renders a single [Message] as a chat bubble.
 /// User messages are right-aligned; assistant messages left-aligned.
@@ -44,10 +45,12 @@ class ChatBubble extends StatelessWidget {
                 ),
                 border: Border.all(color: ClawdTheme.surfaceBorder, width: 1),
               ),
-              child: Text(
-                message.content,
-                style: const TextStyle(fontSize: 14, height: 1.5),
-              ),
+              child: _isUser
+                  ? Text(
+                      message.content,
+                      style: const TextStyle(fontSize: 14, height: 1.5),
+                    )
+                  : MarkdownMessage(content: message.content),
             ),
           ),
           const SizedBox(width: 8),

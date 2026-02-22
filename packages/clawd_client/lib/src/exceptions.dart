@@ -20,3 +20,13 @@ class ClawdDisconnectedError implements Exception {
   @override
   String toString() => 'ClawdDisconnectedError: connection lost';
 }
+
+/// Thrown when a JSON-RPC call exceeds the configured timeout.
+class ClawdTimeoutError implements Exception {
+  const ClawdTimeoutError(this.method);
+
+  final String method;
+
+  @override
+  String toString() => 'ClawdTimeoutError: $method timed out';
+}

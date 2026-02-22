@@ -9,3 +9,6 @@ export 'src/widgets/tool_call_card.dart';
 export 'src/widgets/message_input.dart';
 export 'src/widgets/connection_status_indicator.dart';
 export 'src/widgets/provider_badge.dart';
+export 'src/widgets/markdown_message.dart';
+export 'src/widgets/error_state.dart';
+export 'src/widgets/empty_state.dart';
