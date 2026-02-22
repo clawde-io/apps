@@ -1,21 +1,19 @@
-use super::runner::{Runner, ToolDecision};
+use super::events::EventLog;
+use super::runner::Runner;
 use crate::{ipc::event::EventBroadcaster, storage::Storage};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::sync::Arc;
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    io::{AsyncBufReadExt, BufReader},
     process::{Child, Command},
-    sync::{oneshot, RwLock},
+    sync::RwLock,
 };
-use tracing::{debug, error, warn};
+use tracing::{debug, warn};
 
-// ─── Claude stream-json output types ────────────────────────────────────────
+// ─── Claude stream-json output types ─────────────────────────────────────────
 
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -23,23 +21,23 @@ use tracing::{debug, error, warn};
 enum ClaudeEvent {
     /// Text content from the assistant
     Assistant { message: AssistantMessage },
-    /// Tool use request
+    /// Tool use request (informational when --dangerously-skip-permissions)
     #[serde(rename = "tool_use")]
     ToolUse {
         id: String,
         name: String,
         input: Value,
     },
-    /// Tool result (echo back from claude after we provide approval)
+    /// Tool result echoed back by claude
     #[serde(rename = "tool_result")]
     ToolResult { tool_use_id: String, content: Value },
-    /// Final result of the session turn
+    /// Final result of the turn
     Result {
         subtype: String,
         result: Option<String>,
         is_error: Option<bool>,
     },
-    /// System messages (usually startup info)
+    /// Startup event — contains claude's own session_id for --resume
     System {
         subtype: Option<String>,
         session_id: Option<String>,
@@ -58,25 +56,24 @@ struct AssistantMessage {
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum ContentBlock {
-    Text {
-        text: String,
-    },
+    Text { text: String },
     #[serde(other)]
     Other,
 }
 
-// ─── Runner state ────────────────────────────────────────────────────────────
+// ─── Runner ───────────────────────────────────────────────────────────────────
 
 pub struct ClaudeCodeRunner {
     session_id: String,
     repo_path: String,
     storage: Arc<Storage>,
-    _data_dir: std::path::PathBuf,
+    /// Append-only JSONL log of all raw claude events for this session.
+    event_log: EventLog,
     broadcaster: Arc<EventBroadcaster>,
-    /// Channel to send messages into the running subprocess stdin
-    stdin_tx: RwLock<Option<tokio::sync::mpsc::Sender<String>>>,
-    /// Pending tool approvals: tool_call_id → oneshot sender
-    tool_queue: Arc<Mutex<HashMap<String, oneshot::Sender<ToolDecision>>>>,
+    /// Claude's own session ID, captured from the first System event.
+    /// Used to pass --resume on every subsequent turn so conversation
+    /// history is preserved across process restarts.
+    claude_session_id: RwLock<Option<String>>,
     paused: Arc<std::sync::atomic::AtomicBool>,
 }
 
@@ -89,58 +86,52 @@ impl ClaudeCodeRunner {
         broadcaster: Arc<EventBroadcaster>,
     ) -> Arc<Self> {
         Arc::new(Self {
+            event_log: EventLog::new(&data_dir, &session_id),
             session_id,
             repo_path,
             storage,
-            _data_dir: data_dir,
             broadcaster,
-            stdin_tx: RwLock::new(None),
-            tool_queue: Arc::new(Mutex::new(HashMap::new())),
+            claude_session_id: RwLock::new(None),
             paused: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         })
     }
 
-    /// Spawn the `claude` subprocess and start the event loop.
-    pub async fn start(self: Arc<Self>) -> Result<()> {
-        let mut child = Command::new("claude")
-            .args([
-                "--output-format",
-                "stream-json",
-                "--dangerously-skip-permissions",
-            ])
+    /// Spawn `claude` for one turn and drive the event loop to completion.
+    ///
+    /// On the first turn, claude is started without `--resume`. The System
+    /// event returns claude's own session_id which is stored in
+    /// `self.claude_session_id`. Every subsequent turn passes
+    /// `--resume <id>` so claude reloads the conversation history.
+    ///
+    /// Callers must run this inside `tokio::spawn` — it blocks until the
+    /// turn completes (i.e., the claude process exits).
+    pub async fn run_turn(&self, content: &str) -> Result<()> {
+        let claude_sid = self.claude_session_id.read().await.clone();
+
+        let mut cmd = Command::new("claude");
+        cmd.args([
+            "--output-format",
+            "stream-json",
+            "--dangerously-skip-permissions",
+            "-p",
+            content,
+        ]);
+        if let Some(ref sid) = claude_sid {
+            cmd.args(["--resume", sid]);
+        }
+
+        let mut child = cmd
             .current_dir(&self.repo_path)
-            .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
+            .stdin(std::process::Stdio::null())
             .spawn()
             .context("failed to spawn `claude` — is it installed and on PATH?")?;
 
-        let stdin = child.stdin.take().context("no stdin")?;
         let stdout = child.stdout.take().context("no stdout")?;
         let stderr = child.stderr.take().context("no stderr")?;
 
-        // Channel for sending messages to stdin
-        let (stdin_tx, mut stdin_rx) = tokio::sync::mpsc::channel::<String>(32);
-        *self.stdin_tx.write().await = Some(stdin_tx);
-
-        let runner = self.clone();
-
-        // stdin writer task
-        tokio::spawn(async move {
-            let mut stdin = stdin;
-            while let Some(msg) = stdin_rx.recv().await {
-                if let Err(e) = stdin.write_all(msg.as_bytes()).await {
-                    warn!(err = %e, "stdin write error");
-                    break;
-                }
-                if let Err(e) = stdin.write_all(b"\n").await {
-                    warn!(err = %e, "stdin write error");
-                    break;
-                }
-            }
-        });
-
-        // stderr logger task
+        // Drain stderr to avoid blocking the process
         tokio::spawn(async move {
             let mut lines = BufReader::new(stderr).lines();
             while let Ok(Some(line)) = lines.next_line().await {
@@ -148,22 +139,7 @@ impl ClaudeCodeRunner {
             }
         });
 
-        // stdout event loop (main task)
-        tokio::spawn(async move {
-            if let Err(e) = runner.event_loop(stdout, child).await {
-                error!(session = %runner.session_id, err = %e, "runner error");
-                let _ = runner
-                    .storage
-                    .update_session_status(&runner.session_id, "error")
-                    .await;
-                runner.broadcaster.broadcast(
-                    "session.statusChanged",
-                    json!({ "sessionId": runner.session_id, "status": "error" }),
-                );
-            }
-        });
-
-        Ok(())
+        self.event_loop(stdout, child).await
     }
 
     async fn event_loop(
@@ -172,11 +148,9 @@ impl ClaudeCodeRunner {
         mut child: Child,
     ) -> Result<()> {
         let mut lines = BufReader::new(stdout).lines();
-        // Track the current assistant message being streamed
         let mut current_message_id: Option<String> = None;
         let mut current_content = String::new();
 
-        // Update session to "running"
         self.storage
             .update_session_status(&self.session_id, "running")
             .await?;
@@ -188,6 +162,11 @@ impl ClaudeCodeRunner {
         while let Some(line) = lines.next_line().await? {
             debug!(session = %self.session_id, event = %line, "claude event");
 
+            // Write every raw event to the session's JSONL log
+            if let Ok(raw) = serde_json::from_str::<Value>(&line) {
+                let _ = self.event_log.append(&raw).await;
+            }
+
             let event: ClaudeEvent = match serde_json::from_str(&line) {
                 Ok(e) => e,
                 Err(_) => {
@@ -197,6 +176,14 @@ impl ClaudeCodeRunner {
             };
 
             match event {
+                // ── Capture claude's session ID for subsequent --resume ──────
+                ClaudeEvent::System { session_id, .. } => {
+                    if let Some(sid) = session_id {
+                        *self.claude_session_id.write().await = Some(sid);
+                    }
+                }
+
+                // ── Streaming assistant text ─────────────────────────────────
                 ClaudeEvent::Assistant { message } => {
                     let text = message
                         .content
@@ -209,7 +196,6 @@ impl ClaudeCodeRunner {
                         .join("");
 
                     if let Some(ref msg_id) = current_message_id {
-                        // Streaming update
                         current_content = text.clone();
                         self.storage
                             .update_message_content(msg_id, &current_content, "streaming")
@@ -224,14 +210,11 @@ impl ClaudeCodeRunner {
                             }),
                         );
                     } else {
-                        // New message
                         let msg = self
                             .storage
                             .create_message(&self.session_id, "assistant", &text, "streaming")
                             .await?;
-                        self.storage
-                            .increment_message_count(&self.session_id)
-                            .await?;
+                        self.storage.increment_message_count(&self.session_id).await?;
                         current_message_id = Some(msg.id.clone());
                         current_content = text.clone();
                         self.broadcaster.broadcast(
@@ -251,12 +234,13 @@ impl ClaudeCodeRunner {
                     }
                 }
 
-                ClaudeEvent::ToolUse {
-                    id: _tool_id,
-                    name,
-                    input,
-                } => {
-                    // Finalize the current assistant message first
+                // ── Tool use — auto-approve (dangerously-skip-permissions) ───
+                //
+                // Claude executes tools itself; this event is informational.
+                // We record it for the UI and complete it immediately — the
+                // session never enters "waiting" status.
+                ClaudeEvent::ToolUse { id: _, name, input } => {
+                    // Finalize any in-progress assistant message first
                     if let Some(ref msg_id) = current_message_id {
                         self.storage
                             .update_message_content(msg_id, &current_content, "done")
@@ -273,16 +257,19 @@ impl ClaudeCodeRunner {
                         current_message_id = None;
                     }
 
-                    // Create a "tool" role message to hold this tool call
                     let tool_msg = self
                         .storage
                         .create_message(&self.session_id, "tool", "", "done")
                         .await?;
-
                     let input_str = serde_json::to_string(&input).unwrap_or_default();
                     let tool_call = self
                         .storage
-                        .create_tool_call(&self.session_id, &tool_msg.id, &name, &input_str)
+                        .create_tool_call(
+                            &self.session_id,
+                            &tool_msg.id,
+                            &name,
+                            &input_str,
+                        )
                         .await?;
 
                     self.broadcaster.broadcast(
@@ -300,56 +287,23 @@ impl ClaudeCodeRunner {
                         }),
                     );
 
-                    // Update session to "waiting" for tool approval
+                    // Auto-complete — no user approval required
                     self.storage
-                        .update_session_status(&self.session_id, "waiting")
-                        .await?;
-                    self.broadcaster.broadcast(
-                        "session.statusChanged",
-                        json!({ "sessionId": self.session_id, "status": "waiting" }),
-                    );
-
-                    // Wait for tool decision via oneshot channel
-                    let (tx, rx) = oneshot::channel::<ToolDecision>();
-                    self.tool_queue
-                        .lock()
-                        .unwrap()
-                        .insert(tool_call.id.clone(), tx);
-
-                    let decision = rx.await.unwrap_or(ToolDecision::Rejected);
-
-                    // With --dangerously-skip-permissions, claude handles tools itself.
-                    // We record the decision and update the status.
-                    let (tc_status, output_str) = match decision {
-                        ToolDecision::Approved => ("done", "approved".to_string()),
-                        ToolDecision::Rejected => ("error", "rejected by user".to_string()),
-                    };
-
-                    self.storage
-                        .complete_tool_call(&tool_call.id, Some(&output_str), tc_status)
+                        .complete_tool_call(&tool_call.id, Some("auto-approved"), "done")
                         .await?;
                     self.broadcaster.broadcast(
                         "session.toolCallUpdated",
                         json!({
                             "sessionId": self.session_id,
                             "toolCallId": tool_call.id,
-                            "status": tc_status,
-                            "output": output_str
+                            "status": "done",
+                            "output": "auto-approved"
                         }),
-                    );
-
-                    // Back to running
-                    self.storage
-                        .update_session_status(&self.session_id, "running")
-                        .await?;
-                    self.broadcaster.broadcast(
-                        "session.statusChanged",
-                        json!({ "sessionId": self.session_id, "status": "running" }),
                     );
                 }
 
+                // ── Turn complete ────────────────────────────────────────────
                 ClaudeEvent::Result { is_error, .. } => {
-                    // Finalize streaming message if any
                     if let Some(ref msg_id) = current_message_id {
                         self.storage
                             .update_message_content(msg_id, &current_content, "done")
@@ -380,41 +334,19 @@ impl ClaudeCodeRunner {
                     );
                 }
 
-                ClaudeEvent::System { .. }
-                | ClaudeEvent::ToolResult { .. }
-                | ClaudeEvent::Unknown => {}
+                ClaudeEvent::ToolResult { .. } | ClaudeEvent::Unknown => {}
             }
         }
 
         child.wait().await?;
         Ok(())
     }
-
-    pub async fn resolve_tool(&self, tool_call_id: &str, decision: ToolDecision) -> Result<()> {
-        let tx = self.tool_queue.lock().unwrap().remove(tool_call_id);
-        if let Some(tx) = tx {
-            let _ = tx.send(decision);
-            Ok(())
-        } else {
-            Err(anyhow::anyhow!(
-                "tool call not found or already resolved: {}",
-                tool_call_id
-            ))
-        }
-    }
 }
 
 #[async_trait]
 impl Runner for ClaudeCodeRunner {
-    async fn send(&self, content: &str) -> Result<()> {
-        let tx = self.stdin_tx.read().await;
-        if let Some(ref tx) = *tx {
-            tx.send(content.to_string())
-                .await
-                .context("runner stdin channel closed")?;
-        } else {
-            return Err(anyhow::anyhow!("runner not started"));
-        }
+    async fn send(&self, _content: &str) -> Result<()> {
+        // Sending is driven by run_turn() called directly from SessionManager.
         Ok(())
     }
 
@@ -431,7 +363,6 @@ impl Runner for ClaudeCodeRunner {
     }
 
     async fn stop(&self) -> Result<()> {
-        *self.stdin_tx.write().await = None;
         Ok(())
     }
 }

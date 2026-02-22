@@ -8,10 +8,10 @@ use serde::Serialize;
 use serde_json::json;
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use tokio::sync::RwLock;
-use tracing::info;
+use tracing::{error, info};
 
 use claude::ClaudeCodeRunner;
-use runner::{Runner, ToolDecision};
+use runner::Runner;
 
 // ─── View types (matching @clawde/proto) ─────────────────────────────────────
 
@@ -196,8 +196,6 @@ impl SessionManager {
                     self.data_dir.clone(),
                     self.broadcaster.clone(),
                 );
-                let runner_clone = runner.clone();
-                runner_clone.start().await?;
                 let handle = Arc::new(SessionHandle {
                     runner: runner.clone(),
                 });
@@ -206,8 +204,25 @@ impl SessionManager {
             }
         };
 
-        // Send message to runner
-        runner.send(content).await?;
+        // Spawn the turn in the background so the RPC returns immediately.
+        // Events (messageCreated, messageUpdated, statusChanged) are pushed
+        // via the broadcaster as the claude process runs.
+        let content_owned = content.to_string();
+        let session_id_owned = session_id.to_string();
+        let storage_bg = self.storage.clone();
+        let broadcaster_bg = self.broadcaster.clone();
+        tokio::spawn(async move {
+            if let Err(e) = runner.run_turn(&content_owned).await {
+                error!(session = %session_id_owned, err = %e, "run_turn failed");
+                let _ = storage_bg
+                    .update_session_status(&session_id_owned, "error")
+                    .await;
+                broadcaster_bg.broadcast(
+                    "session.statusChanged",
+                    json!({ "sessionId": session_id_owned, "status": "error" }),
+                );
+            }
+        });
 
         Ok(msg_view)
     }
@@ -227,32 +242,18 @@ impl SessionManager {
 
     // ─── Tool approval ────────────────────────────────────────────────────────
 
-    pub async fn approve_tool(&self, session_id: &str, tool_call_id: &str) -> Result<()> {
-        let handle = self
-            .handles
-            .read()
-            .await
-            .get(session_id)
-            .cloned()
-            .context("SESSION_NOT_FOUND")?;
-        handle
-            .runner
-            .resolve_tool(tool_call_id, ToolDecision::Approved)
-            .await
+    pub async fn approve_tool(&self, _session_id: &str, _tool_call_id: &str) -> Result<()> {
+        // Tool calls are auto-approved when running with --dangerously-skip-permissions.
+        // Manual approval is not supported in the current mode.
+        Err(anyhow::anyhow!(
+            "tool auto-approved; manual approval not available in --dangerously-skip-permissions mode"
+        ))
     }
 
-    pub async fn reject_tool(&self, session_id: &str, tool_call_id: &str) -> Result<()> {
-        let handle = self
-            .handles
-            .read()
-            .await
-            .get(session_id)
-            .cloned()
-            .context("SESSION_NOT_FOUND")?;
-        handle
-            .runner
-            .resolve_tool(tool_call_id, ToolDecision::Rejected)
-            .await
+    pub async fn reject_tool(&self, _session_id: &str, _tool_call_id: &str) -> Result<()> {
+        Err(anyhow::anyhow!(
+            "tool auto-approved; manual rejection not available in --dangerously-skip-permissions mode"
+        ))
     }
 }
 
