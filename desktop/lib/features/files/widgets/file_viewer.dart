@@ -24,7 +24,7 @@ class FileViewer extends ConsumerWidget {
     final file = selectedFile!;
     final canShowDiff = file.state == FileState.modified ||
         file.state == FileState.staged ||
-        file.state == FileState.conflicted;
+        file.state == FileState.conflict;
 
     if (!canShowDiff) {
       return EmptyState(
@@ -115,7 +115,7 @@ class _DiffLoader extends ConsumerWidget {
   Color _stateColor(FileState state) => switch (state) {
         FileState.modified => Colors.amber,
         FileState.staged => Colors.green,
-        FileState.conflicted => Colors.orange,
+        FileState.conflict => Colors.orange,
         _ => Colors.white38,
       };
 }

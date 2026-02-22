@@ -185,24 +185,24 @@ void main() {
 
   group('RepoStatus.fromJson', () {
     final baseJson = {
-      'path': '/home/user/myapp',
+      'repoPath': '/home/user/myapp',
       'branch': 'main',
-      'is_dirty': true,
-      'ahead_by': 2,
-      'behind_by': 0,
+      'ahead': 2,
+      'behind': 0,
+      'hasConflicts': false,
       'files': [
-        {'path': 'lib/main.dart', 'state': 'modified', 'old_path': null},
-        {'path': 'lib/new.dart', 'state': 'untracked', 'old_path': null},
+        {'path': 'lib/main.dart', 'status': 'modified', 'oldPath': null},
+        {'path': 'lib/new.dart', 'status': 'untracked', 'oldPath': null},
       ],
     };
 
     test('parses required fields', () {
       final rs = RepoStatus.fromJson(baseJson);
-      expect(rs.path, '/home/user/myapp');
+      expect(rs.repoPath, '/home/user/myapp');
       expect(rs.branch, 'main');
-      expect(rs.isDirty, isTrue);
-      expect(rs.aheadBy, 2);
-      expect(rs.behindBy, 0);
+      expect(rs.files.isNotEmpty, isTrue);
+      expect(rs.ahead, 2);
+      expect(rs.behind, 0);
     });
 
     test('parses files list', () {
@@ -221,18 +221,18 @@ void main() {
       for (final state in FileState.values) {
         final fileJson = {
           'path': 'test.dart',
-          'state': state.name,
-          'old_path': null,
+          'status': state.name,
+          'oldPath': null,
         };
         expect(FileStatus.fromJson(fileJson).state, state);
       }
     });
 
-    test('FileStatus oldPath parses for renames', () {
+    test('FileStatus oldPath parses for moved files', () {
       final fileJson = {
         'path': 'lib/new_name.dart',
-        'state': 'renamed',
-        'old_path': 'lib/old_name.dart',
+        'status': 'modified',
+        'oldPath': 'lib/old_name.dart',
       };
       final fs = FileStatus.fromJson(fileJson);
       expect(fs.oldPath, 'lib/old_name.dart');

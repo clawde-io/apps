@@ -64,9 +64,12 @@ Session _session({
     Session(
       id: 'sess-1',
       repoPath: repoPath,
+      title: 'Test session',
       provider: ProviderType.claude,
       status: status,
       createdAt: DateTime(2024),
+      updatedAt: DateTime(2024),
+      messageCount: 0,
     );
 
 ToolCall _toolCall({ToolCallStatus status = ToolCallStatus.pending}) => ToolCall(

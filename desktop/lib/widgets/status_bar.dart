@@ -56,7 +56,7 @@ class StatusBar extends ConsumerWidget {
               repo.branch!,
               style: const TextStyle(fontSize: 11, color: Colors.white54),
             ),
-            if (repo.isDirty) ...[
+            if (repo.files.isNotEmpty) ...[
               const SizedBox(width: 4),
               Container(
                 width: 6,
@@ -67,12 +67,12 @@ class StatusBar extends ConsumerWidget {
                 ),
               ),
             ],
-            if (repo.aheadBy > 0 || repo.behindBy > 0) ...[
+            if (repo.ahead > 0 || repo.behind > 0) ...[
               const SizedBox(width: 6),
               Text(
                 [
-                  if (repo.aheadBy > 0) '↑${repo.aheadBy}',
-                  if (repo.behindBy > 0) '↓${repo.behindBy}',
+                  if (repo.ahead > 0) '↑${repo.ahead}',
+                  if (repo.behind > 0) '↓${repo.behind}',
                 ].join(' '),
                 style: const TextStyle(fontSize: 11, color: Colors.white38),
               ),

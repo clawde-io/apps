@@ -23,21 +23,21 @@ class _FileTreeState extends State<FileTree> {
   final Set<String> _expanded = {};
 
   Color _stateColor(FileState state) => switch (state) {
+        FileState.clean => Colors.white24,
         FileState.untracked => Colors.white38,
         FileState.modified => Colors.amber,
         FileState.staged => Colors.green,
         FileState.deleted => Colors.red,
-        FileState.renamed => Colors.teal,
-        FileState.conflicted => Colors.orange,
+        FileState.conflict => Colors.orange,
       };
 
   String _stateLabel(FileState state) => switch (state) {
+        FileState.clean => '',
         FileState.untracked => 'U',
         FileState.modified => 'M',
         FileState.staged => 'S',
         FileState.deleted => 'D',
-        FileState.renamed => 'R',
-        FileState.conflicted => 'C',
+        FileState.conflict => 'C',
       };
 
   /// Build a tree structure: { dirPath: { files, subdirs } }

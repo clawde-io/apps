@@ -147,7 +147,7 @@ class _StatusOverview extends StatelessWidget {
     final modified = _byState(FileState.modified);
     final untracked = _byState(FileState.untracked);
     final deleted = _byState(FileState.deleted);
-    final conflicted = _byState(FileState.conflicted);
+    final conflicted = _byState(FileState.conflict);
 
     return ListView(
       children: [
