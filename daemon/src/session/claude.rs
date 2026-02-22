@@ -85,6 +85,9 @@ pub struct ClaudeCodeRunner {
     /// history is preserved across process restarts.
     claude_session_id: RwLock<Option<String>>,
     paused: Arc<std::sync::atomic::AtomicBool>,
+    /// PID of the currently running `claude` subprocess (0 = no child).
+    /// Used on Unix to send SIGSTOP / SIGCONT for real pause / resume.
+    child_pid: Arc<AtomicU32>,
     /// The currently running `claude` subprocess, if any.
     /// Shared between run_turn (which stores and waits) and stop (which kills).
     current_child: Arc<Mutex<Option<Child>>>,
@@ -117,6 +120,7 @@ impl ClaudeCodeRunner {
             broadcaster,
             claude_session_id: RwLock::new(None),
             paused: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            child_pid: Arc::new(AtomicU32::new(0)),
             current_child: Arc::new(Mutex::new(None)),
             cancelled: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             account_registry,
@@ -139,7 +143,7 @@ impl ClaudeCodeRunner {
         // Pick the best available account for this turn.
         // On rate-limit detection (via stderr) we'll call mark_limited() on it.
         let hint = PickHint {
-            provider: Some("claude-code".to_string()),
+            provider: Some("claude".to_string()),
         };
         let picked_account = self.account_registry.pick_account(&hint).await?;
 
@@ -197,6 +201,12 @@ impl ClaudeCodeRunner {
                 }
             }
         });
+
+        // Store the PID before handing ownership of the Child to the mutex.
+        // Used by pause() / resume() to send SIGSTOP / SIGCONT on Unix.
+        if let Some(pid) = child.id() {
+            self.child_pid.store(pid, Ordering::Relaxed);
+        }
 
         // Store the child handle so stop() can kill it if needed.
         *self.current_child.lock().await = Some(child);
@@ -399,6 +409,8 @@ impl ClaudeCodeRunner {
         if let Some(mut child) = self.current_child.lock().await.take() {
             let _ = child.wait().await;
         }
+        // Child is gone — clear the stored PID so pause/resume are no-ops.
+        self.child_pid.store(0, Ordering::Relaxed);
 
         // Safety net: if the process exited without emitting a Result event
         // (e.g. crashed or was killed externally), mark the session as error.
@@ -429,12 +441,36 @@ impl Runner for ClaudeCodeRunner {
     async fn pause(&self) -> Result<()> {
         self.paused
             .store(true, std::sync::atomic::Ordering::Relaxed);
+        // On Unix, send SIGSTOP to actually suspend the subprocess.
+        // On other platforms the flag is set but the process keeps running
+        // (no native suspend mechanism available without platform-specific code).
+        #[cfg(unix)]
+        {
+            let pid = self.child_pid.load(Ordering::Relaxed);
+            if pid != 0 {
+                // SAFETY: pid is a valid positive process ID obtained from the
+                // spawned child.  SIGSTOP is safe to send to our own child.
+                unsafe {
+                    libc::kill(pid as libc::pid_t, libc::SIGSTOP);
+                }
+            }
+        }
         Ok(())
     }
 
     async fn resume(&self) -> Result<()> {
         self.paused
             .store(false, std::sync::atomic::Ordering::Relaxed);
+        // Send SIGCONT to wake the subprocess back up.
+        #[cfg(unix)]
+        {
+            let pid = self.child_pid.load(Ordering::Relaxed);
+            if pid != 0 {
+                unsafe {
+                    libc::kill(pid as libc::pid_t, libc::SIGCONT);
+                }
+            }
+        }
         Ok(())
     }
 
@@ -443,6 +479,16 @@ impl Runner for ClaudeCodeRunner {
         // safety net does not race and mark the session as "error".
         self.cancelled
             .store(true, std::sync::atomic::Ordering::Release);
+        // If the process is paused, send SIGCONT first so SIGKILL is delivered.
+        #[cfg(unix)]
+        {
+            let pid = self.child_pid.load(Ordering::Relaxed);
+            if pid != 0 && self.paused.load(std::sync::atomic::Ordering::Relaxed) {
+                unsafe {
+                    libc::kill(pid as libc::pid_t, libc::SIGCONT);
+                }
+            }
+        }
         if let Some(mut child) = self.current_child.lock().await.take() {
             // Send SIGKILL (on Unix) / TerminateProcess (on Windows).
             // Ignore errors — the process may have already exited.
@@ -450,6 +496,7 @@ impl Runner for ClaudeCodeRunner {
             // Reap the process so we don't leave a zombie.
             let _ = child.wait().await;
         }
+        self.child_pid.store(0, Ordering::Relaxed);
         Ok(())
     }
 }

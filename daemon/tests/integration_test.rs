@@ -128,7 +128,7 @@ async fn test_session_create_list_get_delete() {
         &url,
         "session.create",
         json!({
-            "provider": "claude-code",
+            "provider": "claude",
             "repoPath": tmp_repo.path().to_str().unwrap(),
             "title": "Test Session"
         }),
@@ -137,7 +137,7 @@ async fn test_session_create_list_get_delete() {
     assert!(resp.get("error").is_none(), "create error: {:?}", resp);
     let session = &resp["result"];
     let session_id = session["id"].as_str().unwrap().to_string();
-    assert_eq!(session["provider"], "claude-code");
+    assert_eq!(session["provider"], "claude");
     assert_eq!(session["title"], "Test Session");
     assert_eq!(session["status"], "idle");
 
@@ -170,7 +170,7 @@ async fn test_session_not_found() {
         json!({ "sessionId": "nonexistent-id" }),
     )
     .await;
-    assert_eq!(resp["error"]["code"], -32000);
+    assert_eq!(resp["error"]["code"], -32001);
 }
 
 #[tokio::test]
@@ -199,7 +199,7 @@ async fn test_get_messages_empty() {
         &url,
         "session.create",
         json!({
-            "provider": "claude-code",
+            "provider": "claude",
             "repoPath": tmp_repo.path().to_str().unwrap(),
             "title": "Msg Test"
         }),

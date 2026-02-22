@@ -59,6 +59,10 @@ chrono = { version = "0.4", features = ["serde"] }
 # Async trait (for Runner trait)
 async-trait = "0.1"
 
+# Unix-only: process signals for pause (SIGSTOP) / resume (SIGCONT)
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 # Library crate for integration tests
 [lib]
 name = "clawd"

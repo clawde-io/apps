@@ -38,7 +38,13 @@ struct RpcError {
     message: String,
 }
 
-// ─── Error codes (matching @clawde/proto) ───────────────────────────────────
+// ─── Error codes — must match ClawdError in clawd_proto/lib/src/rpc.dart ────
+//
+// sessionNotFound      = -32001
+// providerNotAvailable = -32002  (session busy or paused — use error message to distinguish)
+// rateLimited          = -32003  (rate-limit from AI provider, not user-initiated)
+// unauthorized         = -32004
+// repoNotFound         = -32005
 
 const PARSE_ERROR: i32 = -32700;
 const INVALID_REQUEST: i32 = -32600;
@@ -46,10 +52,12 @@ const METHOD_NOT_FOUND: i32 = -32601;
 const INVALID_PARAMS: i32 = -32602;
 const INTERNAL_ERROR: i32 = -32603;
 const UNAUTHORIZED: i32 = -32004;
-const SESSION_NOT_FOUND: i32 = -32000;
-const REPO_NOT_FOUND: i32 = -32001;
+const SESSION_NOT_FOUND: i32 = -32001;
+const REPO_NOT_FOUND: i32 = -32005;
+/// Session is currently running — cannot accept a new message turn.
 const SESSION_BUSY: i32 = -32002;
-const SESSION_PAUSED_CODE: i32 = -32003;
+/// Session is paused — must call session.resume before sending messages.
+const SESSION_PAUSED_CODE: i32 = -32002;
 
 // ─── Server ──────────────────────────────────────────────────────────────────
 

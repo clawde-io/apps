@@ -256,6 +256,7 @@ dependencies = [
  "clap",
  "futures-util",
  "git2",
+ "libc",
  "notify 7.0.0",
  "notify-debouncer-full",
  "reqwest",
