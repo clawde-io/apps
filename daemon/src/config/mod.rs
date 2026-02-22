@@ -21,11 +21,13 @@ pub struct DaemonConfig {
 impl DaemonConfig {
     pub fn new(port: u16, data_dir: Option<PathBuf>, log: String) -> Self {
         let data_dir = data_dir.unwrap_or_else(default_data_dir);
-        let api_base_url = std::env::var("CLAWD_API_URL")
-            .unwrap_or_else(|_| DEFAULT_API_BASE_URL.to_string());
-        let relay_url = std::env::var("CLAWD_RELAY_URL")
-            .unwrap_or_else(|_| DEFAULT_RELAY_URL.to_string());
-        let license_token = std::env::var("CLAWD_LICENSE_TOKEN").ok().filter(|t| !t.is_empty());
+        let api_base_url =
+            std::env::var("CLAWD_API_URL").unwrap_or_else(|_| DEFAULT_API_BASE_URL.to_string());
+        let relay_url =
+            std::env::var("CLAWD_RELAY_URL").unwrap_or_else(|_| DEFAULT_RELAY_URL.to_string());
+        let license_token = std::env::var("CLAWD_LICENSE_TOKEN")
+            .ok()
+            .filter(|t| !t.is_empty());
 
         Self {
             port,

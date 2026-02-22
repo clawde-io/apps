@@ -79,8 +79,8 @@ impl Updater {
     /// Check GitHub Releases for a newer version.
     /// Returns `(current_version, latest_version, is_newer)`.
     pub async fn check(&self) -> Result<(String, String, bool)> {
-        let current = Version::parse(env!("CARGO_PKG_VERSION"))
-            .context("invalid CARGO_PKG_VERSION")?;
+        let current =
+            Version::parse(env!("CARGO_PKG_VERSION")).context("invalid CARGO_PKG_VERSION")?;
 
         let release = self.fetch_latest_release().await?;
         let tag = release.tag_name.trim_start_matches('v').to_string();
@@ -156,13 +156,14 @@ impl Updater {
             .await?
             .text()
             .await?;
-        let expected_hash = checksum_text.split_whitespace().next().unwrap_or("").to_string();
+        let expected_hash = checksum_text
+            .split_whitespace()
+            .next()
+            .unwrap_or("")
+            .to_string();
 
         // Download binary with streaming to avoid loading entire file into RAM
-        let dest = self
-            .config
-            .data_dir
-            .join(format!("clawd-update-{version}"));
+        let dest = self.config.data_dir.join(format!("clawd-update-{version}"));
 
         let mut file = tokio::fs::File::create(&dest)
             .await
@@ -187,9 +188,7 @@ impl Updater {
 
         if actual_hash != expected_hash {
             let _ = tokio::fs::remove_file(&dest).await;
-            bail!(
-                "SHA256 mismatch: expected {expected_hash}, got {actual_hash}"
-            );
+            bail!("SHA256 mismatch: expected {expected_hash}, got {actual_hash}");
         }
 
         // Make executable on Unix
@@ -226,10 +225,8 @@ impl Updater {
             return Ok(false);
         };
 
-        self.broadcaster.broadcast(
-            "daemon.updating",
-            json!({ "version": update.version }),
-        );
+        self.broadcaster
+            .broadcast("daemon.updating", json!({ "version": update.version }));
 
         info!(version = %update.version, "applying update");
 
@@ -253,7 +250,7 @@ impl Updater {
             let err = std::process::Command::new(&current_exe)
                 .args(&args[1..])
                 .exec();
-            return Err(anyhow::anyhow!("exec failed: {err}"));
+            Err(anyhow::anyhow!("exec failed: {err}"))
         }
 
         #[cfg(not(unix))]
@@ -313,8 +310,7 @@ pub fn spawn(config: Arc<DaemonConfig>, broadcaster: Arc<EventBroadcaster>) -> U
         }
 
         // Repeat every 24 hours
-        let mut interval =
-            tokio::time::interval(std::time::Duration::from_secs(24 * 60 * 60));
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(24 * 60 * 60));
         interval.tick().await; // consume first immediate tick
         loop {
             interval.tick().await;

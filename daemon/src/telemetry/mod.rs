@@ -62,11 +62,7 @@ impl TelemetrySender {
 /// The task flushes on a 60s timer or when 20 events accumulate.
 /// If `daemon_id` is empty, events are accepted but discarded on flush
 /// (no network call when identity is unknown).
-pub fn spawn(
-    config: Arc<DaemonConfig>,
-    daemon_id: String,
-    tier: String,
-) -> TelemetrySender {
+pub fn spawn(config: Arc<DaemonConfig>, daemon_id: String, tier: String) -> TelemetrySender {
     let (tx, mut rx) = mpsc::channel::<TelemetryEvent>(200);
     let platform = std::env::consts::OS.to_string();
     let version = env!("CARGO_PKG_VERSION").to_string();
@@ -115,7 +111,10 @@ async fn flush(
     buffer: &mut Vec<TelemetryEvent>,
 ) {
     if daemon_id.is_empty() {
-        debug!("telemetry: daemon_id not set, discarding {} events", buffer.len());
+        debug!(
+            "telemetry: daemon_id not set, discarding {} events",
+            buffer.len()
+        );
         buffer.clear();
         return;
     }

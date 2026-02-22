@@ -68,10 +68,7 @@ impl AccountRegistry {
             .collect();
 
         // Return highest priority (lowest number) or None
-        Ok(available
-            .into_iter()
-            .min_by_key(|a| a.priority)
-            .cloned())
+        Ok(available.into_iter().min_by_key(|a| a.priority).cloned())
     }
 
     /// Mark an account as rate-limited for `cooldown_minutes`.
@@ -113,7 +110,10 @@ impl AccountRegistry {
                     "limitedUntil": until,
                 }),
             );
-            info!(account_id, session_id, "account limited — user action required");
+            info!(
+                account_id,
+                session_id, "account limited — user action required"
+            );
         }
 
         Ok(())

@@ -75,11 +75,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn run_server(
-    port: u16,
-    data_dir: Option<std::path::PathBuf>,
-    log: String,
-) -> Result<()> {
+async fn run_server(port: u16, data_dir: Option<std::path::PathBuf>, log: String) -> Result<()> {
     info!(
         version = env!("CARGO_PKG_VERSION"),
         port = port,
@@ -112,7 +108,10 @@ async fn run_server(
 
     let recovered = storage.recover_stale_sessions().await.unwrap_or(0);
     if recovered > 0 {
-        info!(count = recovered, "recovered stale sessions from previous run");
+        info!(
+            count = recovered,
+            "recovered stale sessions from previous run"
+        );
     }
 
     let license_info = license::verify_and_cache(&storage, &config, &daemon_id).await;
@@ -125,8 +124,7 @@ async fn run_server(
         let daemon_id = daemon_id.clone();
         let license = license.clone();
         tokio::spawn(async move {
-            let mut interval =
-                tokio::time::interval(std::time::Duration::from_secs(24 * 60 * 60));
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(24 * 60 * 60));
             interval.tick().await;
             loop {
                 interval.tick().await;

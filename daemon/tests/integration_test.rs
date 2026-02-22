@@ -38,9 +38,7 @@ async fn start_test_daemon() -> (String, Arc<AppContext>) {
         repo_registry,
         session_manager,
         daemon_id: "test-daemon-id".to_string(),
-        license: Arc::new(tokio::sync::RwLock::new(
-            clawd::license::LicenseInfo::free(),
-        )),
+        license: Arc::new(tokio::sync::RwLock::new(clawd::license::LicenseInfo::free())),
         telemetry: Arc::new(telemetry::spawn(
             config_arc,
             "test-daemon-id".to_string(),

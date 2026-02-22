@@ -105,10 +105,13 @@ fn windows_machine_guid() -> Result<String> {
 fn fallback_id() -> Result<String> {
     // Unsupported platform — use process start time as entropy seed.
     // This won't be stable across reboots, but prevents a hard failure.
-    Ok(format!("fallback-{}", std::time::SystemTime::UNIX_EPOCH
-        .elapsed()
-        .unwrap_or_default()
-        .as_nanos()))
+    Ok(format!(
+        "fallback-{}",
+        std::time::SystemTime::UNIX_EPOCH
+            .elapsed()
+            .unwrap_or_default()
+            .as_nanos()
+    ))
 }
 
 // ─── Hashing ─────────────────────────────────────────────────────────────────

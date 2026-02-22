@@ -89,11 +89,7 @@ pub async fn get_cached(storage: &Storage) -> LicenseInfo {
 
 // ─── Private helpers ──────────────────────────────────────────────────────────
 
-async fn call_verify(
-    config: &DaemonConfig,
-    daemon_id: &str,
-    token: &str,
-) -> Result<LicenseInfo> {
+async fn call_verify(config: &DaemonConfig, daemon_id: &str, token: &str) -> Result<LicenseInfo> {
     let url = format!("{}/daemon/verify", config.api_base_url);
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))

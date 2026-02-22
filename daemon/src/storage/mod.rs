@@ -30,7 +30,7 @@ pub struct MessageRow {
 pub struct LicenseCacheRow {
     pub id: i64,
     pub tier: String,
-    pub features: String,    // JSON string
+    pub features: String, // JSON string
     pub cached_at: String,
     pub valid_until: String,
 }

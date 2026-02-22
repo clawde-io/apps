@@ -56,7 +56,9 @@ struct AssistantMessage {
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum ContentBlock {
-    Text { text: String },
+    Text {
+        text: String,
+    },
     #[serde(other)]
     Other,
 }
@@ -214,7 +216,9 @@ impl ClaudeCodeRunner {
                             .storage
                             .create_message(&self.session_id, "assistant", &text, "streaming")
                             .await?;
-                        self.storage.increment_message_count(&self.session_id).await?;
+                        self.storage
+                            .increment_message_count(&self.session_id)
+                            .await?;
                         current_message_id = Some(msg.id.clone());
                         current_content = text.clone();
                         self.broadcaster.broadcast(
@@ -264,12 +268,7 @@ impl ClaudeCodeRunner {
                     let input_str = serde_json::to_string(&input).unwrap_or_default();
                     let tool_call = self
                         .storage
-                        .create_tool_call(
-                            &self.session_id,
-                            &tool_msg.id,
-                            &name,
-                            &input_str,
-                        )
+                        .create_tool_call(&self.session_id, &tool_msg.id, &name, &input_str)
                         .await?;
 
                     self.broadcaster.broadcast(
