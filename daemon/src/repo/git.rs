@@ -93,10 +93,7 @@ pub fn read_status(repo: &Repository) -> Result<RepoStatus> {
     let mut has_conflicts = false;
 
     for entry in statuses.iter() {
-        let path = entry
-            .path()
-            .unwrap_or("")
-            .to_string();
+        let path = entry.path().unwrap_or("").to_string();
         let s = entry.status();
 
         if s.is_conflicted() {
@@ -150,10 +147,7 @@ pub fn read_status(repo: &Repository) -> Result<RepoStatus> {
 fn current_branch(repo: &Repository) -> Result<String> {
     let head = repo.head()?;
     if head.is_branch() {
-        Ok(head
-            .shorthand()
-            .unwrap_or("HEAD")
-            .to_string())
+        Ok(head.shorthand().unwrap_or("HEAD").to_string())
     } else {
         // Detached HEAD — show short SHA
         let oid = head.peel_to_commit()?.id();
@@ -215,8 +209,15 @@ fn parse_diff(diff: git2::Diff) -> Result<Vec<FileDiff>> {
     let mut result: Vec<FileDiff> = Vec::new();
 
     diff.print(git2::DiffFormat::Patch, |delta, hunk, line| {
-        let new_file = delta.new_file().path().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
-        let old_file = delta.old_file().path().map(|p| p.to_string_lossy().into_owned());
+        let new_file = delta
+            .new_file()
+            .path()
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let old_file = delta
+            .old_file()
+            .path()
+            .map(|p| p.to_string_lossy().into_owned());
         let is_binary = delta.new_file().is_binary();
 
         // Find or create the FileDiff entry
@@ -232,7 +233,10 @@ fn parse_diff(diff: git2::Diff) -> Result<Vec<FileDiff>> {
         let file = result.last_mut().unwrap();
 
         if let Some(hunk) = hunk {
-            let header = std::str::from_utf8(hunk.header()).unwrap_or("").trim().to_string();
+            let header = std::str::from_utf8(hunk.header())
+                .unwrap_or("")
+                .trim()
+                .to_string();
             if file.hunks.last().map(|h: &DiffHunk| h.header.as_str()) != Some(&header) {
                 file.hunks.push(DiffHunk {
                     header: header.clone(),

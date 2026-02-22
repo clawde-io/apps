@@ -87,7 +87,10 @@ impl SessionManager {
             _ => return Err(anyhow::anyhow!("unknown provider: {}", provider)),
         }
 
-        let row = self.storage.create_session(provider, repo_path, title).await?;
+        let row = self
+            .storage
+            .create_session(provider, repo_path, title)
+            .await?;
         info!(id = %row.id, provider = %provider, "session created");
 
         let view = row_to_view(row);
@@ -195,7 +198,9 @@ impl SessionManager {
                 );
                 let runner_clone = runner.clone();
                 runner_clone.start().await?;
-                let handle = Arc::new(SessionHandle { runner: runner.clone() });
+                let handle = Arc::new(SessionHandle {
+                    runner: runner.clone(),
+                });
                 handles.insert(session_id.to_string(), handle);
                 runner
             }

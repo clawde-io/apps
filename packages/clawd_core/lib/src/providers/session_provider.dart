@@ -47,7 +47,7 @@ class SessionListNotifier extends AsyncNotifier<List<Session>> {
 
   Future<Session> create({
     required String repoPath,
-    ProviderType provider = ProviderType.claudeCode,
+    ProviderType provider = ProviderType.claude,
   }) async {
     final client = ref.read(daemonProvider.notifier).client;
     final result = await client.call<Map<String, dynamic>>(

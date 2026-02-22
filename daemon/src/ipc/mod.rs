@@ -81,10 +81,7 @@ pub async fn run(ctx: Arc<AppContext>) -> Result<()> {
     }
 }
 
-async fn handle_connection(
-    stream: tokio::net::TcpStream,
-    ctx: Arc<AppContext>,
-) -> Result<()> {
+async fn handle_connection(stream: tokio::net::TcpStream, ctx: Arc<AppContext>) -> Result<()> {
     let ws = accept_async(stream).await?;
     let (mut sink, mut stream) = ws.split();
     let mut broadcast_rx = ctx.broadcaster.subscribe();
@@ -96,7 +93,7 @@ async fn handle_connection(
                 match msg {
                     Some(Ok(Message::Text(text))) => {
                         let response = dispatch_text(&text, &ctx).await;
-                        if let Err(e) = sink.send(Message::Text(response.into())).await {
+                        if let Err(e) = sink.send(Message::Text(response)).await {
                             warn!(err = %e, "send error");
                             break;
                         }
@@ -116,7 +113,7 @@ async fn handle_connection(
             event = broadcast_rx.recv() => {
                 match event {
                     Ok(json) => {
-                        if let Err(e) = sink.send(Message::Text(json.into())).await {
+                        if let Err(e) = sink.send(Message::Text(json)).await {
                             warn!(err = %e, "broadcast send error");
                             break;
                         }

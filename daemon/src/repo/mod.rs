@@ -14,7 +14,7 @@ use tracing::info;
 use git::{FileDiff, RepoStatus};
 
 struct RepoEntry {
-    path: PathBuf,
+    _path: PathBuf,
     // Keep watcher alive — dropped when entry is removed
     _watcher: notify_debouncer_full::Debouncer<
         notify_debouncer_full::notify::RecommendedWatcher,
@@ -57,8 +57,7 @@ impl RepoRegistry {
         // Open git repo in background thread (git2 is sync)
         let canonical_clone = canonical.clone();
         let status = tokio::task::spawn_blocking(move || {
-            let repo = Repository::open(&canonical_clone)
-                .context("not a git repository")?;
+            let repo = Repository::open(&canonical_clone).context("not a git repository")?;
             git::read_status(&repo)
         })
         .await??;
@@ -88,7 +87,7 @@ impl RepoRegistry {
         })?;
 
         let entry = Arc::new(RepoEntry {
-            path: canonical,
+            _path: canonical,
             _watcher: watcher,
             last_status: RwLock::new(status.clone()),
         });

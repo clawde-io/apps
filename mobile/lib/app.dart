@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:clawd_ui/clawd_ui.dart';
-import 'features/sessions/sessions_screen.dart';
-import 'features/session_detail/session_detail_screen.dart';
-import 'features/settings/settings_screen.dart';
+import 'package:clawde_mobile/features/sessions/sessions_screen.dart';
+import 'package:clawde_mobile/features/session_detail/session_detail_screen.dart';
+import 'package:clawde_mobile/features/settings/settings_screen.dart';
 
 final _router = GoRouter(
   routes: [

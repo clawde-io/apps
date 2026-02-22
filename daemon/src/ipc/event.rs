@@ -7,6 +7,12 @@ pub struct EventBroadcaster {
     tx: broadcast::Sender<String>,
 }
 
+impl Default for EventBroadcaster {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EventBroadcaster {
     pub fn new() -> Self {
         let (tx, _) = broadcast::channel(1024);
@@ -21,9 +27,9 @@ impl EventBroadcaster {
             "params": params
         });
         // Ignore errors — no subscribers is fine
-        let _ = self.tx.send(
-            serde_json::to_string(&notification).unwrap_or_default(),
-        );
+        let _ = self
+            .tx
+            .send(serde_json::to_string(&notification).unwrap_or_default());
     }
 
     /// Subscribe to all broadcast events.

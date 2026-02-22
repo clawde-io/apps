@@ -47,10 +47,9 @@ class _StatusDot extends StatelessWidget {
 
   Color get _color => switch (status) {
         SessionStatus.running => ClawdTheme.success,
-        SessionStatus.waiting => ClawdTheme.warning,
+        SessionStatus.idle => ClawdTheme.warning,
         SessionStatus.paused => ClawdTheme.info,
         SessionStatus.error => ClawdTheme.error,
-        SessionStatus.closed => Colors.grey,
         _ => Colors.grey,
       };
 

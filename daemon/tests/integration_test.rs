@@ -1,18 +1,24 @@
 /// Integration tests for the clawd JSON-RPC server.
 /// Spins up a real daemon on a free port and tests all RPC methods.
-use clawd::{config::DaemonConfig, ipc::event::EventBroadcaster, repo::RepoRegistry, session::SessionManager, storage::Storage, AppContext};
+use clawd::{
+    config::DaemonConfig, ipc::event::EventBroadcaster, repo::RepoRegistry,
+    session::SessionManager, storage::Storage, AppContext,
+};
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
 use std::sync::Arc;
-use tokio::net::TcpStream;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 /// Start a daemon on a random port and return the WebSocket URL.
 async fn start_test_daemon() -> (String, Arc<AppContext>) {
-    let data_dir = tempfile::tempdir().unwrap().into_path();
+    let data_dir = tempfile::tempdir().unwrap().keep();
     let port = get_free_port();
 
-    let config = Arc::new(DaemonConfig::new(port, Some(data_dir.clone()), "warn".into()));
+    let config = Arc::new(DaemonConfig::new(
+        port,
+        Some(data_dir.clone()),
+        "warn".into(),
+    ));
     let storage = Arc::new(Storage::new(&data_dir).await.unwrap());
     let broadcaster = Arc::new(EventBroadcaster::new());
     let repo_registry = Arc::new(RepoRegistry::new(broadcaster.clone()));
@@ -57,7 +63,7 @@ async fn ws_rpc(url: &str, method: &str, params: Value) -> Value {
         "method": method,
         "params": params
     });
-    ws.send(Message::Text(serde_json::to_string(&request).unwrap().into()))
+    ws.send(Message::Text(serde_json::to_string(&request).unwrap()))
         .await
         .unwrap();
 
@@ -164,7 +170,10 @@ async fn test_repo_not_a_git_repo() {
     )
     .await;
     // Should return an error since it's not a git repo
-    assert!(resp.get("error").is_some(), "expected error for non-git dir");
+    assert!(
+        resp.get("error").is_some(),
+        "expected error for non-git dir"
+    );
 }
 
 #[tokio::test]

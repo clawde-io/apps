@@ -26,6 +26,13 @@ jobs:
 
           WIKI_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git"
 
+          # Check if wiki exists before attempting clone
+          if ! git ls-remote --exit-code "${WIKI_URL}" HEAD > /dev/null 2>&1; then
+            echo "Wiki not yet initialized for ${GITHUB_REPOSITORY}. Skipping sync."
+            echo "To enable: go to repo Settings → Features → Wikis, enable it, and create the first page."
+            exit 0
+          fi
+
           cd /tmp
           git clone "${WIKI_URL}" wiki 2>&1
           cp -rf "$GITHUB_WORKSPACE/.wiki/." wiki/

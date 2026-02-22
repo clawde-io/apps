@@ -9,10 +9,9 @@ class ProviderBadge extends StatelessWidget {
   final ProviderType provider;
 
   (String, Color) get _label => switch (provider) {
-        ProviderType.claudeCode => ('Claude', ClawdTheme.claudeColor),
+        ProviderType.claude => ('Claude', ClawdTheme.claudeColor),
         ProviderType.codex => ('Codex', ClawdTheme.codexColor),
         ProviderType.cursor => ('Cursor', ClawdTheme.cursorColor),
-        ProviderType.aider => ('Aider', ClawdTheme.aiderColor),
       };
 
   @override

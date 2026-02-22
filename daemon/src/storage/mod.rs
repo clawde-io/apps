@@ -48,13 +48,11 @@ impl Storage {
     pub async fn new(data_dir: &Path) -> Result<Self> {
         tokio::fs::create_dir_all(data_dir).await?;
         let db_path = data_dir.join("clawd.db");
-        let opts = SqliteConnectOptions::from_str(&format!(
-            "sqlite://{}?mode=rwc",
-            db_path.display()
-        ))?
-        .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
-        .synchronous(sqlx::sqlite::SqliteSynchronous::Normal)
-        .create_if_missing(true);
+        let opts =
+            SqliteConnectOptions::from_str(&format!("sqlite://{}?mode=rwc", db_path.display()))?
+                .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
+                .synchronous(sqlx::sqlite::SqliteSynchronous::Normal)
+                .create_if_missing(true);
 
         let pool = SqlitePool::connect_with(opts).await?;
         Self::migrate(&pool).await?;
@@ -95,7 +93,9 @@ impl Storage {
         .bind(&now)
         .execute(&self.pool)
         .await?;
-        self.get_session(&id).await?.ok_or_else(|| anyhow::anyhow!("session not found after insert"))
+        self.get_session(&id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("session not found after insert"))
     }
 
     pub async fn get_session(&self, id: &str) -> Result<Option<SessionRow>> {
@@ -106,9 +106,11 @@ impl Storage {
     }
 
     pub async fn list_sessions(&self) -> Result<Vec<SessionRow>> {
-        Ok(sqlx::query_as("SELECT * FROM sessions ORDER BY created_at DESC")
-            .fetch_all(&self.pool)
-            .await?)
+        Ok(
+            sqlx::query_as("SELECT * FROM sessions ORDER BY created_at DESC")
+                .fetch_all(&self.pool)
+                .await?,
+        )
     }
 
     pub async fn update_session_status(&self, id: &str, status: &str) -> Result<()> {
@@ -177,7 +179,12 @@ impl Storage {
             .await?)
     }
 
-    pub async fn update_message_content(&self, id: &str, content: &str, status: &str) -> Result<()> {
+    pub async fn update_message_content(
+        &self,
+        id: &str,
+        content: &str,
+        status: &str,
+    ) -> Result<()> {
         sqlx::query("UPDATE messages SET content = ?, status = ? WHERE id = ?")
             .bind(content)
             .bind(status)
@@ -257,35 +264,32 @@ impl Storage {
         status: &str,
     ) -> Result<()> {
         let now = Utc::now().to_rfc3339();
-        sqlx::query(
-            "UPDATE tool_calls SET output = ?, status = ?, completed_at = ? WHERE id = ?",
-        )
-        .bind(output)
-        .bind(status)
-        .bind(&now)
-        .bind(id)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("UPDATE tool_calls SET output = ?, status = ?, completed_at = ? WHERE id = ?")
+            .bind(output)
+            .bind(status)
+            .bind(&now)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 
     pub async fn list_tool_calls_for_session(&self, session_id: &str) -> Result<Vec<ToolCallRow>> {
-        Ok(sqlx::query_as(
-            "SELECT * FROM tool_calls WHERE session_id = ? ORDER BY created_at ASC",
+        Ok(
+            sqlx::query_as("SELECT * FROM tool_calls WHERE session_id = ? ORDER BY created_at ASC")
+                .bind(session_id)
+                .fetch_all(&self.pool)
+                .await?,
         )
-        .bind(session_id)
-        .fetch_all(&self.pool)
-        .await?)
     }
 
     // ─── Settings ───────────────────────────────────────────────────────────
 
     pub async fn get_setting(&self, key: &str) -> Result<Option<String>> {
-        let row: Option<(String,)> =
-            sqlx::query_as("SELECT value FROM settings WHERE key = ?")
-                .bind(key)
-                .fetch_optional(&self.pool)
-                .await?;
+        let row: Option<(String,)> = sqlx::query_as("SELECT value FROM settings WHERE key = ?")
+            .bind(key)
+            .fetch_optional(&self.pool)
+            .await?;
         Ok(row.map(|(v,)| v))
     }
 

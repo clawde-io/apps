@@ -38,7 +38,10 @@ fn default_data_dir() -> PathBuf {
             return PathBuf::from(xdg).join("clawd");
         }
         if let Ok(home) = std::env::var("HOME") {
-            return PathBuf::from(home).join(".local").join("share").join("clawd");
+            return PathBuf::from(home)
+                .join(".local")
+                .join("share")
+                .join("clawd");
         }
     }
     #[cfg(target_os = "windows")]

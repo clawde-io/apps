@@ -1,13 +1,9 @@
 use anyhow::Result;
-use clawd::{
-    config::DaemonConfig,
-    ipc::event::EventBroadcaster,
-    repo::RepoRegistry,
-    session::SessionManager,
-    storage::Storage,
-    AppContext,
-};
 use clap::Parser;
+use clawd::{
+    config::DaemonConfig, ipc::event::EventBroadcaster, repo::RepoRegistry,
+    session::SessionManager, storage::Storage, AppContext,
+};
 use std::sync::Arc;
 use tracing::info;
 
@@ -40,7 +36,11 @@ async fn main() -> Result<()> {
         .compact()
         .init();
 
-    info!(version = env!("CARGO_PKG_VERSION"), port = args.port, "clawd starting");
+    info!(
+        version = env!("CARGO_PKG_VERSION"),
+        port = args.port,
+        "clawd starting"
+    );
 
     let config = Arc::new(DaemonConfig::new(args.port, args.data_dir, args.log));
     info!(data_dir = %config.data_dir.display(), "data directory");

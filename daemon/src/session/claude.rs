@@ -19,11 +19,10 @@ use tracing::{debug, error, warn};
 
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[allow(dead_code)]
 enum ClaudeEvent {
     /// Text content from the assistant
-    Assistant {
-        message: AssistantMessage,
-    },
+    Assistant { message: AssistantMessage },
     /// Tool use request
     #[serde(rename = "tool_use")]
     ToolUse {
@@ -33,10 +32,7 @@ enum ClaudeEvent {
     },
     /// Tool result (echo back from claude after we provide approval)
     #[serde(rename = "tool_result")]
-    ToolResult {
-        tool_use_id: String,
-        content: Value,
-    },
+    ToolResult { tool_use_id: String, content: Value },
     /// Final result of the session turn
     Result {
         subtype: String,
@@ -53,6 +49,7 @@ enum ClaudeEvent {
 }
 
 #[derive(Deserialize, Debug)]
+#[allow(dead_code)]
 struct AssistantMessage {
     role: String,
     content: Vec<ContentBlock>,
@@ -61,7 +58,9 @@ struct AssistantMessage {
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum ContentBlock {
-    Text { text: String },
+    Text {
+        text: String,
+    },
     #[serde(other)]
     Other,
 }
@@ -72,7 +71,7 @@ pub struct ClaudeCodeRunner {
     session_id: String,
     repo_path: String,
     storage: Arc<Storage>,
-    data_dir: std::path::PathBuf,
+    _data_dir: std::path::PathBuf,
     broadcaster: Arc<EventBroadcaster>,
     /// Channel to send messages into the running subprocess stdin
     stdin_tx: RwLock<Option<tokio::sync::mpsc::Sender<String>>>,
@@ -93,7 +92,7 @@ impl ClaudeCodeRunner {
             session_id,
             repo_path,
             storage,
-            data_dir,
+            _data_dir: data_dir,
             broadcaster,
             stdin_tx: RwLock::new(None),
             tool_queue: Arc::new(Mutex::new(HashMap::new())),
@@ -252,7 +251,11 @@ impl ClaudeCodeRunner {
                     }
                 }
 
-                ClaudeEvent::ToolUse { id: _tool_id, name, input } => {
+                ClaudeEvent::ToolUse {
+                    id: _tool_id,
+                    name,
+                    input,
+                } => {
                     // Finalize the current assistant message first
                     if let Some(ref msg_id) = current_message_id {
                         self.storage
@@ -279,12 +282,7 @@ impl ClaudeCodeRunner {
                     let input_str = serde_json::to_string(&input).unwrap_or_default();
                     let tool_call = self
                         .storage
-                        .create_tool_call(
-                            &self.session_id,
-                            &tool_msg.id,
-                            &name,
-                            &input_str,
-                        )
+                        .create_tool_call(&self.session_id, &tool_msg.id, &name, &input_str)
                         .await?;
 
                     self.broadcaster.broadcast(
@@ -382,7 +380,9 @@ impl ClaudeCodeRunner {
                     );
                 }
 
-                ClaudeEvent::System { .. } | ClaudeEvent::ToolResult { .. } | ClaudeEvent::Unknown => {}
+                ClaudeEvent::System { .. }
+                | ClaudeEvent::ToolResult { .. }
+                | ClaudeEvent::Unknown => {}
             }
         }
 
@@ -391,11 +391,7 @@ impl ClaudeCodeRunner {
     }
 
     pub async fn resolve_tool(&self, tool_call_id: &str, decision: ToolDecision) -> Result<()> {
-        let tx = self
-            .tool_queue
-            .lock()
-            .unwrap()
-            .remove(tool_call_id);
+        let tx = self.tool_queue.lock().unwrap().remove(tool_call_id);
         if let Some(tx) = tx {
             let _ = tx.send(decision);
             Ok(())

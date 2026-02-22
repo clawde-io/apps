@@ -1,9 +1,6 @@
 use anyhow::Result;
 use std::path::{Path, PathBuf};
-use tokio::{
-    fs::OpenOptions,
-    io::AsyncWriteExt,
-};
+use tokio::{fs::OpenOptions, io::AsyncWriteExt};
 
 /// Append-only JSONL event log for a session.
 pub struct EventLog {
@@ -12,7 +9,9 @@ pub struct EventLog {
 
 impl EventLog {
     pub fn new(data_dir: &Path, session_id: &str) -> Self {
-        let path = data_dir.join("sessions").join(format!("{}.jsonl", session_id));
+        let path = data_dir
+            .join("sessions")
+            .join(format!("{}.jsonl", session_id));
         Self { path }
     }
 
