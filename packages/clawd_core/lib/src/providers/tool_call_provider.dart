@@ -2,8 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:clawd_proto/clawd_proto.dart';
 import 'daemon_provider.dart';
 
-/// Pending tool calls for a session, waiting for user approval or auto-approved.
-/// Updated via `tool_call.pending` and `tool_call.completed` push events.
+/// Tool calls for a session, accumulated from push events.
+/// There is no listing RPC — state is built entirely from
+/// `session.toolCallCreated` and `session.toolCallUpdated` push events.
 class ToolCallNotifier
     extends FamilyAsyncNotifier<List<ToolCall>, String> {
   @override
@@ -11,47 +12,72 @@ class ToolCallNotifier
     ref.listen(daemonPushEventsProvider, (_, next) {
       next.whenData((event) {
         final method = event['method'] as String?;
-        if (method == 'tool_call.pending' || method == 'tool_call.completed') {
-          final params = event['params'] as Map<String, dynamic>?;
-          if (params?['session_id'] == sessionId) {
-            refresh();
+        if (method == null) return;
+        final params = event['params'] as Map<String, dynamic>?;
+        if (params == null) return;
+
+        if (method == 'session.toolCallCreated') {
+          // sessionId is in outer params; toolCall sub-object lacks it.
+          final tcJson = params['toolCall'] as Map<String, dynamic>?;
+          if (tcJson != null) {
+            final tc = ToolCall.fromJson({...tcJson, 'sessionId': arg});
+            _addToolCall(tc);
           }
+        } else if (method == 'session.toolCallUpdated') {
+          final tcId = params['toolCallId'] as String?;
+          final status = params['status'] as String?;
+          if (tcId != null) _updateToolCallStatus(tcId, status);
         }
       });
     });
 
-    return _fetch();
+    // Start with an empty list — tool calls accumulate via push events.
+    return const [];
   }
 
-  Future<List<ToolCall>> _fetch() async {
-    final client = ref.read(daemonProvider.notifier).client;
-    final result = await client.call<List<dynamic>>(
-      'tool_call.list',
-      {'session_id': arg, 'status': 'pending'},
-    );
-    return result
-        .map((j) => ToolCall.fromJson(j as Map<String, dynamic>))
-        .toList();
+  void _addToolCall(ToolCall tc) {
+    state.whenData((calls) {
+      state = AsyncValue.data([...calls, tc]);
+    });
   }
 
-  Future<void> refresh() async {
-    try {
-      state = AsyncValue.data(await _fetch());
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
-    }
+  void _updateToolCallStatus(String tcId, String? status) {
+    if (status == null) return;
+    state.whenData((calls) {
+      state = AsyncValue.data(
+        calls.map((tc) {
+          if (tc.id != tcId) return tc;
+          return ToolCall(
+            id: tc.id,
+            sessionId: tc.sessionId,
+            messageId: tc.messageId,
+            toolName: tc.toolName,
+            input: tc.input,
+            status: status == 'done'
+                ? ToolCallStatus.completed
+                : ToolCallStatus.values.byName(status),
+            createdAt: tc.createdAt,
+            completedAt: tc.completedAt,
+          );
+        }).toList(),
+      );
+    });
   }
 
   Future<void> approve(String toolCallId) async {
     final client = ref.read(daemonProvider.notifier).client;
-    await client.call<void>('tool_call.approve', {'tool_call_id': toolCallId});
-    await refresh();
+    await client.call<void>('tool.approve', {
+      'sessionId': arg,
+      'toolCallId': toolCallId,
+    });
   }
 
   Future<void> reject(String toolCallId) async {
     final client = ref.read(daemonProvider.notifier).client;
-    await client.call<void>('tool_call.reject', {'tool_call_id': toolCallId});
-    await refresh();
+    await client.call<void>('tool.reject', {
+      'sessionId': arg,
+      'toolCallId': toolCallId,
+    });
   }
 }
 
@@ -60,15 +86,13 @@ final toolCallProvider = AsyncNotifierProviderFamily<ToolCallNotifier,
   ToolCallNotifier.new,
 );
 
-/// Count of pending tool calls across all sessions — drives badge indicators.
-final pendingToolCallCountProvider = Provider<int>((ref) {
-  final activeSessionId = ref.watch(
-    Provider((ref) => null as String?), // overridden by apps
-  );
-  if (activeSessionId == null) return 0;
+/// Count of pending tool calls for a session — drives badge indicators.
+final pendingToolCallCountProvider =
+    Provider.family<int, String>((ref, sessionId) {
   return ref
-          .watch(toolCallProvider(activeSessionId))
+          .watch(toolCallProvider(sessionId))
           .valueOrNull
-          ?.length ??
+          ?.where((tc) => tc.status == ToolCallStatus.pending)
+          .length ??
       0;
 });

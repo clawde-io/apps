@@ -5,7 +5,7 @@ version: 0.1.0
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
-  flutter: ">=3.24.0"
+  flutter: ">=3.27.0"
 
 dependencies:
   flutter:
@@ -30,8 +30,22 @@ dependencies:
   # Local storage (session persistence)
   shared_preferences: ^2.3.0
 
+  # URL launcher (GitHub link in Settings)
+  url_launcher: ^6.3.1
+
+  # QR code scanning (for mobile → desktop host pairing)
+  mobile_scanner: ^6.0.0
+
+  # LAN discovery via mDNS
+  multicast_dns: ^0.3.2
+
+  # Local notifications
+  flutter_local_notifications: ^17.2.3
+
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+  integration_test:
     sdk: flutter
   flutter_lints: ^5.0.0
 

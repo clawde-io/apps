@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:clawd_core/clawd_core.dart';
 import 'package:clawd_ui/clawd_ui.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
+
+  static final _repoUrl = Uri.parse('https://github.com/clawde-io/apps');
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -40,7 +43,9 @@ class SettingsScreen extends ConsumerWidget {
           ListTile(
             title: const Text('Source'),
             subtitle: const Text('github.com/clawde-io/apps'),
-            onTap: () {/* open URL */},
+            trailing: const Icon(Icons.open_in_new, size: 16),
+            onTap: () => launchUrl(_repoUrl,
+                mode: LaunchMode.externalApplication),
           ),
         ],
       ),

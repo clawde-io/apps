@@ -23,16 +23,18 @@ class SessionSidebar extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
             child: Row(
               children: [
-                const Text(
-                  'Sessions',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: ClawdTheme.clawLight,
-                    letterSpacing: 0.5,
+                const Expanded(
+                  child: Text(
+                    'Sessions',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: ClawdTheme.clawLight,
+                      letterSpacing: 0.5,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.add, size: 18),
                   onPressed: onNewSession,

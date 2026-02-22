@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:clawd_core/clawd_core.dart';
 import 'package:clawd_proto/clawd_proto.dart';
 import 'package:clawd_ui/clawd_ui.dart';
+import 'package:clawde/services/updater_service.dart';
 
 enum _Section { connection, providers, appearance, about }
 
@@ -147,12 +150,12 @@ class _ConnectionPane extends ConsumerStatefulWidget {
 }
 
 class _ConnectionPaneState extends ConsumerState<_ConnectionPane> {
-  late TextEditingController _urlCtrl;
+  TextEditingController? _urlCtrl;
   bool _init = false;
 
   @override
   void dispose() {
-    _urlCtrl.dispose();
+    _urlCtrl?.dispose();
     super.dispose();
   }
 
@@ -183,7 +186,7 @@ class _ConnectionPaneState extends ConsumerState<_ConnectionPane> {
               children: [
                 Expanded(
                   child: TextField(
-                    controller: _urlCtrl,
+                    controller: _urlCtrl!,
                     style: const TextStyle(fontSize: 13),
                     decoration: const InputDecoration(
                       hintText: 'ws://127.0.0.1:4300',
@@ -200,7 +203,7 @@ class _ConnectionPaneState extends ConsumerState<_ConnectionPane> {
                 FilledButton(
                   onPressed: () => ref
                       .read(settingsProvider.notifier)
-                      .setDaemonUrl(_urlCtrl.text.trim()),
+                      .setDaemonUrl(_urlCtrl!.text.trim()),
                   style: FilledButton.styleFrom(
                       backgroundColor: ClawdTheme.claw),
                   child: const Text('Save'),
@@ -226,9 +229,84 @@ class _ConnectionPaneState extends ConsumerState<_ConnectionPane> {
             const Divider(),
             const SizedBox(height: 16),
             _DaemonCard(daemonState: daemonState),
+            const SizedBox(height: 24),
+            const Divider(),
+            const SizedBox(height: 16),
+            _QrSection(url: settings.daemonUrl),
           ],
         );
       },
+    );
+  }
+}
+
+class _QrSection extends StatelessWidget {
+  const _QrSection({required this.url});
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Scan from Mobile',
+          style: TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white70),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Open ClawDE on your phone and scan this code to connect.',
+          style: TextStyle(fontSize: 11, color: Colors.white38),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: QrImageView(
+                data: url,
+                version: QrVersions.auto,
+                size: 160,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    url,
+                    style: const TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'monospace',
+                        color: Colors.white70),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: () =>
+                        Clipboard.setData(ClipboardData(text: url)),
+                    icon: const Icon(Icons.copy, size: 14),
+                    label: const Text('Copy URL'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white60,
+                      side:
+                          const BorderSide(color: ClawdTheme.surfaceBorder),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -458,8 +536,23 @@ class _AppearancePane extends StatelessWidget {
 
 // ── About pane ────────────────────────────────────────────────────────────────
 
-class _AboutPane extends StatelessWidget {
+class _AboutPane extends StatefulWidget {
   const _AboutPane();
+
+  @override
+  State<_AboutPane> createState() => _AboutPaneState();
+}
+
+class _AboutPaneState extends State<_AboutPane> {
+  String _version = '…';
+
+  @override
+  void initState() {
+    super.initState();
+    PackageInfo.fromPlatform().then((info) {
+      if (mounted) setState(() => _version = 'v${info.version}');
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -493,8 +586,7 @@ class _AboutPane extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                         color: Colors.white)),
                 Text('Your IDE. Your Rules.',
-                    style:
-                        TextStyle(fontSize: 13, color: Colors.white38)),
+                    style: TextStyle(fontSize: 13, color: Colors.white38)),
               ],
             ),
           ],
@@ -507,14 +599,14 @@ class _AboutPane extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: ClawdTheme.surfaceBorder),
           ),
-          child: const Column(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _Row2('Desktop version', 'v0.1.0'),
-              SizedBox(height: 8),
-              _Row2('License', 'MIT'),
-              SizedBox(height: 8),
-              _Row2('Source', 'github.com/clawde-io/clawde'),
+              _Row2('Desktop version', _version),
+              const SizedBox(height: 8),
+              const _Row2('License', 'MIT'),
+              const SizedBox(height: 8),
+              const _Row2('Source', 'github.com/clawde-io/clawde'),
             ],
           ),
         ),
@@ -550,6 +642,20 @@ class _AboutPane extends StatelessWidget {
                 ),
                 Icon(Icons.copy, size: 14, color: Colors.white38),
               ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () => UpdaterService.instance.checkForUpdates(),
+            icon: const Icon(Icons.system_update_alt, size: 16),
+            label: const Text('Check for Updates…'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white70,
+              side: const BorderSide(color: ClawdTheme.surfaceBorder),
+              padding: const EdgeInsets.symmetric(vertical: 12),
             ),
           ),
         ),

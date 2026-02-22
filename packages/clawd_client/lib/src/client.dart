@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as dev;
 
 import 'package:clawd_proto/clawd_proto.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'exceptions.dart';
@@ -25,12 +27,15 @@ class ClawdClient {
   ClawdClient({
     this.url = 'ws://127.0.0.1:$kClawdPort',
     this.callTimeout = kDefaultCallTimeout,
-  });
+    @visibleForTesting WebSocketChannel Function(Uri)? channelFactory,
+  }) : _channelFactory = channelFactory ?? WebSocketChannel.connect;
 
   final String url;
 
   /// How long to wait for a response before throwing [ClawdTimeoutError].
   final Duration callTimeout;
+
+  final WebSocketChannel Function(Uri) _channelFactory;
 
   WebSocketChannel? _channel;
   int _idCounter = 0;
@@ -44,7 +49,7 @@ class ClawdClient {
   Stream<Map<String, dynamic>> get pushEvents => _pushEvents.stream;
 
   Future<void> connect() async {
-    _channel = WebSocketChannel.connect(Uri.parse(url));
+    _channel = _channelFactory(Uri.parse(url));
     _channel!.stream.listen(
       _onMessage,
       onDone: _onDisconnect,
@@ -101,9 +106,14 @@ class ClawdClient {
     if (completer == null) return;
 
     if (response.isError) {
+      final err = response.error!;
+      dev.log(
+        'RPC error [${err.code}]: ${err.message}',
+        name: 'clawd_client',
+      );
       completer.completeError(ClawdRpcError(
-        code: response.error!.code,
-        message: response.error!.message,
+        code: err.code,
+        message: err.message,
       ));
     } else {
       completer.complete(response.result);
@@ -111,6 +121,7 @@ class ClawdClient {
   }
 
   void _onDisconnect() {
+    dev.log('WebSocket disconnected ($url)', name: 'clawd_client');
     _channel = null;
     for (final c in _pending.values) {
       c.completeError(const ClawdDisconnectedError());

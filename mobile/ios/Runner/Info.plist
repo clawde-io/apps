@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- MN-01: Local notification permission description (iOS) -->
+	<key>NSUserNotificationUsageDescription</key>
+	<string>ClawDE sends notifications when AI sessions need your attention or complete.</string>
+	<!-- MC-04: Camera permission for QR code scanning (host pairing) -->
+	<key>NSCameraUsageDescription</key>
+	<string>ClawDE needs camera access to scan QR codes for connecting to remote daemon hosts.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

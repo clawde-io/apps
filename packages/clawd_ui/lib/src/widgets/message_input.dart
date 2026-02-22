@@ -10,11 +10,14 @@ class MessageInput extends StatefulWidget {
     super.key,
     required this.onSend,
     this.isLoading = false,
+    this.enabled = true,
     this.hint = 'Message clawd…',
   });
 
   final void Function(String message) onSend;
   final bool isLoading;
+  /// When false, the text field and send button are both disabled.
+  final bool enabled;
   final String hint;
 
   @override
@@ -34,7 +37,7 @@ class _MessageInputState extends State<MessageInput> {
 
   void _send() {
     final text = _controller.text.trim();
-    if (text.isEmpty || widget.isLoading) return;
+    if (text.isEmpty || widget.isLoading || !widget.enabled) return;
     _controller.clear();
     widget.onSend(text);
   }
@@ -66,6 +69,7 @@ class _MessageInputState extends State<MessageInput> {
               child: TextField(
                 controller: _controller,
                 focusNode: _focusNode,
+                enabled: widget.enabled,
                 minLines: 1,
                 maxLines: 6,
                 decoration: InputDecoration(
@@ -94,7 +98,7 @@ class _MessageInputState extends State<MessageInput> {
           ),
           const SizedBox(width: 8),
           IconButton.filled(
-            onPressed: widget.isLoading ? null : _send,
+            onPressed: (widget.isLoading || !widget.enabled) ? null : _send,
             icon: widget.isLoading
                 ? const SizedBox(
                     width: 16,

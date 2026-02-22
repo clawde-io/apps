@@ -28,15 +28,15 @@ class Session {
 
   factory Session.fromJson(Map<String, dynamic> json) => Session(
         id: json['id'] as String,
-        repoPath: json['repo_path'] as String,
+        repoPath: json['repoPath'] as String,
         provider: ProviderType.values.byName(json['provider'] as String),
         status: SessionStatus.values.byName(json['status'] as String),
-        createdAt: DateTime.parse(json['created_at'] as String),
-        startedAt: json['started_at'] != null
-            ? DateTime.parse(json['started_at'] as String)
+        createdAt: DateTime.parse(json['createdAt'] as String),
+        startedAt: json['startedAt'] != null
+            ? DateTime.parse(json['startedAt'] as String)
             : null,
-        endedAt: json['ended_at'] != null
-            ? DateTime.parse(json['ended_at'] as String)
+        endedAt: json['endedAt'] != null
+            ? DateTime.parse(json['endedAt'] as String)
             : null,
         metadata:
             (json['metadata'] as Map<String, dynamic>?) ?? const {},

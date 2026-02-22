@@ -5,7 +5,7 @@ version: 0.1.0
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
-  flutter: ">=3.24.0"
+  flutter: ">=3.27.0"
 
 dependencies:
   flutter:
@@ -41,6 +41,15 @@ dependencies:
   # Code editor — CodeMirror 6 via WebView
   webview_flutter: ^4.10.0
 
+  # App version
+  package_info_plus: ^8.1.2
+
+  # QR code display (Connection settings — scan from mobile)
+  qr_flutter: ^4.1.0
+
+  # Auto-update (Sparkle for macOS / WinSparkle for Windows)
+  auto_updater: ^1.0.0
+
   # Local storage (session persistence)
   sqflite_common_ffi: ^2.3.4
   path_provider: ^2.1.5
@@ -51,6 +60,8 @@ dependencies:
 
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+  integration_test:
     sdk: flutter
   flutter_lints: ^5.0.0
   build_runner: ^2.4.13

@@ -3,7 +3,7 @@ import 'package:clawd_proto/clawd_proto.dart';
 import 'daemon_provider.dart';
 
 /// All sessions known to the daemon. Refreshed on connect and on
-/// `session.created` / `session.updated` / `session.closed` push events.
+/// `session.statusChanged` push events.
 class SessionListNotifier extends AsyncNotifier<List<Session>> {
   @override
   Future<List<Session>> build() async {
@@ -12,7 +12,7 @@ class SessionListNotifier extends AsyncNotifier<List<Session>> {
       if (next.isConnected) refresh();
     });
 
-    // Re-fetch or patch state on push events that change session state.
+    // Re-fetch on any session status change (covers create, close, etc.).
     ref.listen(daemonPushEventsProvider, (_, next) {
       next.whenData((event) {
         final method = event['method'] as String?;
@@ -20,8 +20,9 @@ class SessionListNotifier extends AsyncNotifier<List<Session>> {
 
         if (method == 'session.statusChanged') {
           // Optimistic in-place update to avoid flicker.
-          final id = event['params']?['session_id'] as String?;
-          final rawStatus = event['params']?['status'] as String?;
+          final params = event['params'] as Map<String, dynamic>?;
+          final id = params?['sessionId'] as String?;
+          final rawStatus = params?['status'] as String?;
           if (id != null && rawStatus != null) {
             final newStatus = SessionStatus.values.byName(rawStatus);
             final current = state.valueOrNull;
@@ -31,10 +32,6 @@ class SessionListNotifier extends AsyncNotifier<List<Session>> {
                   .toList());
             }
           }
-        } else if (method == 'session.created' ||
-            method == 'session.updated' ||
-            method == 'session.closed') {
-          refresh();
         }
       });
     });
@@ -66,33 +63,34 @@ class SessionListNotifier extends AsyncNotifier<List<Session>> {
     final client = ref.read(daemonProvider.notifier).client;
     final result = await client.call<Map<String, dynamic>>(
       'session.create',
-      {'repo_path': repoPath, 'provider': provider.name},
+      {'repoPath': repoPath, 'provider': provider.name},
     );
     await refresh();
     return Session.fromJson(result);
   }
 
+  /// Close a session. Maps to session.delete in the daemon (no separate close).
   Future<void> close(String sessionId) async {
     final client = ref.read(daemonProvider.notifier).client;
-    await client.call<void>('session.close', {'session_id': sessionId});
+    await client.call<void>('session.delete', {'sessionId': sessionId});
     await refresh();
   }
 
   Future<void> pause(String sessionId) async {
     final client = ref.read(daemonProvider.notifier).client;
-    await client.call<void>('session.pause', {'session_id': sessionId});
+    await client.call<void>('session.pause', {'sessionId': sessionId});
     await refresh();
   }
 
   Future<void> resume(String sessionId) async {
     final client = ref.read(daemonProvider.notifier).client;
-    await client.call<void>('session.resume', {'session_id': sessionId});
+    await client.call<void>('session.resume', {'sessionId': sessionId});
     await refresh();
   }
 
   Future<void> delete(String sessionId) async {
     final client = ref.read(daemonProvider.notifier).client;
-    await client.call<void>('session.delete', {'session_id': sessionId});
+    await client.call<void>('session.delete', {'sessionId': sessionId});
     await refresh();
   }
 
