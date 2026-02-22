@@ -1,3 +1,4 @@
+pub mod auth;
 pub mod event;
 pub mod handlers;
 
@@ -44,6 +45,7 @@ const INVALID_REQUEST: i32 = -32600;
 const METHOD_NOT_FOUND: i32 = -32601;
 const INVALID_PARAMS: i32 = -32602;
 const INTERNAL_ERROR: i32 = -32603;
+const UNAUTHORIZED: i32 = -32004;
 const SESSION_NOT_FOUND: i32 = -32000;
 const REPO_NOT_FOUND: i32 = -32001;
 
@@ -84,6 +86,83 @@ pub async fn run(ctx: Arc<AppContext>) -> Result<()> {
 async fn handle_connection(stream: tokio::net::TcpStream, ctx: Arc<AppContext>) -> Result<()> {
     let ws = accept_async(stream).await?;
     let (mut sink, mut stream) = ws.split();
+
+    // ── Auth challenge ───────────────────────────────────────────────────────
+    // The first message from every client must be a `daemon.auth` RPC call
+    // carrying the correct token.  This prevents other local processes from
+    // connecting to the daemon and issuing arbitrary RPC commands.
+    //
+    // Token is stored at {data_dir}/auth_token with mode 0600.  The Flutter
+    // desktop/mobile app reads this file and sends it here on every connect.
+    if !ctx.auth_token.is_empty() {
+        let first = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            stream.next(),
+        )
+        .await;
+
+        let text = match first {
+            Ok(Some(Ok(Message::Text(t)))) => t,
+            // Timeout, connection closed, or non-text frame — reject silently.
+            _ => return Ok(()),
+        };
+
+        // Parse the RPC request
+        let req: RpcRequest = match serde_json::from_str(&text) {
+            Ok(r) => r,
+            Err(_) => {
+                let _ = sink
+                    .send(Message::Text(error_response(
+                        Value::Null,
+                        PARSE_ERROR,
+                        "Parse error",
+                    )))
+                    .await;
+                return Ok(());
+            }
+        };
+
+        let id = req.id.clone().unwrap_or(Value::Null);
+
+        if req.method != "daemon.auth" {
+            let _ = sink
+                .send(Message::Text(error_response(
+                    id,
+                    UNAUTHORIZED,
+                    "Unauthorized — send daemon.auth first",
+                )))
+                .await;
+            return Ok(());
+        }
+
+        let provided = req
+            .params
+            .as_ref()
+            .and_then(|p| p.get("token"))
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+
+        if provided != ctx.auth_token {
+            let _ = sink
+                .send(Message::Text(error_response(
+                    id,
+                    UNAUTHORIZED,
+                    "Unauthorized — invalid token",
+                )))
+                .await;
+            return Ok(());
+        }
+
+        // Auth success — send the RPC response and continue.
+        let resp = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": { "authenticated": true }
+        });
+        let _ = sink.send(Message::Text(resp.to_string())).await;
+        debug!("client authenticated");
+    }
+
     let mut broadcast_rx = ctx.broadcaster.subscribe();
 
     loop {
@@ -188,6 +267,7 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
         "session.getMessages" => handlers::session::get_messages(params, ctx).await,
         "session.pause" => handlers::session::pause(params, ctx).await,
         "session.resume" => handlers::session::resume(params, ctx).await,
+        "session.cancel" => handlers::session::cancel(params, ctx).await,
         "tool.approve" => handlers::tool::approve(params, ctx).await,
         "tool.reject" => handlers::tool::reject(params, ctx).await,
         _ => Err(anyhow::anyhow!("METHOD_NOT_FOUND:{}", method)),

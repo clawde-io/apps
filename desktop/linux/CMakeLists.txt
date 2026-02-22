@@ -126,3 +126,11 @@ if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
   install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endif()
+
+# Bundle the clawd daemon alongside the Flutter executable.
+set(CLAWD_BIN "${CMAKE_SOURCE_DIR}/../../daemon/target/release/clawd")
+if(EXISTS "${CLAWD_BIN}")
+  install(PROGRAMS "${CLAWD_BIN}" DESTINATION "." COMPONENT Runtime)
+else()
+  message(WARNING "clawd not found — run: cargo build --release in daemon/")
+endif()

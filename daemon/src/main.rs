@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use clawd::{
-    account::AccountRegistry, config::DaemonConfig, identity, ipc::event::EventBroadcaster,
+    account::AccountRegistry, auth, config::DaemonConfig, identity, ipc::event::EventBroadcaster,
     license, relay, repo::RepoRegistry, service, session::SessionManager, storage::Storage,
     telemetry, update, AppContext,
 };
@@ -144,6 +144,17 @@ async fn run_server(port: u16, data_dir: Option<std::path::PathBuf>, log: String
     let account_registry = Arc::new(AccountRegistry::new(storage.clone(), broadcaster.clone()));
     let updater = Arc::new(update::spawn(config.clone(), broadcaster.clone()));
 
+    let auth_token = match auth::get_or_create_token(&config.data_dir) {
+        Ok(t) => {
+            info!("auth token ready");
+            t
+        }
+        Err(e) => {
+            warn!("failed to generate auth token: {e:#}; proceeding without auth");
+            String::new()
+        }
+    };
+
     let ctx = Arc::new(AppContext {
         config,
         storage,
@@ -156,6 +167,7 @@ async fn run_server(port: u16, data_dir: Option<std::path::PathBuf>, log: String
         relay_client,
         account_registry,
         updater,
+        auth_token,
         started_at: std::time::Instant::now(),
     });
 

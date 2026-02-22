@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:developer' as dev;
+import 'dart:io' show File, Platform;
 import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -65,6 +66,7 @@ class DaemonState {
 /// Both desktop and mobile share this provider via ProviderScope.
 class DaemonNotifier extends Notifier<DaemonState> {
   late ClawdClient _client;
+  String? _authToken;
   int _reconnectAttempt = 0;
   Timer? _reconnectTimer;
   bool _disposed = false;
@@ -78,7 +80,10 @@ class DaemonNotifier extends Notifier<DaemonState> {
     // Read initial URL without subscribing — build() stays stable.
     final url = ref.read(settingsProvider).valueOrNull?.daemonUrl
         ?? 'ws://127.0.0.1:4300';
-    _client = ClawdClient(url: url);
+    // Bootstrap token (desktop, injected by DaemonManager) takes priority
+    // over reading the file, avoiding a race between daemon startup and read.
+    _authToken = ref.read(bootstrapTokenProvider) ?? _readLocalAuthToken();
+    _client = ClawdClient(url: url, authToken: _authToken);
 
     ref.onDispose(() {
       _disposed = true;
@@ -106,8 +111,46 @@ class DaemonNotifier extends Notifier<DaemonState> {
     _reconnectTimer?.cancel();
     _reconnectAttempt = 0;
     _client.disconnect();
-    _client = ClawdClient(url: newUrl);
+    _client = ClawdClient(url: newUrl, authToken: _authToken);
     await _connect();
+  }
+
+  /// Read the daemon auth token from the platform-appropriate data directory.
+  ///
+  /// Only meaningful on desktop (macOS/Linux/Windows) where the daemon runs
+  /// locally and writes the token file.  Returns null on mobile or if the
+  /// file does not exist yet.
+  static String? _readLocalAuthToken() {
+    try {
+      final path = _localAuthTokenPath();
+      if (path == null) return null;
+      final file = File(path);
+      if (!file.existsSync()) return null;
+      final token = file.readAsStringSync().trim();
+      return token.isEmpty ? null : token;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static String? _localAuthTokenPath() {
+    if (Platform.isMacOS) {
+      final home = Platform.environment['HOME'];
+      if (home == null) return null;
+      return '$home/Library/Application Support/clawd/auth_token';
+    }
+    if (Platform.isLinux) {
+      final xdg = Platform.environment['XDG_DATA_HOME'];
+      if (xdg != null) return '$xdg/clawd/auth_token';
+      final home = Platform.environment['HOME'];
+      return home != null ? '$home/.local/share/clawd/auth_token' : null;
+    }
+    if (Platform.isWindows) {
+      final appdata = Platform.environment['APPDATA'];
+      return appdata != null ? '$appdata\\clawd\\auth_token' : null;
+    }
+    // Android / iOS — no local daemon, token comes from host pairing
+    return null;
   }
 
   Future<void> _connect() async {
@@ -201,6 +244,10 @@ class DaemonNotifier extends Notifier<DaemonState> {
   /// Exposes the underlying client so other providers can make RPC calls.
   ClawdClient get client => _client;
 }
+
+/// Override in the desktop layer to inject a token from DaemonManager.
+/// Mobile leaves this null — DaemonNotifier falls back to reading the file.
+final bootstrapTokenProvider = Provider<String?>((ref) => null);
 
 final daemonProvider = NotifierProvider<DaemonNotifier, DaemonState>(
   DaemonNotifier.new,

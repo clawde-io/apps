@@ -208,6 +208,7 @@
 				33CC10EA2044A3C60003C045 /* Frameworks */,
 				33CC10EB2044A3C60003C045 /* Resources */,
 				33CC110E2044A8840003C045 /* Bundle Framework */,
+				AA0000002044B0000003C045 /* Build clawd daemon */,
 				3399D490228B24CF009A79C7 /* ShellScript */,
 			);
 			buildRules = (
@@ -291,6 +292,26 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		AA0000002044B0000003C045 /* Build clawd daemon */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/../../daemon/Cargo.toml",
+			);
+			name = "Build clawd daemon";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(EXECUTABLE_FOLDER_PATH)/clawd",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "#!/bin/sh\nset -e\nexport PATH=\"$HOME/.cargo/bin:$PATH\"\nDAEMON_DIR=\"$SRCROOT/../../daemon\"\nif [ ! -f \"$DAEMON_DIR/Cargo.toml\" ]; then\n  echo \"warning: clawd daemon not found at $DAEMON_DIR — skipping\"\n  exit 0\nfi\ncargo build --release --manifest-path \"$DAEMON_DIR/Cargo.toml\"\ncp \"$DAEMON_DIR/target/release/clawd\" \\\n   \"$BUILT_PRODUCTS_DIR/$EXECUTABLE_FOLDER_PATH/clawd\"\nchmod +x \"$BUILT_PRODUCTS_DIR/$EXECUTABLE_FOLDER_PATH/clawd\"\n";
+		};
 		3399D490228B24CF009A79C7 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;

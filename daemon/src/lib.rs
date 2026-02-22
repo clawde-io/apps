@@ -11,6 +11,9 @@ pub mod storage;
 pub mod telemetry;
 pub mod update;
 
+// Re-export auth so main.rs can use clawd::auth directly.
+pub use ipc::auth;
+
 use std::sync::Arc;
 
 use account::AccountRegistry;
@@ -44,4 +47,8 @@ pub struct AppContext {
     pub account_registry: Arc<AccountRegistry>,
     /// Self-update manager.
     pub updater: Arc<Updater>,
+    /// Local WebSocket auth token.  Every new connection must send a
+    /// `daemon.auth` RPC with this token before any other method call.
+    /// Empty string means auth is disabled (not recommended).
+    pub auth_token: String,
 }

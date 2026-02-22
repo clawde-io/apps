@@ -91,3 +91,9 @@ pub async fn resume(params: Value, ctx: &AppContext) -> Result<Value> {
     ctx.session_manager.resume(&p.session_id).await?;
     Ok(json!({}))
 }
+
+pub async fn cancel(params: Value, ctx: &AppContext) -> Result<Value> {
+    let p: SessionIdParams = serde_json::from_value(params)?;
+    ctx.session_manager.cancel(&p.session_id).await?;
+    Ok(json!({}))
+}

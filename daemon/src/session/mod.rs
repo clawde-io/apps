@@ -152,6 +152,33 @@ impl SessionManager {
         Ok(())
     }
 
+    /// Cancel the currently running turn without deleting the session.
+    ///
+    /// Kills the in-flight `claude` subprocess (if any), marks the session
+    /// as idle, and broadcasts `session.statusChanged`. The session and its
+    /// message history are preserved so the user can continue later.
+    pub async fn cancel(&self, session_id: &str) -> Result<()> {
+        // Ensure session exists before doing anything
+        self.storage
+            .get_session(session_id)
+            .await?
+            .context("SESSION_NOT_FOUND")?;
+
+        if let Some(handle) = self.handles.read().await.get(session_id) {
+            let _ = handle.runner.stop().await;
+        }
+
+        self.storage
+            .update_session_status(session_id, "idle")
+            .await?;
+        self.broadcaster.broadcast(
+            "session.statusChanged",
+            json!({ "sessionId": session_id, "status": "idle" }),
+        );
+        info!(id = %session_id, "session turn cancelled");
+        Ok(())
+    }
+
     // ─── Messages ─────────────────────────────────────────────────────────────
 
     pub async fn send_message(

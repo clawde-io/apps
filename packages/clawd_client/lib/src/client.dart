@@ -27,6 +27,7 @@ class ClawdClient {
   ClawdClient({
     this.url = 'ws://127.0.0.1:$kClawdPort',
     this.callTimeout = kDefaultCallTimeout,
+    this.authToken,
     @visibleForTesting WebSocketChannel Function(Uri)? channelFactory,
   }) : _channelFactory = channelFactory ?? WebSocketChannel.connect;
 
@@ -34,6 +35,11 @@ class ClawdClient {
 
   /// How long to wait for a response before throwing [ClawdTimeoutError].
   final Duration callTimeout;
+
+  /// Auth token for the daemon.  When set, [connect] sends a `daemon.auth`
+  /// RPC immediately after the WebSocket handshake.  Obtain this token by
+  /// reading `{data_dir}/auth_token` from the platform data directory.
+  final String? authToken;
 
   final WebSocketChannel Function(Uri) _channelFactory;
 
@@ -55,6 +61,13 @@ class ClawdClient {
       onDone: _onDisconnect,
       onError: (_) => _onDisconnect(),
     );
+
+    // Authenticate immediately if a token is configured.
+    // The daemon requires `daemon.auth` as the very first message.
+    final token = authToken;
+    if (token != null && token.isNotEmpty) {
+      await call<Map<String, dynamic>>('daemon.auth', {'token': token});
+    }
   }
 
   void disconnect() {

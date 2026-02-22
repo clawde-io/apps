@@ -106,3 +106,11 @@ install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
 install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime)
+
+# Bundle the clawd daemon alongside the Flutter executable.
+set(CLAWD_BIN "${CMAKE_SOURCE_DIR}/../../daemon/target/release/clawd.exe")
+if(EXISTS "${CLAWD_BIN}")
+  install(PROGRAMS "${CLAWD_BIN}" DESTINATION "." COMPONENT Runtime)
+else()
+  message(WARNING "clawd.exe not found — run: cargo build --release in daemon/")
+endif()

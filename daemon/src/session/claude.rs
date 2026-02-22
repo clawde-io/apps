@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::{Child, Command},
-    sync::RwLock,
+    sync::{Mutex, RwLock},
 };
 use tracing::{debug, warn};
 
@@ -77,6 +77,12 @@ pub struct ClaudeCodeRunner {
     /// history is preserved across process restarts.
     claude_session_id: RwLock<Option<String>>,
     paused: Arc<std::sync::atomic::AtomicBool>,
+    /// The currently running `claude` subprocess, if any.
+    /// Shared between run_turn (which stores and waits) and stop (which kills).
+    current_child: Arc<Mutex<Option<Child>>>,
+    /// Set to true by stop() so the event_loop safety net does not overwrite
+    /// the "idle" status broadcast by SessionManager::cancel().
+    cancelled: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl ClaudeCodeRunner {
@@ -95,6 +101,8 @@ impl ClaudeCodeRunner {
             broadcaster,
             claude_session_id: RwLock::new(None),
             paused: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            current_child: Arc::new(Mutex::new(None)),
+            cancelled: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         })
     }
 
@@ -141,17 +149,17 @@ impl ClaudeCodeRunner {
             }
         });
 
-        self.event_loop(stdout, child).await
+        // Store the child handle so stop() can kill it if needed.
+        *self.current_child.lock().await = Some(child);
+
+        self.event_loop(stdout).await
     }
 
-    async fn event_loop(
-        &self,
-        stdout: tokio::process::ChildStdout,
-        mut child: Child,
-    ) -> Result<()> {
+    async fn event_loop(&self, stdout: tokio::process::ChildStdout) -> Result<()> {
         let mut lines = BufReader::new(stdout).lines();
         let mut current_message_id: Option<String> = None;
         let mut current_content = String::new();
+        let mut received_result = false;
 
         self.storage
             .update_session_status(&self.session_id, "running")
@@ -331,13 +339,33 @@ impl ClaudeCodeRunner {
                         "session.statusChanged",
                         json!({ "sessionId": self.session_id, "status": final_status }),
                     );
+                    received_result = true;
                 }
 
                 ClaudeEvent::ToolResult { .. } | ClaudeEvent::Unknown => {}
             }
         }
 
-        child.wait().await?;
+        // Reap the child process if stop() hasn't already done so.
+        if let Some(mut child) = self.current_child.lock().await.take() {
+            let _ = child.wait().await;
+        }
+
+        // Safety net: if the process exited without emitting a Result event
+        // (e.g. crashed or was killed externally), mark the session as error.
+        // Skip this if stop() was called intentionally — SessionManager::cancel()
+        // will set the status to "idle" after stop() returns.
+        if !received_result && !self.cancelled.load(std::sync::atomic::Ordering::Acquire) {
+            let _ = self
+                .storage
+                .update_session_status(&self.session_id, "error")
+                .await;
+            self.broadcaster.broadcast(
+                "session.statusChanged",
+                json!({ "sessionId": self.session_id, "status": "error" }),
+            );
+        }
+
         Ok(())
     }
 }
@@ -362,6 +390,17 @@ impl Runner for ClaudeCodeRunner {
     }
 
     async fn stop(&self) -> Result<()> {
+        // Mark as intentionally cancelled before killing so the event_loop
+        // safety net does not race and mark the session as "error".
+        self.cancelled
+            .store(true, std::sync::atomic::Ordering::Release);
+        if let Some(mut child) = self.current_child.lock().await.take() {
+            // Send SIGKILL (on Unix) / TerminateProcess (on Windows).
+            // Ignore errors — the process may have already exited.
+            let _ = child.kill().await;
+            // Reap the process so we don't leave a zombie.
+            let _ = child.wait().await;
+        }
         Ok(())
     }
 }

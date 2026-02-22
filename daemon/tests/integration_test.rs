@@ -48,6 +48,7 @@ async fn start_test_daemon() -> (String, Arc<AppContext>) {
         account_registry,
         updater,
         started_at: std::time::Instant::now(),
+        auth_token: String::new(),
     });
 
     let ctx_server = ctx.clone();
