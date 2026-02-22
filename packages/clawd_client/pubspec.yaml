@@ -13,6 +13,7 @@ dependencies:
   clawd_proto:
     path: ../clawd_proto
   web_socket_channel: ^3.0.1
+  cryptography: ^2.7.0
 
 dev_dependencies:
   flutter_test:

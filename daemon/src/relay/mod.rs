@@ -6,20 +6,33 @@
 //! Protocol:
 //! 1. Connect to `CLAWD_RELAY_URL` (default: `wss://api.clawde.io/relay/ws`)
 //! 2. Send `{ "type": "register", "daemonId": "...", "token": "..." }`
-//! 3. Receive RPC frames from relay; dispatch through local IPC handler; reply
-//! 4. Forward daemon push events (broadcaster) back to relay → remote client
-//! 5. On disconnect: reconnect with exponential backoff (2s → 4s → 8s … max 60s)
+//! 3. On `client_connected`: reset E2E state, await `e2e_hello` handshake
+//! 4. After E2E handshake: decrypt inbound frames, dispatch via local IPC,
+//!    encrypt responses before forwarding back through the relay
+//! 5. Forward daemon push events (broadcaster) back to relay → remote client
+//!    (encrypted when E2E is active)
+//! 6. On disconnect: reconnect with exponential backoff (2s → 4s → 8s … max 60s)
+//!
+//! E2E encryption: X25519 key exchange → HKDF-SHA256 → ChaCha20-Poly1305.
+//! See `relay/crypto.rs` for full protocol specification.
+//! Backward compatible: clients without E2E support fall back to plaintext
+//! (protected by TLS only).
+
+pub mod crypto;
 
 use std::sync::Arc;
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::{broadcast, mpsc, Mutex};
 use tracing::{debug, info, warn};
 
 use futures_util::{SinkExt, StreamExt};
+use serde_json::Value;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::config::DaemonConfig;
 use crate::license::LicenseInfo;
 use crate::AppContext;
+
+use crypto::RelayE2e;
 
 // ─── Spawn ────────────────────────────────────────────────────────────────────
 
@@ -80,19 +93,23 @@ async fn relay_loop(
                     continue;
                 }
 
-                // Outbound channel — receives both RPC responses (from handle_inbound)
-                // and daemon push events (from the broadcaster forwarder below).
+                // Shared E2E state between inbound handler and broadcast forwarder.
+                let e2e: Arc<Mutex<Option<RelayE2e>>> = Arc::new(Mutex::new(None));
+                let e2e_bcast = e2e.clone();
+
+                // Outbound channel — RPC responses (from handle_inbound) and daemon
+                // push events (from forward_broadcasts) share this channel.
                 let (out_tx, mut out_rx) = mpsc::channel::<String>(128);
                 let bcast_tx = out_tx.clone();
 
                 tokio::select! {
-                    _ = handle_inbound(&mut stream, &ctx, out_tx) => {
+                    _ = handle_inbound(&mut stream, &ctx, out_tx, e2e) => {
                         warn!("relay: inbound stream closed");
                     }
                     _ = handle_outbound(&mut out_rx, &mut sink) => {
                         warn!("relay: outbound sink closed");
                     }
-                    _ = forward_broadcasts(&ctx, bcast_tx) => {
+                    _ = forward_broadcasts(&ctx, bcast_tx, e2e_bcast) => {
                         warn!("relay: broadcast forwarder stopped");
                     }
                 }
@@ -106,22 +123,125 @@ async fn relay_loop(
     }
 }
 
-/// Receive RPC frames from the relay, dispatch them through the local IPC handler,
-/// and send the response back via `out_tx`.
+/// Receive frames from the relay.  Handles E2E handshake, decryption, and
+/// dispatch through the local IPC handler.  Encrypts responses before sending.
 async fn handle_inbound(
-    stream: &mut (impl StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>> + Unpin),
+    stream: &mut (impl StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>
+         + Unpin),
     ctx: &Arc<AppContext>,
     out_tx: mpsc::Sender<String>,
+    e2e: Arc<Mutex<Option<RelayE2e>>>,
 ) {
     while let Some(msg) = stream.next().await {
-        match msg {
-            Ok(Message::Text(text)) => {
-                debug!("relay: inbound frame ({} bytes)", text.len());
-                let response = crate::ipc::dispatch_text(&text, ctx).await;
-                let _ = out_tx.send(response).await;
-            }
+        let text = match msg {
+            Ok(Message::Text(t)) => t,
             Ok(Message::Close(_)) | Err(_) => break,
-            _ => {}
+            _ => continue,
+        };
+
+        // Parse the outer frame to check its type.
+        let frame: Value = match serde_json::from_str(&text) {
+            Ok(v) => v,
+            Err(e) => {
+                warn!("relay: unparseable frame: {e}");
+                continue;
+            }
+        };
+
+        let msg_type = frame["type"].as_str().unwrap_or("");
+
+        match msg_type {
+            // ── Relay management messages — no IPC dispatch, no response ──────
+            "registered" | "client_disconnected" => {
+                debug!("relay: ← {msg_type}");
+            }
+
+            // ── New client connected — reset E2E state ────────────────────────
+            "client_connected" => {
+                debug!("relay: ← client_connected — resetting E2E state");
+                *e2e.lock().await = None;
+            }
+
+            // ── E2E handshake — client sends its X25519 public key ────────────
+            "e2e_hello" => {
+                if let Some(client_pubkey) = frame["pubkey"].as_str() {
+                    match RelayE2e::server_handshake(client_pubkey) {
+                        Ok((server_pubkey, new_e2e)) => {
+                            // Send server hello UNENCRYPTED — client needs our
+                            // pubkey to derive the shared key.
+                            let hello = serde_json::json!({
+                                "type": "e2e_hello",
+                                "pubkey": server_pubkey,
+                            })
+                            .to_string();
+                            if out_tx.send(hello).await.is_err() {
+                                break;
+                            }
+                            // Activate E2E AFTER sending the hello.
+                            *e2e.lock().await = Some(new_e2e);
+                            info!("relay: E2E encryption established");
+                        }
+                        Err(e) => warn!("relay: E2E handshake failed: {e:#}"),
+                    }
+                }
+            }
+
+            // ── Encrypted frame from client ───────────────────────────────────
+            "e2e" => {
+                if let Some(payload) = frame["payload"].as_str() {
+                    // Decrypt.
+                    let inner = {
+                        let mut guard = e2e.lock().await;
+                        match guard.as_mut() {
+                            Some(state) => match state.decrypt(payload) {
+                                Ok(s) => s,
+                                Err(e) => {
+                                    warn!("relay: E2E decrypt failed: {e:#}");
+                                    continue;
+                                }
+                            },
+                            None => {
+                                warn!("relay: received e2e frame but no active E2E session");
+                                continue;
+                            }
+                        }
+                    };
+
+                    debug!("relay: inbound e2e frame ({} bytes decrypted)", inner.len());
+                    let response = crate::ipc::dispatch_text(&inner, ctx).await;
+
+                    // Encrypt response.
+                    let out = {
+                        let mut guard = e2e.lock().await;
+                        match guard.as_mut() {
+                            Some(state) => match state.encrypt(&response) {
+                                Ok(p) => serde_json::json!({"type":"e2e","payload":p}).to_string(),
+                                Err(e) => {
+                                    warn!("relay: E2E encrypt response failed: {e:#}");
+                                    continue;
+                                }
+                            },
+                            None => {
+                                warn!("relay: E2E deactivated before response could be encrypted");
+                                continue;
+                            }
+                        }
+                    };
+
+                    if out_tx.send(out).await.is_err() {
+                        break;
+                    }
+                }
+            }
+
+            // ── Unencrypted RPC frame (backward compat — old clients) ─────────
+            _ => {
+                debug!("relay: inbound plaintext frame ({} bytes)", text.len());
+                let response = crate::ipc::dispatch_text(&text, ctx).await;
+                if out_tx.send(response).await.is_err() {
+                    break;
+                }
+            }
         }
     }
 }
@@ -139,12 +259,30 @@ async fn handle_outbound(
 }
 
 /// Subscribe to daemon push events and forward them to the relay.
-async fn forward_broadcasts(ctx: &Arc<AppContext>, tx: mpsc::Sender<String>) {
+/// Encrypts events when E2E is active.
+async fn forward_broadcasts(
+    ctx: &Arc<AppContext>,
+    tx: mpsc::Sender<String>,
+    e2e: Arc<Mutex<Option<RelayE2e>>>,
+) {
     let mut rx = ctx.broadcaster.subscribe();
     loop {
         match rx.recv().await {
             Ok(json) => {
-                if tx.send(json).await.is_err() {
+                let msg = {
+                    let mut guard = e2e.lock().await;
+                    match guard.as_mut() {
+                        Some(state) => match state.encrypt(&json) {
+                            Ok(p) => serde_json::json!({"type":"e2e","payload":p}).to_string(),
+                            Err(e) => {
+                                warn!("relay: broadcast E2E encrypt failed: {e:#}");
+                                json // fall back to plaintext for this event
+                            }
+                        },
+                        None => json, // no E2E active — send plaintext
+                    }
+                };
+                if tx.send(msg).await.is_err() {
                     break;
                 }
             }

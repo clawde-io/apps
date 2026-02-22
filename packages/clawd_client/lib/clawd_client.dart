@@ -5,3 +5,4 @@ library clawd_client;
 
 export 'src/client.dart';
 export 'src/exceptions.dart';
+export 'src/relay_crypto.dart';

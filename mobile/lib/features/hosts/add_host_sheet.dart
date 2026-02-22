@@ -74,13 +74,13 @@ class _AddHostSheetState extends ConsumerState<AddHostSheet> {
       final client = MDnsClient();
       await client.start();
 
-      // Look for _clawd._tcp mDNS services (3-second timeout)
+      // Look for _clawde._tcp mDNS services (3-second timeout)
       await Future.any([
         Future.delayed(const Duration(seconds: 3)),
         () async {
           await for (final ptr in client
               .lookup<PtrResourceRecord>(ResourceRecordQuery.serverPointer(
-                  '_clawd._tcp.local'))) {
+                  '_clawde._tcp.local'))) {
             await for (final srv in client.lookup<SrvResourceRecord>(
                 ResourceRecordQuery.service(ptr.domainName))) {
               await for (final ip in client.lookup<IPAddressResourceRecord>(

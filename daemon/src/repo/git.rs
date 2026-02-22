@@ -86,7 +86,11 @@ pub fn read_status(repo: &Repository) -> Result<RepoStatus> {
     let mut opts = StatusOptions::new();
     opts.include_untracked(true)
         .include_ignored(false)
-        .recurse_untracked_dirs(true);
+        .recurse_untracked_dirs(true)
+        // Show submodule changes (indexed submodule SHA vs actual HEAD).
+        // git2 includes submodule entries by default; this ensures they are
+        // not silently skipped even on older git2 versions.
+        .exclude_submodules(false);
 
     let statuses = repo.statuses(Some(&mut opts))?;
     let mut files = Vec::new();
@@ -184,6 +188,39 @@ pub fn read_diff(repo: &Repository) -> Result<Vec<FileDiff>> {
 }
 
 pub fn read_file_diff(repo: &Repository, path: &str, staged: bool) -> Result<FileDiff> {
+    // Submodule entries appear as directories in the working tree.
+    // git2 can't produce a normal file diff for them — return a summary instead.
+    if let Some(workdir) = repo.workdir() {
+        if workdir.join(path).is_dir() {
+            // Try to read the submodule's current HEAD commit for context.
+            let submodule_note = repo
+                .find_submodule(path)
+                .ok()
+                .and_then(|sm| sm.head_id())
+                .map(|id| format!("HEAD: {:.7}", id))
+                .unwrap_or_else(|| "submodule".to_string());
+
+            return Ok(FileDiff {
+                path: path.to_string(),
+                old_path: None,
+                hunks: vec![DiffHunk {
+                    header: "@@ submodule @@".to_string(),
+                    old_start: 0,
+                    old_lines: 0,
+                    new_start: 0,
+                    new_lines: 1,
+                    lines: vec![DiffLine {
+                        kind: DiffLineKind::Context,
+                        content: format!("Submodule {} ({})", path, submodule_note),
+                        old_line_no: None,
+                        new_line_no: Some(1),
+                    }],
+                }],
+                is_binary: false,
+            });
+        }
+    }
+
     let head_tree = match repo.head() {
         Ok(h) => Some(h.peel_to_tree()?),
         Err(_) => None,

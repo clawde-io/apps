@@ -442,6 +442,10 @@ impl ClaudeCodeRunner {
 
 #[async_trait]
 impl Runner for ClaudeCodeRunner {
+    async fn run_turn(&self, content: &str) -> Result<()> {
+        ClaudeCodeRunner::run_turn(self, content).await
+    }
+
     async fn send(&self, _content: &str) -> Result<()> {
         // Sending is driven by run_turn() called directly from SessionManager.
         Ok(())

@@ -11,9 +11,14 @@ pub enum ToolDecision {
 /// Common interface for all AI provider runners.
 #[async_trait]
 pub trait Runner: Send + Sync {
-    /// Send a message to the running session. The runner is responsible for
-    /// emitting events (messageCreated, messageUpdated, toolCallCreated, etc.)
-    /// via the broadcaster and persisting them to storage/event log.
+    /// Execute one conversation turn: spawn the provider CLI, stream events
+    /// (messageCreated, messageUpdated, toolCallCreated, etc.) via the
+    /// broadcaster, and persist everything to storage. Callers must run
+    /// this inside `tokio::spawn` — it blocks until the turn completes.
+    async fn run_turn(&self, content: &str) -> Result<()>;
+
+    /// Send a message to the running session (no-op for CLI-based runners
+    /// that are driven entirely through `run_turn`).
     async fn send(&self, content: &str) -> Result<()>;
 
     /// Signal the runner to pause after the current turn completes.
