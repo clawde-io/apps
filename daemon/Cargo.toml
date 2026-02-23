@@ -13,7 +13,8 @@ path = "src/main.rs"
 tokio = { version = "1", features = ["full"] }
 
 # WebSocket server (JSON-RPC 2.0 transport)
-tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+# rustls-tls: pure-Rust TLS — no OpenSSL, cross-compilation safe
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-native-roots"] }
 futures-util = "0.3"
 
 # Serialization
@@ -23,8 +24,9 @@ serde_json = "1"
 # Database (SQLite, WAL mode — crash-safe session persistence)
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio", "tls-none", "migrate"] }
 
-# Git integration — no subprocess spawning
-git2 = "0.19"
+# Git integration — no subprocess spawning, local operations only (no fetch/push/SSH)
+# vendored-libgit2: statically build libgit2, cross-compilation safe, no OpenSSL needed
+git2 = { version = "0.19", default-features = false, features = ["vendored-libgit2"] }
 
 # File watching (cross-platform, debounced)
 notify = "7"
