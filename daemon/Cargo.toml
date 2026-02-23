@@ -3,6 +3,10 @@ name = "clawd"
 version = "0.1.0"
 edition = "2021"
 description = "ClawDE Host — always-on background daemon"
+license = "MIT"
+repository = "https://github.com/clawde-io/apps"
+homepage = "https://clawde.io"
+authors = ["ClawDE Contributors"]
 
 [[bin]]
 name = "clawd"
@@ -34,6 +38,8 @@ notify-debouncer-full = "0.3"
 
 # Error handling
 anyhow = "1"
+# Cross-platform system information (RAM, CPU) for resource governance
+sysinfo = { version = "0.32", features = ["system"] }
 thiserror = "2"
 
 # Logging & tracing

@@ -62,6 +62,42 @@ fn load_toml(data_dir: &Path) -> Option<TomlConfig> {
     }
 }
 
+
+// ─── ResourceConfig ───────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct ResourceConfig {
+    /// Max percentage of total system RAM the daemon + CLI children may use (10-95).
+    pub max_memory_percent: u8,
+    /// Hard cap on simultaneous active CLI subprocesses. 0 = auto-calculate.
+    pub max_concurrent_active: u8,
+    /// Seconds of no user interaction before Active → Warm (SIGSTOP). Default: 120.
+    pub idle_to_warm_secs: u64,
+    /// Seconds of Warm state before Warm → Cold (kill + save). Default: 300.
+    pub warm_to_cold_secs: u64,
+    /// Number of pre-warmed pool workers. Default: 1.
+    pub process_pool_size: u8,
+    /// Emergency threshold: if RAM exceeds this %, aggressively evict. Default: 90.
+    pub emergency_memory_percent: u8,
+    /// Polling interval in seconds. Default: 5.
+    pub poll_interval_secs: u64,
+}
+
+impl Default for ResourceConfig {
+    fn default() -> Self {
+        Self {
+            max_memory_percent: 70,
+            max_concurrent_active: 0, // 0 = auto
+            idle_to_warm_secs: 120,
+            warm_to_cold_secs: 300,
+            process_pool_size: 1,
+            emergency_memory_percent: 90,
+            poll_interval_secs: 5,
+        }
+    }
+}
+
 // ─── DaemonConfig ─────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
@@ -83,6 +119,8 @@ pub struct DaemonConfig {
     pub relay_url: String,
     /// Per-provider profiles (e.g. timeout, max_tokens, system_prompt_prefix).
     pub providers: std::collections::HashMap<String, ProviderProfile>,
+    /// Resource governance configuration.
+    pub resources: ResourceConfig,
 }
 
 impl DaemonConfig {
@@ -139,6 +177,7 @@ impl DaemonConfig {
             api_base_url,
             relay_url,
             providers,
+            resources: ResourceConfig::default(),
         }
     }
 

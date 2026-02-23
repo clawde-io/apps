@@ -574,6 +574,9 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
         "threads.resume" => handlers::threads::resume_thread(ctx, params).await,
         "threads.fork" => handlers::threads::fork_thread(ctx, params).await,
         "threads.list" => handlers::threads::list_threads(ctx, params).await,
+        // ─── Phase 44: Resource Governor ─────────────────────────────────────
+        "system.resources" => handlers::system::resources(params, ctx).await,
+        "system.resourceHistory" => handlers::system::resource_history(params, ctx).await,
         _ => Err(anyhow::anyhow!("METHOD_NOT_FOUND:{}", method)),
     }
 }

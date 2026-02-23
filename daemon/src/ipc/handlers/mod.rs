@@ -10,3 +10,4 @@ pub mod telemetry;
 pub mod threads;
 pub mod tool;
 pub mod worktrees;
+pub mod system;

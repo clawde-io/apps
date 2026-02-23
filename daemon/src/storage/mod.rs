@@ -35,6 +35,10 @@ pub struct SessionRow {
     /// JSON array of permission scopes, e.g. `["file_read","file_write","shell_exec","git"]`.
     /// NULL means all permissions granted (default).
     pub permissions: Option<String>,
+    pub tier: String,
+    pub tier_changed_at: i64,
+    pub last_user_interaction_at: i64,
+    pub pid: Option<i64>,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -113,6 +117,7 @@ impl Storage {
             include_str!("migrations/003_agent_tasks.sql"),
             include_str!("migrations/004_task_events.sql"),
             include_str!("migrations/007_threads.sql"),
+            include_str!("migrations/005_resource_governor.sql"),
         ] {
             for stmt in sql.split(';') {
                 let stmt = stmt.trim();
@@ -128,6 +133,11 @@ impl Storage {
         let alter_stmts = [
             "ALTER TABLE license_cache ADD COLUMN hmac TEXT",
             "ALTER TABLE sessions ADD COLUMN permissions TEXT",
+            "ALTER TABLE sessions ADD COLUMN tier TEXT NOT NULL DEFAULT 'cold'",
+            "ALTER TABLE sessions ADD COLUMN tier_changed_at INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE sessions ADD COLUMN last_user_interaction_at INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE sessions ADD COLUMN pid INTEGER",
+            "ALTER TABLE messages ADD COLUMN token_estimate INTEGER",
         ];
         for stmt in alter_stmts {
             let result = sqlx::query(stmt).execute(pool).await;

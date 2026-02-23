@@ -19,6 +19,9 @@ pub mod tasks;
 pub mod telemetry;
 pub mod threads;
 pub mod update;
+pub mod context_manager;
+pub mod process_pool;
+pub mod resource_governor;
 pub mod worktree;
 
 // Re-export auth so main.rs can use clawd::auth directly.

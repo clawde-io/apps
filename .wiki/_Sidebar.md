@@ -6,7 +6,9 @@
 
 **Getting started**
 - [[Getting-Started]]
+- [[Configuration]]
 - [[FAQ]]
+- [[Troubleshooting]]
 
 **Reference**
 - [[Architecture]]
@@ -15,6 +17,7 @@
 - [[Features/Sessions|Sessions]]
 - [[Features/Providers|Provider support]]
 - [[Features/Drift-Detection|Drift detection]]
+- [[Roadmap]]
 
 **Contributing**
 - [[Contributing]]
