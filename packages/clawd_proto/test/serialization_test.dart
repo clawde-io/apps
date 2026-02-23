@@ -331,4 +331,307 @@ void main() {
       expect(err.toString(), contains('Not found'));
     });
   });
+
+  // ── Phase 41: AgentTask ────────────────────────────────────────────────────
+
+  group('AgentTask.fromJson / toJson (Phase 41)', () {
+    final baseJson = <String, dynamic>{
+      'id': 'task-41-a',
+      'title': 'Implement activity dashboard',
+      'status': 'in_progress',
+      'type': 'feature',
+      'severity': 'high',
+      'phase': '41',
+      'claimed_by': 'agent-claude-1',
+      'tags': '["dashboard","ui"]',
+      'files': '["src/dashboard.dart","src/api.dart"]',
+      'notes': null,
+      'repo_path': '/home/user/clawde',
+      'created_at': '2026-02-22T00:00:00Z',
+    };
+
+    test('parses all key fields from snake_case JSON', () {
+      final task = AgentTask.fromJson(baseJson);
+      expect(task.id, 'task-41-a');
+      expect(task.title, 'Implement activity dashboard');
+      expect(task.status, TaskStatus.inProgress);
+      expect(task.taskType, TaskType.feature);
+      expect(task.severity, TaskSeverity.high);
+      expect(task.phase, '41');
+      expect(task.claimedBy, 'agent-claude-1');
+    });
+
+    test('parses tags from JSON string', () {
+      final task = AgentTask.fromJson(baseJson);
+      expect(task.tags, containsAll(['dashboard', 'ui']));
+    });
+
+    test('parses files from JSON string', () {
+      final task = AgentTask.fromJson(baseJson);
+      expect(task.files, hasLength(2));
+      expect(task.files, contains('src/dashboard.dart'));
+    });
+
+    test('toJson round-trips key fields', () {
+      final task = AgentTask.fromJson(baseJson);
+      final json = task.toJson();
+      expect(json['id'], 'task-41-a');
+      expect(json['title'], 'Implement activity dashboard');
+      expect(json['status'], 'in_progress');
+      expect(json['severity'], 'high');
+      expect(json['phase'], '41');
+      expect(json['claimedBy'], 'agent-claude-1');
+    });
+
+    test('full round-trip preserves status and type', () {
+      final task = AgentTask.fromJson(baseJson);
+      final rebuilt = AgentTask.fromJson(task.toJson());
+      expect(rebuilt.status, task.status);
+      expect(rebuilt.taskType, task.taskType);
+      expect(rebuilt.severity, task.severity);
+      expect(rebuilt.id, task.id);
+    });
+  });
+
+  // ── Phase 41: TaskStatus enum ─────────────────────────────────────────────
+
+  group('TaskStatus enum (Phase 41)', () {
+    test('parses in_progress', () {
+      expect(TaskStatus.fromString('in_progress'), TaskStatus.inProgress);
+    });
+
+    test('parses pending', () {
+      expect(TaskStatus.fromString('pending'), TaskStatus.pending);
+    });
+
+    test('parses done', () {
+      expect(TaskStatus.fromString('done'), TaskStatus.done);
+    });
+
+    test('parses blocked', () {
+      expect(TaskStatus.fromString('blocked'), TaskStatus.blocked);
+    });
+
+    test('parses deferred', () {
+      expect(TaskStatus.fromString('deferred'), TaskStatus.deferred);
+    });
+
+    test('parses interrupted', () {
+      expect(TaskStatus.fromString('interrupted'), TaskStatus.interrupted);
+    });
+
+    test('parses in_qa', () {
+      expect(TaskStatus.fromString('in_qa'), TaskStatus.inQa);
+    });
+
+    test('unknown string falls back to pending', () {
+      expect(TaskStatus.fromString('unknown_xyz'), TaskStatus.pending);
+    });
+
+    test('toJsonStr round-trips for all values', () {
+      for (final s in TaskStatus.values) {
+        final str = s.toJsonStr();
+        expect(TaskStatus.fromString(str), s,
+            reason: '$s.toJsonStr() = "$str" did not round-trip');
+      }
+    });
+  });
+
+  // ── Phase 41: ActivityLogEntry ────────────────────────────────────────────
+
+  group('ActivityLogEntry.fromJson / toJson (Phase 41)', () {
+    test('round-trip with camelCase entryType', () {
+      final json = <String, dynamic>{
+        'id': 'ald-1',
+        'agent': 'agent-claude-1',
+        'action': 'task_started',
+        'entryType': 'auto',
+        'ts': 1700000000,
+        'taskId': 'task-41-a',
+        'phase': '41',
+        'detail': 'task execution began',
+        'repoPath': '/home/user/clawde',
+      };
+      final entry = ActivityLogEntry.fromJson(json);
+      expect(entry.id, 'ald-1');
+      expect(entry.agent, 'agent-claude-1');
+      expect(entry.action, 'task_started');
+      expect(entry.entryType, ActivityEntryType.auto);
+      expect(entry.ts, 1700000000);
+      expect(entry.taskId, 'task-41-a');
+      expect(entry.phase, '41');
+      expect(entry.detail, 'task execution began');
+
+      final rebuilt = ActivityLogEntry.fromJson(entry.toJson());
+      expect(rebuilt.id, entry.id);
+      expect(rebuilt.entryType, entry.entryType);
+      expect(rebuilt.ts, entry.ts);
+    });
+
+    test('round-trip with snake_case entry_type', () {
+      final json = <String, dynamic>{
+        'id': 'ald-2',
+        'agent': 'agent-bot',
+        'action': 'agent_note',
+        'entry_type': 'note',
+        'ts': 1700000001,
+        'task_id': 'task-41-b',
+        'repo_path': '/tmp/repo',
+      };
+      final entry = ActivityLogEntry.fromJson(json);
+      expect(entry.entryType, ActivityEntryType.note);
+      expect(entry.taskId, 'task-41-b');
+      expect(entry.repoPath, '/tmp/repo');
+    });
+
+    test('unknown entry_type falls back to auto', () {
+      final json = <String, dynamic>{
+        'id': 'ald-3',
+        'agent': 'bot',
+        'action': 'x',
+        'entry_type': 'unknown_type',
+        'ts': 0,
+        'repo_path': '/tmp',
+      };
+      expect(ActivityLogEntry.fromJson(json).entryType, ActivityEntryType.auto);
+    });
+  });
+
+  // ── Phase 41: AgentView ───────────────────────────────────────────────────
+
+  group('AgentView.fromJson / toJson (Phase 41)', () {
+    test('parses camelCase agentId', () {
+      final json = <String, dynamic>{
+        'agentId': 'agent-claude-1',
+        'status': 'active',
+        'repoPath': '/home/user/clawde',
+        'agentType': 'claude',
+        'sessionId': 'sess-1',
+        'currentTaskId': 'task-41-a',
+        'lastSeen': 1700000000,
+        'connectedAt': 1699999000,
+      };
+      final view = AgentView.fromJson(json);
+      expect(view.agentId, 'agent-claude-1');
+      expect(view.status, AgentStatus.active);
+      expect(view.repoPath, '/home/user/clawde');
+      expect(view.agentType, 'claude');
+      expect(view.sessionId, 'sess-1');
+      expect(view.currentTaskId, 'task-41-a');
+      expect(view.lastSeen, 1700000000);
+      expect(view.connectedAt, 1699999000);
+    });
+
+    test('parses snake_case agent_id', () {
+      final json = <String, dynamic>{
+        'agent_id': 'agent-snake-1',
+        'status': 'idle',
+        'repo_path': '/tmp/repo',
+        'agent_type': 'codex',
+        'last_seen': 1700000002,
+        'connected_at': 1700000000,
+      };
+      final view = AgentView.fromJson(json);
+      expect(view.agentId, 'agent-snake-1');
+      expect(view.status, AgentStatus.idle);
+      expect(view.repoPath, '/tmp/repo');
+      expect(view.agentType, 'codex');
+      expect(view.lastSeen, 1700000002);
+      expect(view.connectedAt, 1700000000);
+    });
+
+    test('toJson round-trip', () {
+      final json = <String, dynamic>{
+        'agentId': 'agent-rt',
+        'status': 'active',
+        'repoPath': '/tmp',
+        'agentType': 'claude',
+      };
+      final view = AgentView.fromJson(json);
+      final rebuilt = AgentView.fromJson(view.toJson());
+      expect(rebuilt.agentId, view.agentId);
+      expect(rebuilt.status, view.status);
+    });
+
+    test('unknown status falls back to offline', () {
+      final json = <String, dynamic>{
+        'agentId': 'a1',
+        'status': 'unknown_status',
+        'repoPath': '/tmp',
+      };
+      expect(AgentView.fromJson(json).status, AgentStatus.offline);
+    });
+  });
+
+  // ── Phase 41: Task push events ────────────────────────────────────────────
+
+  group('TaskClaimedEvent.fromJson (Phase 41)', () {
+    test('parses snake_case keys', () {
+      final json = <String, dynamic>{
+        'task_id': 'task-41-a',
+        'agent_id': 'agent-claude-1',
+        'is_resume': false,
+      };
+      final ev = TaskClaimedEvent.fromJson(json);
+      expect(ev.taskId, 'task-41-a');
+      expect(ev.agentId, 'agent-claude-1');
+      expect(ev.isResume, isFalse);
+    });
+
+    test('parses camelCase keys', () {
+      final json = <String, dynamic>{
+        'taskId': 'task-41-b',
+        'agentId': 'agent-codex-2',
+        'is_resume': true,
+      };
+      final ev = TaskClaimedEvent.fromJson(json);
+      expect(ev.taskId, 'task-41-b');
+      expect(ev.agentId, 'agent-codex-2');
+      expect(ev.isResume, isTrue);
+    });
+
+    test('isResume defaults to false when absent', () {
+      final json = <String, dynamic>{
+        'taskId': 'task-x',
+        'agentId': 'agent-y',
+      };
+      expect(TaskClaimedEvent.fromJson(json).isResume, isFalse);
+    });
+  });
+
+  group('TaskStatusChangedEvent.fromJson (Phase 41)', () {
+    test('parses snake_case task_id and status', () {
+      final json = <String, dynamic>{
+        'task_id': 'task-41-a',
+        'status': 'done',
+        'notes': 'task completed successfully',
+      };
+      final ev = TaskStatusChangedEvent.fromJson(json);
+      expect(ev.taskId, 'task-41-a');
+      expect(ev.status, TaskStatus.done);
+      expect(ev.notes, 'task completed successfully');
+    });
+
+    test('parses camelCase taskId', () {
+      final json = <String, dynamic>{
+        'taskId': 'task-41-b',
+        'status': 'blocked',
+      };
+      final ev = TaskStatusChangedEvent.fromJson(json);
+      expect(ev.taskId, 'task-41-b');
+      expect(ev.status, TaskStatus.blocked);
+      expect(ev.notes, isNull);
+    });
+
+    test('unknown status falls back to pending', () {
+      final json = <String, dynamic>{
+        'taskId': 'task-z',
+        'status': 'future_unknown_status',
+      };
+      expect(
+        TaskStatusChangedEvent.fromJson(json).status,
+        TaskStatus.pending,
+      );
+    });
+  });
 }

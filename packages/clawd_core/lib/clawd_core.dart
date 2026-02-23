@@ -8,3 +8,4 @@ export 'src/providers/message_provider.dart';
 export 'src/providers/tool_call_provider.dart';
 export 'src/providers/repo_provider.dart';
 export 'src/providers/settings_provider.dart';
+export 'src/providers/task_provider.dart';

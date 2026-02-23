@@ -9,6 +9,7 @@ import 'package:clawde_mobile/features/session_detail/session_detail_screen.dart
 import 'package:clawde_mobile/features/hosts/hosts_screen.dart';
 import 'package:clawde_mobile/features/hosts/host_provider.dart';
 import 'package:clawde_mobile/features/settings/settings_screen.dart';
+import 'package:clawde_mobile/features/dashboard/agent_dashboard_screen.dart';
 import 'package:clawde_mobile/services/notification_service.dart';
 
 final _router = GoRouter(
@@ -29,6 +30,10 @@ final _router = GoRouter(
         GoRoute(
           path: '/hosts',
           builder: (_, __) => const HostsScreen(),
+        ),
+        GoRoute(
+          path: '/tasks',
+          builder: (_, __) => const AgentDashboardScreen(),
         ),
         GoRoute(
           path: '/settings',
@@ -207,6 +212,11 @@ class _MobileShellState extends ConsumerState<_MobileShell> {
             label: 'Sessions',
           ),
           const NavigationDestination(
+            icon: Icon(Icons.view_kanban_outlined),
+            selectedIcon: Icon(Icons.view_kanban),
+            label: 'Tasks',
+          ),
+          const NavigationDestination(
             icon: Icon(Icons.wifi_outlined),
             selectedIcon: Icon(Icons.wifi),
             label: 'Hosts',
@@ -247,8 +257,9 @@ class _MobileShellState extends ConsumerState<_MobileShell> {
   }
 
   int _indexFor(String location) {
-    if (location.startsWith('/hosts')) return 1;
-    if (location.startsWith('/settings')) return 2;
+    if (location.startsWith('/tasks')) return 1;
+    if (location.startsWith('/hosts')) return 2;
+    if (location.startsWith('/settings')) return 3;
     return 0;
   }
 
@@ -257,8 +268,10 @@ class _MobileShellState extends ConsumerState<_MobileShell> {
       case 0:
         context.go('/');
       case 1:
-        context.go('/hosts');
+        context.go('/tasks');
       case 2:
+        context.go('/hosts');
+      case 3:
         context.go('/settings');
     }
   }

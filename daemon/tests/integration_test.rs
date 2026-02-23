@@ -4,7 +4,8 @@ use std::io::{Read as _, Write as _};
 use std::net::TcpStream;
 use clawd::{
     account::AccountRegistry, config::DaemonConfig, ipc::event::EventBroadcaster,
-    repo::RepoRegistry, session::SessionManager, storage::Storage, telemetry, update, AppContext,
+    repo::RepoRegistry, session::SessionManager, storage::Storage, tasks::TaskStorage,
+    telemetry, update, AppContext,
 };
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
@@ -23,6 +24,7 @@ async fn start_test_daemon() -> (String, Arc<AppContext>) {
         None,
     ));
     let storage = Arc::new(Storage::new(&data_dir).await.unwrap());
+    let storage_pool = storage.pool();
     let broadcaster = Arc::new(EventBroadcaster::new());
     let repo_registry = Arc::new(RepoRegistry::new(broadcaster.clone()));
     let session_manager = Arc::new(SessionManager::new(
@@ -51,6 +53,7 @@ async fn start_test_daemon() -> (String, Arc<AppContext>) {
         updater,
         started_at: std::time::Instant::now(),
         auth_token: String::new(),
+        task_storage: Arc::new(TaskStorage::new(storage_pool)),
     });
 
     let ctx_server = ctx.clone();

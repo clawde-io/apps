@@ -63,6 +63,15 @@ const SESSION_PAUSED_CODE: i32 = -32006;
 /// Max session count reached — delete an existing session before creating a new one.
 /// NOTE: clawd_proto ClawdError.sessionLimitReached must also use -32007.
 const SESSION_LIMIT_CODE: i32 = -32007;
+// Task system error codes (-32010 through -32015)
+const TASK_NOT_FOUND_CODE: i32 = -32010;
+const TASK_ALREADY_CLAIMED_CODE: i32 = -32011;
+#[allow(dead_code)]
+const TASK_ALREADY_DONE_CODE: i32 = -32012;
+#[allow(dead_code)]
+const AGENT_NOT_FOUND_CODE: i32 = -32013;
+const MISSING_COMPLETION_NOTES_CODE: i32 = -32014;
+const TASK_NOT_RESUMABLE_CODE: i32 = -32015;
 
 // ─── Server ──────────────────────────────────────────────────────────────────
 
@@ -367,6 +376,34 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
         "session.cancel" => handlers::session::cancel(params, ctx).await,
         "tool.approve" => handlers::tool::approve(params, ctx).await,
         "tool.reject" => handlers::tool::reject(params, ctx).await,
+        // ─── Task system ─────────────────────────────────────────────────────
+        "tasks.list"           => handlers::tasks::list(params, ctx).await,
+        "tasks.get"            => handlers::tasks::get(params, ctx).await,
+        "tasks.claim"          => handlers::tasks::claim(params, ctx).await,
+        "tasks.release"        => handlers::tasks::release(params, ctx).await,
+        "tasks.heartbeat"      => handlers::tasks::heartbeat(params, ctx).await,
+        "tasks.updateStatus"   => handlers::tasks::update_status(params, ctx).await,
+        "tasks.addTask"        => handlers::tasks::add_task(params, ctx).await,
+        "tasks.bulkAdd"        => handlers::tasks::bulk_add(params, ctx).await,
+        "tasks.logActivity"    => handlers::tasks::log_activity(params, ctx).await,
+        "tasks.note"           => handlers::tasks::note(params, ctx).await,
+        "tasks.activity"       => handlers::tasks::activity(params, ctx).await,
+        "tasks.fromPlanning"   => handlers::tasks::from_planning(params, ctx).await,
+        "tasks.fromChecklist"  => handlers::tasks::from_checklist(params, ctx).await,
+        "tasks.summary"        => handlers::tasks::summary(params, ctx).await,
+        "tasks.export"         => handlers::tasks::export(params, ctx).await,
+        "tasks.validate"       => handlers::tasks::validate(params, ctx).await,
+        "tasks.sync"           => handlers::tasks::sync(params, ctx).await,
+        // ─── Agent registry ──────────────────────────────────────────────────
+        "tasks.agents.register"    => handlers::agents::register(params, ctx).await,
+        "tasks.agents.list"        => handlers::agents::list(params, ctx).await,
+        "tasks.agents.heartbeat"   => handlers::agents::heartbeat(params, ctx).await,
+        "tasks.agents.disconnect"  => handlers::agents::disconnect(params, ctx).await,
+        // ─── AFS ─────────────────────────────────────────────────────────────
+        "afs.init"              => handlers::afs::init(params, ctx).await,
+        "afs.status"            => handlers::afs::status(params, ctx).await,
+        "afs.syncInstructions"  => handlers::afs::sync_instructions(params, ctx).await,
+        "afs.register"          => handlers::afs::register_project(params, ctx).await,
         _ => Err(anyhow::anyhow!("METHOD_NOT_FOUND:{}", method)),
     }
 }
@@ -375,6 +412,19 @@ fn classify_error(e: &anyhow::Error, _method: &str) -> (i32, String) {
     let msg = e.to_string();
     if msg.starts_with("METHOD_NOT_FOUND:") {
         return (METHOD_NOT_FOUND, "Method not found".to_string());
+    }
+    // Task system error codes
+    if msg.contains(&format!("TASK_CODE:{}", crate::tasks::storage::TASK_NOT_FOUND)) {
+        return (TASK_NOT_FOUND_CODE, "Task not found".to_string());
+    }
+    if msg.contains(&format!("TASK_CODE:{}", crate::tasks::storage::TASK_ALREADY_CLAIMED)) {
+        return (TASK_ALREADY_CLAIMED_CODE, "Task already claimed by another agent".to_string());
+    }
+    if msg.contains(&format!("TASK_CODE:{}", crate::tasks::storage::MISSING_COMPLETION_NOTES)) {
+        return (MISSING_COMPLETION_NOTES_CODE, "Completion notes are required when marking a task done".to_string());
+    }
+    if msg.contains(&format!("TASK_CODE:{}", crate::tasks::storage::TASK_NOT_RESUMABLE)) {
+        return (TASK_NOT_RESUMABLE_CODE, "Task cannot be resumed — not in interrupted or pending state".to_string());
     }
     if msg.contains("session limit reached") {
         return (SESSION_LIMIT_CODE, "Session limit reached".to_string());

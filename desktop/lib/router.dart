@@ -5,11 +5,13 @@ import 'package:clawde/features/sessions/sessions_screen.dart';
 import 'package:clawde/features/files/files_screen.dart';
 import 'package:clawde/features/git/git_screen.dart';
 import 'package:clawde/features/settings/settings_screen.dart';
+import 'package:clawde/features/dashboard/agent_dashboard_screen.dart';
 
 const routeChat = '/chat';
 const routeSessions = '/sessions';
 const routeFiles = '/files';
 const routeGit = '/git';
+const routeDashboard = '/dashboard';
 const routeSettings = '/settings';
 
 final appRouter = GoRouter(
@@ -22,6 +24,7 @@ final appRouter = GoRouter(
         GoRoute(path: routeSessions, builder: (_, __) => const SessionsScreen()),
         GoRoute(path: routeFiles, builder: (_, __) => const FilesScreen()),
         GoRoute(path: routeGit, builder: (_, __) => const GitScreen()),
+        GoRoute(path: routeDashboard, builder: (_, __) => const AgentDashboardScreen()),
         GoRoute(path: routeSettings, builder: (_, __) => const SettingsScreen()),
       ],
     ),

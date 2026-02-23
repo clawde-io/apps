@@ -9,6 +9,7 @@ pub mod repo;
 pub mod service;
 pub mod session;
 pub mod storage;
+pub mod tasks;
 pub mod telemetry;
 pub mod update;
 
@@ -24,6 +25,7 @@ use license::LicenseInfo;
 use repo::RepoRegistry;
 use session::SessionManager;
 use storage::Storage;
+use tasks::TaskStorage;
 use telemetry::TelemetrySender;
 use update::Updater;
 
@@ -50,4 +52,6 @@ pub struct AppContext {
     /// `daemon.auth` RPC with this token before any other method call.
     /// Empty string means auth is disabled (not recommended).
     pub auth_token: String,
+    /// Task queue storage (agent_tasks, activity_log, agent_registry, work_sessions).
+    pub task_storage: Arc<TaskStorage>,
 }

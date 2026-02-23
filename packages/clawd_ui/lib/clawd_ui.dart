@@ -12,3 +12,17 @@ export 'src/widgets/provider_badge.dart';
 export 'src/widgets/markdown_message.dart';
 export 'src/widgets/error_state.dart';
 export 'src/widgets/empty_state.dart';
+export 'src/widgets/task_status_badge.dart';
+export 'src/widgets/agent_chip.dart';
+export 'src/widgets/task_card.dart';
+export 'src/widgets/kanban_column.dart';
+export 'src/widgets/kanban_board.dart';
+export 'src/widgets/activity_feed_item.dart';
+export 'src/widgets/activity_feed.dart';
+export 'src/widgets/task_detail_panel.dart';
+// Phase 41 — agent dashboard widgets
+export 'src/widgets/agent_swimlane_row.dart';
+export 'src/widgets/filter_bar.dart';
+export 'src/widgets/add_task_dialog.dart';
+export 'src/widgets/project_selector.dart';
+export 'src/widgets/phase_log_view.dart';

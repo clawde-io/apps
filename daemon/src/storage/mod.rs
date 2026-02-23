@@ -78,10 +78,17 @@ impl Storage {
         Ok(Self { pool })
     }
 
+    /// Return a clone of the connection pool (cheap — Arc-backed).
+    /// Used to create TaskStorage that shares the same SQLite connection.
+    pub fn pool(&self) -> SqlitePool {
+        self.pool.clone()
+    }
+
     async fn migrate(pool: &SqlitePool) -> Result<()> {
         for sql in [
             include_str!("migrations/001_init.sql"),
             include_str!("migrations/002_license.sql"),
+            include_str!("migrations/003_agent_tasks.sql"),
         ] {
             for stmt in sql.split(';') {
                 let stmt = stmt.trim();

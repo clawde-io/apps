@@ -20,6 +20,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     routeSessions,
     routeFiles,
     routeGit,
+    routeDashboard,
     routeSettings,
   ];
 
@@ -76,6 +77,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                 icon: Icon(Icons.account_tree_outlined),
                 selectedIcon: Icon(Icons.account_tree),
                 label: Text('Git'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.view_kanban_outlined),
+                selectedIcon: Icon(Icons.view_kanban),
+                label: Text('Tasks'),
               ),
               NavigationRailDestination(
                 icon: Icon(Icons.settings_outlined),
