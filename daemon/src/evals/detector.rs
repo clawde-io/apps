@@ -48,17 +48,14 @@ pub async fn rules_changed(data_dir: &Path) -> Result<bool> {
 /// and re-run evals.  The task runs indefinitely; it stops when the daemon exits.
 pub async fn watch_rules(data_dir: PathBuf) -> Result<()> {
     tokio::spawn(async move {
-        let mut interval =
-            tokio::time::interval(std::time::Duration::from_secs(60));
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
         interval.tick().await; // skip immediate tick
 
         loop {
             interval.tick().await;
             match rules_changed(&data_dir).await {
                 Ok(true) => {
-                    warn!(
-                        "evals: policy files have changed — re-run evals to validate new rules"
-                    );
+                    warn!("evals: policy files have changed — re-run evals to validate new rules");
                 }
                 Ok(false) => {}
                 Err(e) => {

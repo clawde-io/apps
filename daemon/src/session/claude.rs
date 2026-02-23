@@ -598,15 +598,25 @@ impl Runner for ClaudeCodeRunner {
 /// - `"low"`:    read-only or informational tools
 fn classify_tool_risk(tool_name: &str) -> &'static str {
     let n = tool_name.to_lowercase();
-    if n.contains("bash") || n.contains("execute") || n.contains("run")
-        || n.contains("computer") || n.contains("delete") || n.contains("remove")
-        || n.contains("kill") || n.contains("terminal")
+    if n.contains("bash")
+        || n.contains("execute")
+        || n.contains("run")
+        || n.contains("computer")
+        || n.contains("delete")
+        || n.contains("remove")
+        || n.contains("kill")
+        || n.contains("terminal")
     {
         return "high";
     }
-    if n.contains("write") || n.contains("edit") || n.contains("create")
-        || n.contains("patch") || n.contains("overwrite") || n.contains("replace")
-        || n.contains("insert") || n.contains("append")
+    if n.contains("write")
+        || n.contains("edit")
+        || n.contains("create")
+        || n.contains("patch")
+        || n.contains("overwrite")
+        || n.contains("replace")
+        || n.contains("insert")
+        || n.contains("append")
     {
         return "medium";
     }
@@ -672,7 +682,7 @@ pub fn validate_tool_args(tool_name: &str, input: &serde_json::Value) -> ArgVali
             "rm --no-preserve-root",
             "chmod 777",
             "mkfs.",
-            ":(){:|:&};:",  // fork-bomb
+            ":(){:|:&};:", // fork-bomb
         ];
         for pat in &destructive_patterns {
             if cmd.contains(pat) {
@@ -754,7 +764,10 @@ mod tests {
     #[test]
     fn safe_command_passes() {
         assert_eq!(val("bash", r#"{"command":"ls -la"}"#), ArgValidation::Ok);
-        assert_eq!(val("execute", r#"{"command":"cargo build"}"#), ArgValidation::Ok);
+        assert_eq!(
+            val("execute", r#"{"command":"cargo build"}"#),
+            ArgValidation::Ok
+        );
     }
 
     #[test]

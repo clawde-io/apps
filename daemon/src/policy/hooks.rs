@@ -61,11 +61,7 @@ impl PolicyHooks {
     /// Post-tool hook: run after a tool returns its result.
     ///
     /// Checks the result for secrets and computes follow-up actions.
-    pub fn post_tool(
-        tool: &str,
-        result: &serde_json::Value,
-        _task_id: &str,
-    ) -> PostToolActions {
+    pub fn post_tool(tool: &str, result: &serde_json::Value, _task_id: &str) -> PostToolActions {
         let mut actions = PostToolActions::default();
 
         // For patch tools, scan the result diff for secrets.
@@ -156,7 +152,10 @@ mod tests {
             &TaskState::Pending,
         );
         assert!(result.is_err());
-        assert!(matches!(result, Err(PolicyViolation::UnauthorizedTool { .. })));
+        assert!(matches!(
+            result,
+            Err(PolicyViolation::UnauthorizedTool { .. })
+        ));
     }
 
     #[test]
@@ -168,7 +167,10 @@ mod tests {
             &TaskState::Active,
         );
         assert!(result.is_err());
-        assert!(matches!(result, Err(PolicyViolation::SecretDetected { .. })));
+        assert!(matches!(
+            result,
+            Err(PolicyViolation::SecretDetected { .. })
+        ));
     }
 
     #[test]

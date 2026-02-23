@@ -132,7 +132,8 @@ impl RelayE2e {
 fn derive_cipher(ikm: &[u8], info: &[u8]) -> Result<ChaCha20Poly1305> {
     let hk = Hkdf::<Sha256>::new(None, ikm);
     let mut okm = [0u8; 32];
-    hk.expand(info, &mut okm).map_err(|_| anyhow!("HKDF expand failed"))?;
+    hk.expand(info, &mut okm)
+        .map_err(|_| anyhow!("HKDF expand failed"))?;
     Ok(ChaCha20Poly1305::new(Key::from_slice(&okm)))
 }
 

@@ -19,10 +19,7 @@ impl CheckpointManager {
     pub fn new(task_id: &str, data_dir: &Path) -> Self {
         Self {
             task_id: task_id.to_string(),
-            checkpoint_dir: data_dir
-                .join("tasks")
-                .join(task_id)
-                .join("checkpoints"),
+            checkpoint_dir: data_dir.join("tasks").join(task_id).join("checkpoints"),
         }
     }
 

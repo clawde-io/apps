@@ -17,7 +17,16 @@ use sqlx::SqlitePool;
 use super::model::{new_thread_id, Thread, ThreadStatus, ThreadType};
 
 /// Shared row type for SQLite thread queries (avoids type-complexity lint).
-pub type ThreadRow = (String, String, Option<String>, Option<String>, String, String, String, String);
+pub type ThreadRow = (
+    String,
+    String,
+    Option<String>,
+    Option<String>,
+    String,
+    String,
+    String,
+    String,
+);
 
 /// Handle for operating on the control thread of a specific project.
 pub struct ControlThread {
@@ -67,8 +76,7 @@ impl ControlThread {
         // No existing thread — create one.
         let thread_id = new_thread_id();
         let now = Utc::now().to_rfc3339();
-        let model_json = serde_json::to_string(&model_config)
-            .unwrap_or_else(|_| "{}".to_string());
+        let model_json = serde_json::to_string(&model_config).unwrap_or_else(|_| "{}".to_string());
 
         sqlx::query(
             "INSERT INTO threads
@@ -77,7 +85,7 @@ impl ControlThread {
              VALUES (?, 'control', ?, NULL, 'active', ?, ?, ?)",
         )
         .bind(&thread_id)
-        .bind(root_str)     // task_id = project_root for control threads
+        .bind(root_str) // task_id = project_root for control threads
         .bind(&model_json)
         .bind(&now)
         .bind(&now)
@@ -85,13 +93,13 @@ impl ControlThread {
         .await?;
 
         let row: ThreadRow = sqlx::query_as(
-                "SELECT thread_id, thread_type, task_id, parent_thread_id,
+            "SELECT thread_id, thread_type, task_id, parent_thread_id,
                         status, model_config, created_at, updated_at
                  FROM threads WHERE thread_id = ?",
-            )
-            .bind(&thread_id)
-            .fetch_one(pool)
-            .await?;
+        )
+        .bind(&thread_id)
+        .fetch_one(pool)
+        .await?;
 
         row_to_thread(row)
     }
@@ -99,23 +107,31 @@ impl ControlThread {
 
 /// Convert a raw SQLite row tuple into a `Thread`.
 pub fn row_to_thread(row: ThreadRow) -> Result<Thread> {
-    let (thread_id, thread_type_str, task_id, parent_thread_id, status_str, model_config_str, created_at_str, updated_at_str) =
-        row;
+    let (
+        thread_id,
+        thread_type_str,
+        task_id,
+        parent_thread_id,
+        status_str,
+        model_config_str,
+        created_at_str,
+        updated_at_str,
+    ) = row;
 
     let thread_type = match thread_type_str.as_str() {
         "control" => ThreadType::Control,
-        "task"    => ThreadType::Task,
-        "sub"     => ThreadType::Sub,
-        other     => return Err(anyhow::anyhow!("unknown thread_type: {}", other)),
+        "task" => ThreadType::Task,
+        "sub" => ThreadType::Sub,
+        other => return Err(anyhow::anyhow!("unknown thread_type: {}", other)),
     };
 
     let status = match status_str.as_str() {
-        "active"    => ThreadStatus::Active,
-        "paused"    => ThreadStatus::Paused,
+        "active" => ThreadStatus::Active,
+        "paused" => ThreadStatus::Paused,
         "completed" => ThreadStatus::Completed,
-        "archived"  => ThreadStatus::Archived,
-        "error"     => ThreadStatus::Error,
-        other       => return Err(anyhow::anyhow!("unknown thread status: {}", other)),
+        "archived" => ThreadStatus::Archived,
+        "error" => ThreadStatus::Error,
+        other => return Err(anyhow::anyhow!("unknown thread status: {}", other)),
     };
 
     let model_config: serde_json::Value =

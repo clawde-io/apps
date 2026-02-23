@@ -44,10 +44,7 @@ impl ClawdCapabilities {
         let mut cap = serde_json::Map::new();
 
         if self.tools {
-            cap.insert(
-                "tools".into(),
-                serde_json::json!({ "listChanged": false }),
-            );
+            cap.insert("tools".into(), serde_json::json!({ "listChanged": false }));
         }
         if self.resources {
             cap.insert("resources".into(), serde_json::json!({}));

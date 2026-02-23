@@ -7,8 +7,8 @@ pub mod identity;
 pub mod ipc;
 pub mod license;
 pub mod mcp;
-pub mod policy;
 pub mod mdns;
+pub mod policy;
 pub mod relay;
 pub mod repo;
 pub mod scheduler;
@@ -27,6 +27,7 @@ pub use ipc::auth;
 use std::sync::Arc;
 
 use account::AccountRegistry;
+use agents::orchestrator::{Orchestrator, SharedOrchestrator};
 use config::DaemonConfig;
 use ipc::event::EventBroadcaster;
 use license::LicenseInfo;
@@ -41,7 +42,6 @@ use tasks::TaskStorage;
 use telemetry::TelemetrySender;
 use update::Updater;
 use worktree::manager::{SharedWorktreeManager, WorktreeManager};
-use agents::orchestrator::{Orchestrator, SharedOrchestrator};
 
 /// Shared application state passed to every RPC handler and background task.
 #[derive(Clone)]

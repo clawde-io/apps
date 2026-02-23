@@ -176,12 +176,7 @@ pub fn reduce(mut state: MaterializedTask, event: &TaskEvent) -> Result<Material
             TaskState::CodeReview => {
                 state.state = TaskState::Qa;
             }
-            _ => {
-                return Err(anyhow!(
-                    "invalid transition: TaskQa from {:?}",
-                    state.state
-                ))
-            }
+            _ => return Err(anyhow!("invalid transition: TaskQa from {:?}", state.state)),
         },
 
         // ── Done ─────────────────────────────────────────────────────────────

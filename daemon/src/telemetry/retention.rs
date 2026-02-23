@@ -42,8 +42,7 @@ pub async fn prune_traces(data_dir: &Path, policy: &RetentionPolicy) -> Result<u
         return Ok(0);
     }
 
-    let cutoff = Utc::now()
-        - chrono::Duration::days(policy.traces_days as i64);
+    let cutoff = Utc::now() - chrono::Duration::days(policy.traces_days as i64);
 
     let mut deleted: u32 = 0;
 

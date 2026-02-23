@@ -30,9 +30,7 @@ fn seen_keys() -> &'static Mutex<HashSet<String>> {
 /// Check whether a key has been seen before.  If not, records it and returns
 /// `false`; if already seen, returns `true` (idempotent — skip re-application).
 fn check_and_record_key(key: &str) -> bool {
-    let mut guard = seen_keys()
-        .lock()
-        .expect("idempotency key store poisoned");
+    let mut guard = seen_keys().lock().expect("idempotency key store poisoned");
     if guard.contains(key) {
         true // already seen
     } else {
@@ -99,10 +97,8 @@ pub async fn apply_patch(ctx: &AppContext, args: Value, agent_id: Option<&str>) 
 
     // Validate the patch is well-formed using git2.
     let patch_bytes = patch_str.as_bytes();
-    let diff =
-        git2::Diff::from_buffer(patch_bytes).map_err(|e| {
-            anyhow::anyhow!("MCP_INVALID_PARAMS: invalid patch: {}", e)
-        })?;
+    let diff = git2::Diff::from_buffer(patch_bytes)
+        .map_err(|e| anyhow::anyhow!("MCP_INVALID_PARAMS: invalid patch: {}", e))?;
 
     // Extract the list of files touched by the patch.
     let mut files_changed: Vec<String> = Vec::new();
@@ -124,19 +120,20 @@ pub async fn apply_patch(ctx: &AppContext, args: Value, agent_id: Option<&str>) 
     // Open the task's isolated git worktree (NOT the project root).
     // Each code-modifying task is bound to a dedicated worktree so that
     // concurrent tasks cannot interfere with each other's working trees.
-    let worktree_info = ctx
-        .worktree_manager
-        .get(task_id)
-        .await
-        .ok_or_else(|| {
-            anyhow::anyhow!(
-                "MCP_INVALID_PARAMS: task '{}' has no worktree — claim the task first to provision one",
-                task_id
-            )
-        })?;
+    let worktree_info = ctx.worktree_manager.get(task_id).await.ok_or_else(|| {
+        anyhow::anyhow!(
+            "MCP_INVALID_PARAMS: task '{}' has no worktree — claim the task first to provision one",
+            task_id
+        )
+    })?;
     let repo_path = &worktree_info.worktree_path;
-    let repo = git2::Repository::open(repo_path)
-        .map_err(|e| anyhow::anyhow!("failed to open worktree at '{}': {}", repo_path.display(), e))?;
+    let repo = git2::Repository::open(repo_path).map_err(|e| {
+        anyhow::anyhow!(
+            "failed to open worktree at '{}': {}",
+            repo_path.display(),
+            e
+        )
+    })?;
 
     let mut apply_opts = git2::ApplyOptions::new();
     // Apply to workdir (index=false), so the changes appear as working-tree edits.

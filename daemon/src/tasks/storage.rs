@@ -7,12 +7,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const QUERY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
 /// Execute a future with the standard query timeout.
-async fn with_timeout<T>(
-    fut: impl std::future::Future<Output = Result<T>>,
-) -> Result<T> {
+async fn with_timeout<T>(fut: impl std::future::Future<Output = Result<T>>) -> Result<T> {
     match tokio::time::timeout(QUERY_TIMEOUT, fut).await {
         Ok(result) => result,
-        Err(_) => Err(anyhow!("database query timed out after {}s", QUERY_TIMEOUT.as_secs())),
+        Err(_) => Err(anyhow!(
+            "database query timed out after {}s",
+            QUERY_TIMEOUT.as_secs()
+        )),
     }
 }
 
@@ -180,7 +181,9 @@ impl TaskStorage {
         }
         if let Some(ref search) = params.search {
             let q = search.to_lowercase();
-            rows.retain(|r| r.title.to_lowercase().contains(&q) || r.id.to_lowercase().contains(&q));
+            rows.retain(|r| {
+                r.title.to_lowercase().contains(&q) || r.id.to_lowercase().contains(&q)
+            });
         }
         if let Some(ref tag) = params.tag {
             rows.retain(|r| {
@@ -231,7 +234,7 @@ impl TaskStorage {
             "INSERT INTO agent_tasks
              (id, title, type, phase, \"group\", parent_id, severity, file, files, depends_on, tags,
               estimated_minutes, repo_path, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(id)
         .bind(title)
@@ -304,7 +307,7 @@ impl TaskStorage {
                  updated_at = ?
              WHERE id = ?
                AND (status = 'pending' OR status = 'interrupted')
-               AND (claimed_by IS NULL OR status = 'interrupted')"
+               AND (claimed_by IS NULL OR status = 'interrupted')",
         )
         .bind(agent_id)
         .bind(now)
@@ -344,7 +347,7 @@ impl TaskStorage {
         let now = now_ts();
         sqlx::query(
             "UPDATE agent_tasks SET last_heartbeat = ?, updated_at = ?
-             WHERE id = ? AND claimed_by = ?"
+             WHERE id = ? AND claimed_by = ?",
         )
         .bind(now)
         .bind(now)
@@ -374,10 +377,16 @@ impl TaskStorage {
         }
 
         let now = now_ts();
-        let completed_at = if new_status == "done" { Some(now) } else { None };
+        let completed_at = if new_status == "done" {
+            Some(now)
+        } else {
+            None
+        };
 
         // Compute actual_minutes when completing
-        let task = self.get_task(task_id).await?
+        let task = self
+            .get_task(task_id)
+            .await?
             .ok_or_else(|| anyhow!("TASK_CODE:{}", TASK_NOT_FOUND))?;
         let actual_minutes = if new_status == "done" {
             task.started_at.map(|s| (now - s) / 60)
@@ -391,7 +400,7 @@ impl TaskStorage {
                  completed_at = COALESCE(?, completed_at),
                  actual_minutes = COALESCE(?, actual_minutes),
                  updated_at = ?
-             WHERE id = ?"
+             WHERE id = ?",
         )
         .bind(new_status)
         .bind(notes)
@@ -422,7 +431,7 @@ impl TaskStorage {
             "SELECT id FROM agent_tasks
              WHERE status = 'in_progress'
                AND last_heartbeat IS NOT NULL
-               AND last_heartbeat < ?"
+               AND last_heartbeat < ?",
         )
         .bind(cutoff)
         .fetch_all(&mut *tx)
@@ -436,7 +445,7 @@ impl TaskStorage {
 
         for id in &ids {
             sqlx::query(
-                "UPDATE agent_tasks SET status = 'interrupted', updated_at = ? WHERE id = ?"
+                "UPDATE agent_tasks SET status = 'interrupted', updated_at = ? WHERE id = ?",
             )
             .bind(now)
             .bind(id)
@@ -451,12 +460,11 @@ impl TaskStorage {
     /// Archive done tasks older than `visible_hours`. Interrupted tasks are NEVER archived.
     pub async fn archive_done_tasks(&self, visible_hours: i64) -> Result<usize> {
         let cutoff = now_ts() - visible_hours * 3600;
-        let done_old: Vec<AgentTaskRow> = sqlx::query_as(
-            "SELECT * FROM agent_tasks WHERE status = 'done' AND completed_at < ?"
-        )
-        .bind(cutoff)
-        .fetch_all(&self.pool)
-        .await?;
+        let done_old: Vec<AgentTaskRow> =
+            sqlx::query_as("SELECT * FROM agent_tasks WHERE status = 'done' AND completed_at < ?")
+                .bind(cutoff)
+                .fetch_all(&self.pool)
+                .await?;
 
         let count = done_old.len();
         if count == 0 {
@@ -472,7 +480,7 @@ impl TaskStorage {
                 "INSERT OR IGNORE INTO agent_tasks_archive
                  (id, title, type, phase, \"group\", severity, status, claimed_by, claimed_at,
                   completed_at, actual_minutes, repo_path, archived_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())"
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())",
             )
             .bind(&task.id)
             .bind(&task.title)
@@ -513,7 +521,7 @@ impl TaskStorage {
                 // Task already exists — sync status if it differs.
                 if ex.status != t.status {
                     sqlx::query(
-                        "UPDATE agent_tasks SET status = ?, updated_at = unixepoch() WHERE id = ?"
+                        "UPDATE agent_tasks SET status = ?, updated_at = unixepoch() WHERE id = ?",
                     )
                     .bind(&t.status)
                     .bind(&t.id)
@@ -541,7 +549,7 @@ impl TaskStorage {
             // Update status to match active.md
             if t.status != "pending" {
                 sqlx::query(
-                    "UPDATE agent_tasks SET status = ?, updated_at = unixepoch() WHERE id = ?"
+                    "UPDATE agent_tasks SET status = ?, updated_at = unixepoch() WHERE id = ?",
                 )
                 .bind(&t.status)
                 .bind(&t.id)
@@ -572,7 +580,7 @@ impl TaskStorage {
         sqlx::query(
             "INSERT INTO agent_activity_log
              (id, ts, agent, task_id, phase, action, entry_type, detail, meta, repo_path)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&id)
         .bind(now)
@@ -587,10 +595,12 @@ impl TaskStorage {
         .execute(&self.pool)
         .await?;
 
-        Ok(sqlx::query_as("SELECT * FROM agent_activity_log WHERE id = ?")
-            .bind(&id)
-            .fetch_one(&self.pool)
-            .await?)
+        Ok(
+            sqlx::query_as("SELECT * FROM agent_activity_log WHERE id = ?")
+                .bind(&id)
+                .fetch_one(&self.pool)
+                .await?,
+        )
     }
 
     /// Shorthand: post an agent note (entry_type = "note").
@@ -602,12 +612,28 @@ impl TaskStorage {
         note: &str,
         repo_path: &str,
     ) -> Result<ActivityLogRow> {
-        let action = if task_id.is_some() { "agent_note" } else { "phase_note" };
-        self.log_activity(agent, task_id, phase, action, "note", Some(note), None, repo_path)
-            .await
+        let action = if task_id.is_some() {
+            "agent_note"
+        } else {
+            "phase_note"
+        };
+        self.log_activity(
+            agent,
+            task_id,
+            phase,
+            action,
+            "note",
+            Some(note),
+            None,
+            repo_path,
+        )
+        .await
     }
 
-    pub async fn query_activity(&self, params: &ActivityQueryParams) -> Result<Vec<ActivityLogRow>> {
+    pub async fn query_activity(
+        &self,
+        params: &ActivityQueryParams,
+    ) -> Result<Vec<ActivityLogRow>> {
         let limit = params.limit.unwrap_or(100).min(500);
         let offset = params.offset.unwrap_or(0);
 
@@ -619,7 +645,7 @@ impl TaskStorage {
                  WHERE (t.phase = ? OR (a.phase = ? AND a.task_id IS NULL))
                    AND (? IS NULL OR a.repo_path = ?)
                  ORDER BY a.ts DESC
-                 LIMIT ? OFFSET ?"
+                 LIMIT ? OFFSET ?",
             )
             .bind(phase)
             .bind(phase)
@@ -632,13 +658,12 @@ impl TaskStorage {
             return Ok(rows);
         }
 
-        let mut rows: Vec<ActivityLogRow> = sqlx::query_as(
-            "SELECT * FROM agent_activity_log ORDER BY ts DESC LIMIT ? OFFSET ?"
-        )
-        .bind(limit)
-        .bind(offset)
-        .fetch_all(&self.pool)
-        .await?;
+        let mut rows: Vec<ActivityLogRow> =
+            sqlx::query_as("SELECT * FROM agent_activity_log ORDER BY ts DESC LIMIT ? OFFSET ?")
+                .bind(limit)
+                .bind(offset)
+                .fetch_all(&self.pool)
+                .await?;
 
         if let Some(ref task_id) = params.task_id {
             rows.retain(|r| r.task_id.as_deref() == Some(task_id.as_str()));
@@ -664,12 +689,10 @@ impl TaskStorage {
 
     pub async fn prune_activity_log(&self, retention_days: i64) -> Result<u64> {
         let cutoff = now_ts() - retention_days * 86400;
-        let result = sqlx::query(
-            "DELETE FROM agent_activity_log WHERE ts < ?"
-        )
-        .bind(cutoff)
-        .execute(&self.pool)
-        .await?;
+        let result = sqlx::query("DELETE FROM agent_activity_log WHERE ts < ?")
+            .bind(cutoff)
+            .execute(&self.pool)
+            .await?;
         Ok(result.rows_affected())
     }
 
@@ -699,19 +722,23 @@ impl TaskStorage {
         .execute(&self.pool)
         .await?;
 
-        self.get_agent(agent_id).await?.ok_or_else(|| anyhow!("agent not found after register"))
+        self.get_agent(agent_id)
+            .await?
+            .ok_or_else(|| anyhow!("agent not found after register"))
     }
 
     pub async fn get_agent(&self, agent_id: &str) -> Result<Option<AgentRegistryRow>> {
-        Ok(sqlx::query_as("SELECT * FROM agent_registry WHERE agent_id = ?")
-            .bind(agent_id)
-            .fetch_optional(&self.pool)
-            .await?)
+        Ok(
+            sqlx::query_as("SELECT * FROM agent_registry WHERE agent_id = ?")
+                .bind(agent_id)
+                .fetch_optional(&self.pool)
+                .await?,
+        )
     }
 
     pub async fn list_agents(&self, repo_path: Option<&str>) -> Result<Vec<AgentRegistryRow>> {
         let rows: Vec<AgentRegistryRow> = sqlx::query_as(
-            "SELECT * FROM agent_registry WHERE status != 'disconnected' ORDER BY last_seen DESC"
+            "SELECT * FROM agent_registry WHERE status != 'disconnected' ORDER BY last_seen DESC",
         )
         .fetch_all(&self.pool)
         .await?;
@@ -725,7 +752,7 @@ impl TaskStorage {
     pub async fn update_agent_heartbeat(&self, agent_id: &str) -> Result<()> {
         let now = now_ts();
         sqlx::query(
-            "UPDATE agent_registry SET last_seen = ?, status = 'active' WHERE agent_id = ?"
+            "UPDATE agent_registry SET last_seen = ?, status = 'active' WHERE agent_id = ?",
         )
         .bind(now)
         .bind(agent_id)
@@ -770,14 +797,12 @@ impl TaskStorage {
     pub async fn open_work_session(&self, repo_path: &str) -> Result<WorkSessionRow> {
         let id = format!("{:x}", uuid_v4_hex());
         let now = now_ts();
-        sqlx::query(
-            "INSERT INTO work_sessions (id, started_at, repo_path) VALUES (?, ?, ?)"
-        )
-        .bind(&id)
-        .bind(now)
-        .bind(repo_path)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("INSERT INTO work_sessions (id, started_at, repo_path) VALUES (?, ?, ?)")
+            .bind(&id)
+            .bind(now)
+            .bind(repo_path)
+            .execute(&self.pool)
+            .await?;
 
         Ok(sqlx::query_as("SELECT * FROM work_sessions WHERE id = ?")
             .bind(&id)
@@ -807,13 +832,12 @@ impl TaskStorage {
     // ─── Summary ──────────────────────────────────────────────────────────────
 
     pub async fn summary(&self, repo_path: Option<&str>) -> Result<serde_json::Value> {
-        let total: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM agent_tasks WHERE (? IS NULL OR repo_path = ?)"
-        )
-        .bind(repo_path)
-        .bind(repo_path)
-        .fetch_one(&self.pool)
-        .await?;
+        let total: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM agent_tasks WHERE (? IS NULL OR repo_path = ?)")
+                .bind(repo_path)
+                .bind(repo_path)
+                .fetch_one(&self.pool)
+                .await?;
 
         let done: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM agent_tasks WHERE status = 'done' AND (? IS NULL OR repo_path = ?)"

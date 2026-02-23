@@ -56,7 +56,9 @@ pub fn regenerate(original: &str, db_tasks: &[AgentTaskRow]) -> String {
                     && !id_raw.contains("---")
                     && id_raw != "#"
                     && id_raw.to_lowercase() != "id"
-                    && id_raw.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_');
+                    && id_raw
+                        .chars()
+                        .all(|c| c.is_alphanumeric() || c == '-' || c == '_');
 
                 if is_task_row {
                     if let Some(&new_status) = status_map.get(id_raw) {

@@ -1,7 +1,3 @@
-/// Integration tests for the clawd JSON-RPC server.
-/// Spins up a real daemon on a free port and tests all RPC methods.
-use std::io::{Read as _, Write as _};
-use std::net::TcpStream;
 use clawd::{
     account::AccountRegistry, config::DaemonConfig, ipc::event::EventBroadcaster,
     repo::RepoRegistry, scheduler, session::SessionManager, storage::Storage, tasks::TaskStorage,
@@ -9,6 +5,10 @@ use clawd::{
 };
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
+/// Integration tests for the clawd JSON-RPC server.
+/// Spins up a real daemon on a free port and tests all RPC methods.
+use std::io::{Read as _, Write as _};
+use std::net::TcpStream;
 use std::sync::Arc;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 

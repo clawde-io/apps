@@ -105,16 +105,14 @@ mod tests {
     #[test]
     fn all_clear_no_violations() {
         let spec = spec_with_criteria(vec!["feature works end to end"]);
-        let violations =
-            DodChecker::check_transition_to_cr(&spec, true, true, CLEAN_PATCH);
+        let violations = DodChecker::check_transition_to_cr(&spec, true, true, CLEAN_PATCH);
         assert!(violations.is_empty(), "violations: {:?}", violations);
     }
 
     #[test]
     fn no_acceptance_criteria_violation() {
         let spec = spec_with_criteria(vec![]);
-        let violations =
-            DodChecker::check_transition_to_cr(&spec, true, true, CLEAN_PATCH);
+        let violations = DodChecker::check_transition_to_cr(&spec, true, true, CLEAN_PATCH);
         assert!(violations
             .iter()
             .any(|v| matches!(v, PolicyViolation::NoAcceptanceCriteria)));
@@ -123,8 +121,7 @@ mod tests {
     #[test]
     fn placeholder_in_patch_violation() {
         let spec = spec_with_criteria(vec!["feature works"]);
-        let violations =
-            DodChecker::check_transition_to_cr(&spec, true, true, PLACEHOLDER_PATCH);
+        let violations = DodChecker::check_transition_to_cr(&spec, true, true, PLACEHOLDER_PATCH);
         assert!(violations
             .iter()
             .any(|v| matches!(v, PolicyViolation::PlaceholderDetected { .. })));
@@ -133,8 +130,7 @@ mod tests {
     #[test]
     fn tests_not_run_violation() {
         let spec = spec_with_criteria(vec!["feature works"]);
-        let violations =
-            DodChecker::check_transition_to_cr(&spec, false, false, CLEAN_PATCH);
+        let violations = DodChecker::check_transition_to_cr(&spec, false, false, CLEAN_PATCH);
         assert!(violations
             .iter()
             .any(|v| matches!(v, PolicyViolation::TestsNotRun)));
@@ -143,8 +139,7 @@ mod tests {
     #[test]
     fn tests_failing_violation() {
         let spec = spec_with_criteria(vec!["feature works"]);
-        let violations =
-            DodChecker::check_transition_to_cr(&spec, true, false, CLEAN_PATCH);
+        let violations = DodChecker::check_transition_to_cr(&spec, true, false, CLEAN_PATCH);
         assert!(violations
             .iter()
             .any(|v| matches!(v, PolicyViolation::TestsFailing)));

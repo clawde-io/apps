@@ -194,10 +194,7 @@ impl ConfigWatcher {
                     // Only act on modify/create events
                     let relevant = events.iter().any(|e| {
                         use notify_debouncer_full::notify::EventKind;
-                        matches!(
-                            e.event.kind,
-                            EventKind::Modify(_) | EventKind::Create(_)
-                        )
+                        matches!(e.event.kind, EventKind::Modify(_) | EventKind::Create(_))
                     });
                     if relevant {
                         let hot = hot_clone.clone();
@@ -226,9 +223,7 @@ impl ConfigWatcher {
                 use notify_debouncer_full::notify::Watcher as _;
                 // Watch the data_dir (parent of config.toml) since watching a
                 // non-existent file fails on some platforms.
-                let watch_path = config_path
-                    .parent()
-                    .unwrap_or_else(|| Path::new("."));
+                let watch_path = config_path.parent().unwrap_or_else(|| Path::new("."));
                 if let Err(e) = debouncer.watcher().watch(
                     watch_path,
                     notify_debouncer_full::notify::RecursiveMode::NonRecursive,

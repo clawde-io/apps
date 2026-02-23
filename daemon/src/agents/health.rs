@@ -6,8 +6,7 @@ use crate::agents::lifecycle::SharedAgentRegistry;
 /// heartbeats. Crashed agents are marked as such so the orchestrator can
 /// trigger recovery (wired in when Phase 43b replay is available).
 pub async fn heartbeat_monitor(registry: SharedAgentRegistry, timeout_secs: i64) {
-    let mut interval =
-        tokio::time::interval(tokio::time::Duration::from_secs(30));
+    let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30));
     loop {
         interval.tick().await;
         let crashed = registry.write().await.detect_crashed(timeout_secs);

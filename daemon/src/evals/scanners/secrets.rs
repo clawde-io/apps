@@ -136,10 +136,7 @@ fn check_line(content: &str, file: &str, line: usize) -> Option<SecretViolation>
     for (name, regex) in SECRET_REGEXES.iter() {
         if let Some(m) = regex.find(content) {
             let matched = m.as_str();
-            let preview = format!(
-                "{}...",
-                &matched[..matched.len().min(4)]
-            );
+            let preview = format!("{}...", &matched[..matched.len().min(4)]);
             return Some(SecretViolation {
                 file: file.to_string(),
                 line,

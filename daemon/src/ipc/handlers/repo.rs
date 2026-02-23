@@ -66,7 +66,10 @@ pub async fn close(params: Value, ctx: &AppContext) -> Result<Value> {
     validate_repo_path(&p.repo_path)?;
     let removed = ctx.repo_registry.close(&p.repo_path).await?;
     if !removed {
-        bail!("REPO_NOT_FOUND: repo is not currently tracked: {}", p.repo_path);
+        bail!(
+            "REPO_NOT_FOUND: repo is not currently tracked: {}",
+            p.repo_path
+        );
     }
     Ok(json!({ "closed": true }))
 }

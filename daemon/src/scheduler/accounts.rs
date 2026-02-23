@@ -68,9 +68,7 @@ impl AccountPool {
         let mut candidates: Vec<&AccountEntry> = map
             .values()
             .filter(|a| {
-                a.provider == provider
-                    && a.is_available
-                    && a.blocked_until.is_none_or(|t| now >= t)
+                a.provider == provider && a.is_available && a.blocked_until.is_none_or(|t| now >= t)
             })
             .collect();
 

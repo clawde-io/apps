@@ -1,19 +1,17 @@
 //! Phase 41: TaskStorage unit tests — no running daemon, uses in-memory SQLite
 //! via Storage::new (same migration path as production).
 
+use clawd::storage::Storage;
+use clawd::tasks::markdown_parser::ParsedTask;
 use clawd::tasks::storage::{
     ActivityQueryParams, TaskListParams, TaskStorage, MISSING_COMPLETION_NOTES,
     TASK_ALREADY_CLAIMED,
 };
-use clawd::tasks::markdown_parser::ParsedTask;
-use clawd::storage::Storage;
 
 /// Spin up a temporary Storage (SQLite on disk via tempdir) and return TaskStorage.
 async fn make_ts() -> (TaskStorage, tempfile::TempDir) {
     let dir = tempfile::tempdir().expect("tempdir failed");
-    let storage = Storage::new(dir.path())
-        .await
-        .expect("Storage::new failed");
+    let storage = Storage::new(dir.path()).await.expect("Storage::new failed");
     let ts = TaskStorage::new(storage.pool());
     (ts, dir)
 }
@@ -75,8 +73,8 @@ async fn test_atomic_claim() {
     );
 
     // The losing future must contain the TASK_ALREADY_CLAIMED error code.
-    let loser_err = if res_a.is_err() {
-        res_a.unwrap_err()
+    let loser_err = if let Err(e) = res_a {
+        e
     } else {
         res_b.unwrap_err()
     };
@@ -119,7 +117,10 @@ async fn test_completion_notes_enforcement() {
 
     // None notes → must fail.
     let err_none = ts.update_status("notes-1", "done", None, None).await;
-    assert!(err_none.is_err(), "update_status with None notes should fail");
+    assert!(
+        err_none.is_err(),
+        "update_status with None notes should fail"
+    );
     let code_str = MISSING_COMPLETION_NOTES.to_string();
     assert!(
         err_none.unwrap_err().to_string().contains(&code_str),
@@ -128,7 +129,10 @@ async fn test_completion_notes_enforcement() {
 
     // Empty-string notes → must also fail.
     let err_empty = ts.update_status("notes-1", "done", Some(""), None).await;
-    assert!(err_empty.is_err(), "update_status with empty notes should fail");
+    assert!(
+        err_empty.is_err(),
+        "update_status with empty notes should fail"
+    );
 
     // Non-empty notes → must succeed.
     let done = ts

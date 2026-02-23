@@ -47,8 +47,8 @@ pub async fn migrate_tasks_to_claw(storage: &TaskStorage, data_dir: &Path) -> Re
             _ => Priority::Medium,
         };
 
-        let created_at = chrono::DateTime::from_timestamp(task.created_at, 0)
-            .unwrap_or_else(chrono::Utc::now);
+        let created_at =
+            chrono::DateTime::from_timestamp(task.created_at, 0).unwrap_or_else(chrono::Utc::now);
 
         let spec = TaskSpec {
             id: task.id.clone(),
@@ -87,11 +87,7 @@ pub async fn migrate_tasks_to_claw(storage: &TaskStorage, data_dir: &Path) -> Re
     }
 
     if migrated > 0 || skipped > 0 {
-        tracing::info!(
-            migrated,
-            skipped,
-            "migrate_tasks_to_claw complete"
-        );
+        tracing::info!(migrated, skipped, "migrate_tasks_to_claw complete");
     }
 
     Ok(())

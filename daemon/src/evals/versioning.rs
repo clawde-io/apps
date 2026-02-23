@@ -74,8 +74,8 @@ pub async fn load_rule_version(data_dir: &Path) -> Result<Option<String>> {
     let path = data_dir.join(VERSION_FILE);
     match tokio::fs::read_to_string(&path).await {
         Ok(s) => {
-            let v: serde_json::Value = serde_json::from_str(&s)
-                .with_context(|| "parse rule-version.json")?;
+            let v: serde_json::Value =
+                serde_json::from_str(&s).with_context(|| "parse rule-version.json")?;
             Ok(v.get("hash").and_then(|h| h.as_str()).map(String::from))
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),

@@ -133,8 +133,7 @@ fn to_hex(bytes: &[u8]) -> String {
 
 /// Compute HMAC-SHA256 over the license cache payload fields.
 fn compute_hmac(tier: &str, features_json: &str, cached_at: &str, valid_until: &str) -> String {
-    let mut mac =
-        HmacSha256::new_from_slice(&hmac_key()).expect("HMAC accepts any key length");
+    let mut mac = HmacSha256::new_from_slice(&hmac_key()).expect("HMAC accepts any key length");
     mac.update(tier.as_bytes());
     mac.update(b"|");
     mac.update(features_json.as_bytes());

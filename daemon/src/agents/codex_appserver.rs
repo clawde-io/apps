@@ -84,7 +84,10 @@ impl CodexAppServer {
                 .write_all(line.as_bytes())
                 .await
                 .context("write to codex app-server stdin")?;
-            stdin.flush().await.context("flush codex app-server stdin")?;
+            stdin
+                .flush()
+                .await
+                .context("flush codex app-server stdin")?;
         }
 
         let response_line = {
@@ -98,7 +101,9 @@ impl CodexAppServer {
         };
 
         if response_line.is_empty() {
-            return Err(anyhow::anyhow!("codex app-server closed stdout unexpectedly"));
+            return Err(anyhow::anyhow!(
+                "codex app-server closed stdout unexpectedly"
+            ));
         }
 
         let resp: Value = serde_json::from_str(response_line.trim())
@@ -122,8 +127,8 @@ impl CodexAppServer {
             "model": model
         });
         let result = self.send_request("thread/start", params).await?;
-        let thread: CodexThread = serde_json::from_value(result)
-            .context("parse thread/start response")?;
+        let thread: CodexThread =
+            serde_json::from_value(result).context("parse thread/start response")?;
         Ok(thread)
     }
 
@@ -131,8 +136,8 @@ impl CodexAppServer {
     pub async fn thread_resume(&self, thread_id: &str) -> Result<CodexThread> {
         let params = json!({ "thread_id": thread_id });
         let result = self.send_request("thread/resume", params).await?;
-        let thread: CodexThread = serde_json::from_value(result)
-            .context("parse thread/resume response")?;
+        let thread: CodexThread =
+            serde_json::from_value(result).context("parse thread/resume response")?;
         Ok(thread)
     }
 
@@ -140,8 +145,8 @@ impl CodexAppServer {
     pub async fn thread_fork(&self, thread_id: &str) -> Result<CodexThread> {
         let params = json!({ "thread_id": thread_id });
         let result = self.send_request("thread/fork", params).await?;
-        let thread: CodexThread = serde_json::from_value(result)
-            .context("parse thread/fork response")?;
+        let thread: CodexThread =
+            serde_json::from_value(result).context("parse thread/fork response")?;
         Ok(thread)
     }
 }

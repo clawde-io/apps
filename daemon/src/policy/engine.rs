@@ -144,9 +144,7 @@ mod tests {
     #[tokio::test]
     async fn medium_without_task_denies() {
         let e = engine();
-        let decision = e
-            .evaluate("run_tests", &json!({}), None, "agent-1")
-            .await;
+        let decision = e.evaluate("run_tests", &json!({}), None, "agent-1").await;
         assert!(matches!(decision, PolicyDecision::Deny { .. }));
     }
 

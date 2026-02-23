@@ -35,13 +35,9 @@ impl Orchestrator {
     ) -> Result<String, OrchestratorError> {
         // Compute routing before acquiring the write lock (no shared state needed).
         let providers = vec![Provider::Claude, Provider::Codex];
-        let decision =
-            route_agent(&role, complexity, previous_provider.as_ref(), &providers);
+        let decision = route_agent(&role, complexity, previous_provider.as_ref(), &providers);
 
-        let agent_id = format!(
-            "A-{}",
-            &uuid::Uuid::new_v4().to_string()[..8]
-        );
+        let agent_id = format!("A-{}", &uuid::Uuid::new_v4().to_string()[..8]);
         let now = chrono::Utc::now();
 
         let record = AgentRecord {

@@ -70,12 +70,7 @@ impl TraceEmitter {
     }
 
     /// Emit an agent spawn event.
-    pub async fn agent_spawn(
-        &self,
-        task_id: &str,
-        agent_id: &str,
-        role: &str,
-    ) -> Result<()> {
+    pub async fn agent_spawn(&self, task_id: &str, agent_id: &str, role: &str) -> Result<()> {
         let mut event = self.new_trace_event(TraceKind::AgentSpawn).await;
         event.task_id = Some(task_id.to_string());
         event.agent_id = Some(agent_id.to_string());
@@ -86,12 +81,7 @@ impl TraceEmitter {
     }
 
     /// Emit a task state transition.
-    pub async fn task_transition(
-        &self,
-        task_id: &str,
-        from: &str,
-        to: &str,
-    ) -> Result<()> {
+    pub async fn task_transition(&self, task_id: &str, from: &str, to: &str) -> Result<()> {
         let mut event = self.new_trace_event(TraceKind::TaskTransition).await;
         event.task_id = Some(task_id.to_string());
         // Encode transition as "from→to" in the tool field for easy querying.
@@ -104,12 +94,7 @@ impl TraceEmitter {
     ///
     /// `kind` should be one of `ApprovalRequested`, `ApprovalGranted`, or
     /// `ApprovalDenied`.
-    pub async fn approval(
-        &self,
-        task_id: &str,
-        approval_id: &str,
-        kind: TraceKind,
-    ) -> Result<()> {
+    pub async fn approval(&self, task_id: &str, approval_id: &str, kind: TraceKind) -> Result<()> {
         let mut event = self.new_trace_event(kind).await;
         event.task_id = Some(task_id.to_string());
         event.tool = Some(approval_id.to_string());

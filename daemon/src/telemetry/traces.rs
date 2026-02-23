@@ -60,7 +60,10 @@ impl TracesWriter {
 
         Ok(Self {
             telemetry_dir,
-            inner: Arc::new(Mutex::new(Inner { file, bytes_written })),
+            inner: Arc::new(Mutex::new(Inner {
+                file,
+                bytes_written,
+            })),
         })
     }
 

@@ -21,25 +21,13 @@ const BUS_CAPACITY: usize = 256;
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ThreadEvent {
     /// A task thread has begun work.
-    TaskStarted {
-        task_id: String,
-        thread_id: String,
-    },
+    TaskStarted { task_id: String, thread_id: String },
     /// A tool was invoked inside a task thread.
-    ToolCalled {
-        tool: String,
-        task_id: String,
-    },
+    ToolCalled { tool: String, task_id: String },
     /// The task thread cannot proceed without external input.
-    TaskBlocked {
-        reason: String,
-        task_id: String,
-    },
+    TaskBlocked { reason: String, task_id: String },
     /// The task thread completed its work successfully.
-    TaskCompleted {
-        task_id: String,
-        summary: String,
-    },
+    TaskCompleted { task_id: String, summary: String },
     /// A high-risk tool needs human approval before proceeding.
     ApprovalNeeded {
         task_id: String,

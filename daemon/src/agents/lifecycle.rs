@@ -113,8 +113,7 @@ impl AgentRegistry {
         self.agents
             .values()
             .filter(|r| {
-                &r.role == role
-                    && matches!(r.status, AgentStatus::Running | AgentStatus::Pending)
+                &r.role == role && matches!(r.status, AgentStatus::Running | AgentStatus::Pending)
             })
             .count()
     }

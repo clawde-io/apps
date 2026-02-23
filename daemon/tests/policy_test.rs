@@ -15,7 +15,6 @@ use std::sync::Arc;
 use serde_json::json;
 use tokio::sync::RwLock;
 
-use clawd::policy::{PolicyDecision, PolicyEngine, PolicyViolation};
 use clawd::policy::approval::ApprovalRouter;
 use clawd::policy::dod::DodChecker;
 use clawd::policy::mcp_trust::TrustDatabase;
@@ -24,6 +23,7 @@ use clawd::policy::rbac::{check_tool_authorized, AgentRole};
 use clawd::policy::risk::RiskDatabase;
 use clawd::policy::sandbox::SandboxPolicy;
 use clawd::policy::supply_chain::SupplyChainPolicy;
+use clawd::policy::{PolicyDecision, PolicyEngine, PolicyViolation};
 use clawd::tasks::reducer::TaskState;
 use clawd::tasks::schema::{Priority, RiskLevel, TaskSpec};
 
@@ -109,12 +109,7 @@ async fn test_medium_requires_active_task() {
 
     // With an Active task — allowed.
     let decision_active = engine
-        .evaluate(
-            "run_tests",
-            &json!({}),
-            Some(&TaskState::Active),
-            "agent-1",
-        )
+        .evaluate("run_tests", &json!({}), Some(&TaskState::Active), "agent-1")
         .await;
 
     assert_eq!(
@@ -194,10 +189,9 @@ async fn test_secrets_in_patch_blocked() {
     );
 
     assert!(
-        violations.iter().any(|v| matches!(
-            v,
-            PolicyViolation::SecretDetected { .. }
-        )),
+        violations
+            .iter()
+            .any(|v| matches!(v, PolicyViolation::SecretDetected { .. })),
         "expected SecretDetected violation"
     );
 }
@@ -254,24 +248,24 @@ async fn test_approval_router_grant_deny() {
     let router = ApprovalRouter::new();
 
     let id = router
-        .request_approval("t1", "agent-1", "apply_patch", "apply big patch", RiskLevel::High)
+        .request_approval(
+            "t1",
+            "agent-1",
+            "apply_patch",
+            "apply big patch",
+            RiskLevel::High,
+        )
         .await;
 
     // Verify pending.
     let req = router.get(&id).await.expect("request should exist");
-    assert_eq!(
-        req.status,
-        clawd::policy::approval::ApprovalStatus::Pending
-    );
+    assert_eq!(req.status, clawd::policy::approval::ApprovalStatus::Pending);
 
     // Grant.
     router.grant(&id).await.expect("grant should succeed");
 
     let req = router.get(&id).await.expect("request should exist");
-    assert_eq!(
-        req.status,
-        clawd::policy::approval::ApprovalStatus::Granted
-    );
+    assert_eq!(req.status, clawd::policy::approval::ApprovalStatus::Granted);
 }
 
 // ─── Bonus: DoD all gates pass ────────────────────────────────────────────────

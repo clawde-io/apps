@@ -50,7 +50,11 @@ impl CodexMcpServer {
     }
 
     /// Call a named tool on the Codex MCP server.
-    pub async fn call_tool(&self, name: &str, args: serde_json::Value) -> Result<serde_json::Value> {
+    pub async fn call_tool(
+        &self,
+        name: &str,
+        args: serde_json::Value,
+    ) -> Result<serde_json::Value> {
         self.client.call_tool(name, args).await
     }
 }

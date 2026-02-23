@@ -130,8 +130,7 @@ async fn relay_loop(
 /// established. Premature `e2e` frames (before handshake) and any
 /// unrecognized frame types are rejected immediately.
 async fn handle_inbound(
-    stream: &mut (impl StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>
-         + Unpin),
+    stream: &mut (impl StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>> + Unpin),
     ctx: &Arc<AppContext>,
     out_tx: mpsc::Sender<String>,
     e2e: Arc<Mutex<Option<RelayE2e>>>,

@@ -196,8 +196,8 @@ impl McpClient {
             ));
         }
 
-        let resp: Value = serde_json::from_str(response_line.trim())
-            .context("parse MCP server response")?;
+        let resp: Value =
+            serde_json::from_str(response_line.trim()).context("parse MCP server response")?;
 
         // Verify the response ID matches the request ID we sent.
         if let Some(resp_id) = resp.get("id") {
@@ -219,10 +219,7 @@ impl McpClient {
         }
 
         if let Some(error) = resp.get("error") {
-            return Err(anyhow::anyhow!(
-                "MCP server returned error: {}",
-                error
-            ));
+            return Err(anyhow::anyhow!("MCP server returned error: {}", error));
         }
 
         Ok(resp.get("result").cloned().unwrap_or(Value::Null))

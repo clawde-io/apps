@@ -64,7 +64,10 @@ pub fn parse_active_md(content: &str) -> Vec<ParsedTask> {
             continue;
         }
         // Must look like a task ID: letters/digits/hyphens
-        if !id_raw.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+        if !id_raw
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        {
             continue;
         }
 

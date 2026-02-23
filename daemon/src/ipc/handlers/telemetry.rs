@@ -39,9 +39,7 @@ pub async fn query_traces(params: Value, ctx: &AppContext) -> Result<Value> {
         .map(|n| n as usize);
 
     let writer = get_writer(ctx)?;
-    let events = writer
-        .query(task_id.as_deref(), since, limit)
-        .await?;
+    let events = writer.query(task_id.as_deref(), since, limit).await?;
 
     Ok(json!({
         "events": events,
@@ -58,10 +56,7 @@ pub async fn query_traces(params: Value, ctx: &AppContext) -> Result<Value> {
 /// { "days": 7 }
 /// ```
 pub async fn summary(params: Value, ctx: &AppContext) -> Result<Value> {
-    let days = params
-        .get("days")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(7) as i64;
+    let days = params.get("days").and_then(|v| v.as_u64()).unwrap_or(7) as i64;
 
     let data_dir = &ctx.config.data_dir;
     let today = Utc::now().date_naive();

@@ -57,13 +57,10 @@ fn thread_to_json(t: &Thread) -> Value {
 ///
 /// Returns: `{ thread_id, thread_type, status, created_at }`
 pub async fn start_thread(ctx: &AppContext, params: Value) -> Result<Value> {
-    let thread_type_str = sv(&params, "thread_type")
-        .ok_or_else(|| anyhow::anyhow!("missing thread_type"))?;
+    let thread_type_str =
+        sv(&params, "thread_type").ok_or_else(|| anyhow::anyhow!("missing thread_type"))?;
 
-    let model_config = params
-        .get("model_config")
-        .cloned()
-        .unwrap_or(json!({}));
+    let model_config = params.get("model_config").cloned().unwrap_or(json!({}));
 
     let pool = ctx.storage.pool();
 
@@ -71,12 +68,8 @@ pub async fn start_thread(ctx: &AppContext, params: Value) -> Result<Value> {
         "control" => {
             let project_root = sv(&params, "project_root")
                 .ok_or_else(|| anyhow::anyhow!("control thread requires project_root"))?;
-            ControlThread::get_or_create(
-                &pool,
-                std::path::Path::new(project_root),
-                model_config,
-            )
-            .await?
+            ControlThread::get_or_create(&pool, std::path::Path::new(project_root), model_config)
+                .await?
         }
         "task" => {
             let task_id = sv(&params, "task_id")
@@ -92,8 +85,8 @@ pub async fn start_thread(ctx: &AppContext, params: Value) -> Result<Value> {
 
             let thread_id = new_thread_id();
             let now = Utc::now().to_rfc3339();
-            let model_json = serde_json::to_string(&model_config)
-                .unwrap_or_else(|_| "{}".to_string());
+            let model_json =
+                serde_json::to_string(&model_config).unwrap_or_else(|_| "{}".to_string());
 
             sqlx::query(
                 "INSERT INTO threads
@@ -132,8 +125,7 @@ pub async fn start_thread(ctx: &AppContext, params: Value) -> Result<Value> {
 /// Returns the full thread record plus any saved vendor session IDs (for
 /// AI provider session resume).
 pub async fn resume_thread(ctx: &AppContext, params: Value) -> Result<Value> {
-    let thread_id = sv(&params, "thread_id")
-        .ok_or_else(|| anyhow::anyhow!("missing thread_id"))?;
+    let thread_id = sv(&params, "thread_id").ok_or_else(|| anyhow::anyhow!("missing thread_id"))?;
 
     let pool = ctx.storage.pool();
     let thread = fetch_thread(&pool, thread_id).await?;
@@ -152,16 +144,17 @@ pub async fn resume_thread(ctx: &AppContext, params: Value) -> Result<Value> {
 
     let vendor_sessions: Vec<Value> = snapshots
         .into_iter()
-        .map(|(vendor, vendor_session_id, model_config_str, snapshot_at)| {
-            let mc: Value =
-                serde_json::from_str(&model_config_str).unwrap_or(json!({}));
-            json!({
-                "vendor":            vendor,
-                "vendor_session_id": vendor_session_id,
-                "model_config":      mc,
-                "snapshot_at":       snapshot_at,
-            })
-        })
+        .map(
+            |(vendor, vendor_session_id, model_config_str, snapshot_at)| {
+                let mc: Value = serde_json::from_str(&model_config_str).unwrap_or(json!({}));
+                json!({
+                    "vendor":            vendor,
+                    "vendor_session_id": vendor_session_id,
+                    "model_config":      mc,
+                    "snapshot_at":       snapshot_at,
+                })
+            },
+        )
         .collect();
 
     let mut result = thread_to_json(&thread);
@@ -184,8 +177,7 @@ pub async fn resume_thread(ctx: &AppContext, params: Value) -> Result<Value> {
 ///
 /// Returns: `{ new_thread_id, parent_thread_id }`
 pub async fn fork_thread(ctx: &AppContext, params: Value) -> Result<Value> {
-    let parent_id = sv(&params, "thread_id")
-        .ok_or_else(|| anyhow::anyhow!("missing thread_id"))?;
+    let parent_id = sv(&params, "thread_id").ok_or_else(|| anyhow::anyhow!("missing thread_id"))?;
 
     let pool = ctx.storage.pool();
 
@@ -199,8 +191,7 @@ pub async fn fork_thread(ctx: &AppContext, params: Value) -> Result<Value> {
 
     let new_thread_id = new_thread_id();
     let now = Utc::now().to_rfc3339();
-    let model_json = serde_json::to_string(&model_config)
-        .unwrap_or_else(|_| "{}".to_string());
+    let model_json = serde_json::to_string(&model_config).unwrap_or_else(|_| "{}".to_string());
 
     sqlx::query(
         "INSERT INTO threads
@@ -302,13 +293,13 @@ pub async fn list_threads(ctx: &AppContext, params: Value) -> Result<Value> {
 /// Fetch a single thread by ID or return an error if not found.
 async fn fetch_thread(pool: &sqlx::SqlitePool, thread_id: &str) -> Result<Thread> {
     let row: Option<ThreadRow> = sqlx::query_as(
-            "SELECT thread_id, thread_type, task_id, parent_thread_id,
+        "SELECT thread_id, thread_type, task_id, parent_thread_id,
                     status, model_config, created_at, updated_at
              FROM threads WHERE thread_id = ?",
-        )
-        .bind(thread_id)
-        .fetch_optional(pool)
-        .await?;
+    )
+    .bind(thread_id)
+    .fetch_optional(pool)
+    .await?;
 
     match row {
         Some(r) => crate::threads::control::row_to_thread(r),

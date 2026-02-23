@@ -55,10 +55,7 @@ pub async fn run_heartbeat_checker(
 /// Done task archiver: runs every hour.
 /// Moves done tasks older than `visible_hours` to agent_tasks_archive.
 /// NEVER archives interrupted tasks.
-pub async fn run_done_task_archiver(
-    storage: Arc<TaskStorage>,
-    visible_hours: i64,
-) {
+pub async fn run_done_task_archiver(storage: Arc<TaskStorage>, visible_hours: i64) {
     let mut ticker = interval(Duration::from_secs(3600));
     loop {
         ticker.tick().await;

@@ -28,7 +28,10 @@ async fn test_rate_limit_sliding_window_counts_correctly() {
 
     // After the window expires, events should drop out.
     let future = now + chrono::Duration::seconds(61);
-    assert!(!window.is_limited(future), "should not be limited after window expires");
+    assert!(
+        !window.is_limited(future),
+        "should not be limited after window expires"
+    );
 }
 
 #[tokio::test]
@@ -97,7 +100,11 @@ fn test_backoff_zero_attempt_is_nonzero() {
         jitter_fraction: 0.1,
     };
     let b = next_backoff(0, &cfg);
-    assert!(b.as_millis() >= 180, "base delay should be near 200ms (got {}ms)", b.as_millis());
+    assert!(
+        b.as_millis() >= 180,
+        "base delay should be near 200ms (got {}ms)",
+        b.as_millis()
+    );
 }
 
 // ── Queue priority ordering ───────────────────────────────────────────────────
@@ -190,11 +197,8 @@ async fn test_account_pool_get_available() {
     assert_eq!(found.unwrap().account_id, "claude-1");
 
     // Unavailable account should not be returned.
-    pool.mark_blocked(
-        "claude-1",
-        Utc::now() + chrono::Duration::hours(1),
-    )
-    .await;
+    pool.mark_blocked("claude-1", Utc::now() + chrono::Duration::hours(1))
+        .await;
     let not_found = pool.get_available("claude").await;
     assert!(
         not_found.is_none(),

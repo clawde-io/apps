@@ -44,14 +44,11 @@ pub async fn create_task(ctx: &AppContext, args: Value) -> Result<Value> {
                 .collect()
         });
 
-    let labels: Option<Vec<String>> = args
-        .get("labels")
-        .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_str().map(String::from))
-                .collect()
-        });
+    let labels: Option<Vec<String>> = args.get("labels").and_then(|v| v.as_array()).map(|arr| {
+        arr.iter()
+            .filter_map(|v| v.as_str().map(String::from))
+            .collect()
+    });
 
     // Build the `notes` field from summary + acceptance criteria.
     let notes_parts: Vec<String> = {
@@ -79,10 +76,7 @@ pub async fn create_task(ctx: &AppContext, args: Value) -> Result<Value> {
 
     // Validate repo path exists.
     if !std::path::Path::new(repo).exists() {
-        anyhow::bail!(
-            "MCP_INVALID_PARAMS: repo path does not exist: {}",
-            repo
-        );
+        anyhow::bail!("MCP_INVALID_PARAMS: repo path does not exist: {}", repo);
     }
 
     let task_id = Uuid::new_v4().to_string();
@@ -93,15 +87,15 @@ pub async fn create_task(ctx: &AppContext, args: Value) -> Result<Value> {
             &task_id,
             title,
             Some("code"),     // task_type
-            None,              // phase
-            None,              // group
-            None,              // parent_id
+            None,             // phase
+            None,             // group
+            None,             // parent_id
             Some(priority),   // severity mapped from priority
-            None,              // file
-            None,              // files
-            None,              // depends_on
-            Some(&tags_json),  // tags
-            None,              // estimated_minutes
+            None,             // file
+            None,             // files
+            None,             // depends_on
+            Some(&tags_json), // tags
+            None,             // estimated_minutes
             repo,
         )
         .await?;
@@ -411,11 +405,7 @@ pub async fn transition_task(
             None,
             "task_transition",
             "system",
-            Some(&format!(
-                "→ {} {}",
-                new_state,
-                reason.unwrap_or("")
-            )),
+            Some(&format!("→ {} {}", new_state, reason.unwrap_or(""))),
             None,
             "",
         )

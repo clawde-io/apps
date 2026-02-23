@@ -69,11 +69,15 @@ mod tests {
     #[tokio::test]
     async fn write_creates_file() {
         let dir = tempfile::tempdir().expect("tempdir");
-        write_managed_mcp(dir.path()).await.expect("write_managed_mcp");
+        write_managed_mcp(dir.path())
+            .await
+            .expect("write_managed_mcp");
         let path = dir.path().join(".claude").join("managed-mcp.json");
         assert!(path.exists(), "managed-mcp.json not created");
         let content = std::fs::read_to_string(&path).expect("read file");
         let v: serde_json::Value = serde_json::from_str(&content).expect("valid json");
-        assert!(v["mcpServers"]["clawd"]["trusted"].as_bool().unwrap_or(false));
+        assert!(v["mcpServers"]["clawd"]["trusted"]
+            .as_bool()
+            .unwrap_or(false));
     }
 }

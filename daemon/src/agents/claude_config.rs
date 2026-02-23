@@ -77,19 +77,18 @@ mod tests {
     fn settings_registers_clawd_mcp_server() {
         let claw = std::path::Path::new("/tmp/test/.claw");
         let v = generate_claude_settings(claw);
-        let servers = v
-            .get("mcpServers")
-            .expect("mcpServers present");
-        assert!(servers.get("clawd").is_some(), "clawd server not registered");
+        let servers = v.get("mcpServers").expect("mcpServers present");
+        assert!(
+            servers.get("clawd").is_some(),
+            "clawd server not registered"
+        );
     }
 
     #[test]
     fn settings_denies_rm() {
         let claw = std::path::Path::new("/tmp/test/.claw");
         let v = generate_claude_settings(claw);
-        let deny = v["permissions"]["deny"]
-            .as_array()
-            .expect("deny is array");
+        let deny = v["permissions"]["deny"].as_array().expect("deny is array");
         let has_rm = deny.iter().any(|d| d.as_str() == Some("Bash(rm:*)"));
         assert!(has_rm, "Bash(rm:*) not in deny list");
     }

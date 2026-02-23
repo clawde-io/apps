@@ -76,9 +76,7 @@ pub fn build_task_context(
         system.push_str(&format!("\n## Coding Rules\n{coding_rules}\n"));
     }
 
-    let mut messages = vec![
-        serde_json::json!({ "role": "system", "content": system }),
-    ];
+    let mut messages = vec![serde_json::json!({ "role": "system", "content": system })];
 
     // ── Relevant file snapshots ──────────────────────────────────────────────
     if !relevant_files.is_empty() {
@@ -95,9 +93,7 @@ pub fn build_task_context(
             } else {
                 content.clone()
             };
-            file_block.push_str(&format!(
-                "### `{path}`\n```\n{truncated}\n```\n\n"
-            ));
+            file_block.push_str(&format!("### `{path}`\n```\n{truncated}\n```\n\n"));
         }
         messages.push(serde_json::json!({
             "role": "user",

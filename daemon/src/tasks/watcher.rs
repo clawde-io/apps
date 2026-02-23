@@ -6,8 +6,9 @@ use crate::ipc::event::EventBroadcaster;
 use anyhow::Result;
 // Use notify through notify_debouncer_full to avoid version conflicts
 use notify_debouncer_full::{
-    new_debouncer, DebounceEventResult,
+    new_debouncer,
     notify::{EventKind, RecursiveMode, Watcher},
+    DebounceEventResult,
 };
 use std::{
     collections::HashMap,
@@ -83,7 +84,8 @@ fn classify_path(path: &Path, project_root: &Path) -> Option<AfsEvent> {
     if rel_str.starts_with(".claude/qa/") {
         return Some(AfsEvent::QaItemChecked(path.to_path_buf()));
     }
-    if rel_str.starts_with(".claude/inbox/") && path.extension().map(|e| e == "md").unwrap_or(false) {
+    if rel_str.starts_with(".claude/inbox/") && path.extension().map(|e| e == "md").unwrap_or(false)
+    {
         return Some(AfsEvent::InboxMessage(path.to_path_buf()));
     }
     if rel_str.starts_with(".claude/memory/") {
@@ -188,14 +190,13 @@ impl AfsWatcher {
                 }
             };
 
-            let mut debouncer =
-                match new_debouncer(Duration::from_millis(200), None, handler) {
-                    Ok(d) => d,
-                    Err(e) => {
-                        warn!("Failed to create file watcher: {e}");
-                        return;
-                    }
-                };
+            let mut debouncer = match new_debouncer(Duration::from_millis(200), None, handler) {
+                Ok(d) => d,
+                Err(e) => {
+                    warn!("Failed to create file watcher: {e}");
+                    return;
+                }
+            };
 
             if let Err(e) = debouncer.watcher().watch(&root, RecursiveMode::Recursive) {
                 warn!("Failed to watch {}: {e}", root.display());
@@ -255,10 +256,12 @@ async fn handle_afs_event(
 
             // Regenerate active.md from DB to sync status symbols back to the file.
             // Re-read DB tasks and write the updated markdown to avoid stale symbols.
-            let db_tasks = storage.list_tasks(&super::storage::TaskListParams {
-                repo_path: Some(repo_path.clone()),
-                ..Default::default()
-            }).await?;
+            let db_tasks = storage
+                .list_tasks(&super::storage::TaskListParams {
+                    repo_path: Some(repo_path.clone()),
+                    ..Default::default()
+                })
+                .await?;
             let updated_md = markdown_generator::regenerate(&content, &db_tasks);
             if updated_md != content {
                 // Update hash so the watcher ignores the write-back we're about to do.

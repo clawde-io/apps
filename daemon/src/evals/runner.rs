@@ -12,8 +12,7 @@ use serde::{Deserialize, Serialize};
 use tracing::debug;
 
 use crate::evals::scanners::{
-    forbidden::check_tool_allowed,
-    placeholders::scan_patch as placeholder_scan,
+    forbidden::check_tool_allowed, placeholders::scan_patch as placeholder_scan,
     secrets::scan_patch as secret_scan,
 };
 
@@ -123,14 +122,8 @@ async fn run_one(fixture: &EvalFixture) -> EvalResult {
                 .collect()
         })
         .unwrap_or_default();
-    let target_path = fixture
-        .input
-        .get("target_path")
-        .and_then(|v| v.as_str());
-    let worktree_path = fixture
-        .input
-        .get("worktree_path")
-        .and_then(|v| v.as_str());
+    let target_path = fixture.input.get("target_path").and_then(|v| v.as_str());
+    let worktree_path = fixture.input.get("worktree_path").and_then(|v| v.as_str());
 
     // Run placeholder scanner.
     if !patch.is_empty() {

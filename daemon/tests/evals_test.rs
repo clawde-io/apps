@@ -155,7 +155,10 @@ async fn test_secrets_scanner_ignores_removed_lines() {
 #[tokio::test]
 async fn test_forbidden_tool_network_without_permission() {
     let violation = check_tool_allowed("http_get", &[], None, None);
-    assert!(violation.is_some(), "http_get without 'network' must be blocked");
+    assert!(
+        violation.is_some(),
+        "http_get without 'network' must be blocked"
+    );
     let v = violation.unwrap();
     assert_eq!(v.permission_needed, "network");
     assert_eq!(v.tool_name, "http_get");
@@ -165,13 +168,19 @@ async fn test_forbidden_tool_network_without_permission() {
 async fn test_forbidden_tool_network_with_permission_allowed() {
     let perms = vec!["network".to_string()];
     let violation = check_tool_allowed("http_get", &perms, None, None);
-    assert!(violation.is_none(), "http_get with 'network' should be allowed");
+    assert!(
+        violation.is_none(),
+        "http_get with 'network' should be allowed"
+    );
 }
 
 #[tokio::test]
 async fn test_forbidden_tool_shell_without_permission() {
     let violation = check_tool_allowed("bash", &[], None, None);
-    assert!(violation.is_some(), "bash without 'shell_exec' must be blocked");
+    assert!(
+        violation.is_some(),
+        "bash without 'shell_exec' must be blocked"
+    );
     assert_eq!(violation.unwrap().permission_needed, "shell_exec");
 }
 
@@ -214,11 +223,17 @@ async fn test_forbidden_tool_write_inside_worktree_allowed() {
         Some("/Users/user/myproject/src/lib.rs"),
         Some("/Users/user/myproject"),
     );
-    assert!(violation.is_none(), "Write inside worktree should be allowed");
+    assert!(
+        violation.is_none(),
+        "Write inside worktree should be allowed"
+    );
 }
 
 #[tokio::test]
 async fn test_forbidden_tool_unknown_tool_allowed() {
     let violation = check_tool_allowed("read_file", &[], None, None);
-    assert!(violation.is_none(), "Unknown/read-only tools should be allowed by default");
+    assert!(
+        violation.is_none(),
+        "Unknown/read-only tools should be allowed by default"
+    );
 }

@@ -2,13 +2,13 @@
 //!
 //! Tests the orchestrator, agent lifecycle registry, and IPC handlers.
 
+use chrono::Utc;
 use clawd::agents::{
+    capabilities::Provider,
     lifecycle::{AgentRegistry, AgentStatus},
     orchestrator::Orchestrator,
     roles::AgentRole,
-    capabilities::Provider,
 };
-use chrono::Utc;
 
 // ─── 43e-17.1: Spawn a Router agent ─────────────────────────────────────────
 
@@ -39,15 +39,9 @@ async fn test_concurrency_cap() {
 
     // Implementer max_concurrent = 3
     for i in 0..3 {
-        orch.spawn(
-            AgentRole::Implementer,
-            task_id,
-            "medium",
-            None,
-            None,
-        )
-        .await
-        .unwrap_or_else(|e| panic!("spawn {} should succeed: {}", i, e));
+        orch.spawn(AgentRole::Implementer, task_id, "medium", None, None)
+            .await
+            .unwrap_or_else(|e| panic!("spawn {} should succeed: {}", i, e));
     }
 
     // 4th spawn must fail with ConcurrencyCapReached
@@ -55,10 +49,7 @@ async fn test_concurrency_cap() {
         .spawn(AgentRole::Implementer, task_id, "medium", None, None)
         .await;
 
-    assert!(
-        result.is_err(),
-        "4th implementer spawn should be rejected"
-    );
+    assert!(result.is_err(), "4th implementer spawn should be rejected");
     let err_msg = result.unwrap_err().to_string();
     assert!(
         err_msg.contains("concurrency cap"),
@@ -171,11 +162,15 @@ async fn test_heartbeat_crash_detection() {
     assert_eq!(crashed[0], "A-stale01");
 
     // Verify status was updated
-    let stale = registry.get("A-stale01").expect("stale record should exist");
+    let stale = registry
+        .get("A-stale01")
+        .expect("stale record should exist");
     assert_eq!(stale.status, AgentStatus::Crashed);
 
     // Fresh agent should still be Running
-    let fresh = registry.get("A-fresh01").expect("fresh record should exist");
+    let fresh = registry
+        .get("A-fresh01")
+        .expect("fresh record should exist");
     assert_eq!(fresh.status, AgentStatus::Running);
 }
 
@@ -204,8 +199,7 @@ async fn test_handoff_chain() {
     assert_eq!(reviewer.role, AgentRole::Reviewer);
     // Cross-model: reviewer should differ from implementer
     assert_ne!(
-        reviewer.provider,
-        implementer.provider,
+        reviewer.provider, implementer.provider,
         "reviewer must use a different provider than implementer"
     );
 

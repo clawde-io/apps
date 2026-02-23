@@ -136,7 +136,10 @@ mod tests {
     #[test]
     fn router_cannot_apply_patch() {
         let result = check_tool_authorized(&AgentRole::Router, "apply_patch");
-        assert!(matches!(result, Err(PolicyViolation::UnauthorizedTool { .. })));
+        assert!(matches!(
+            result,
+            Err(PolicyViolation::UnauthorizedTool { .. })
+        ));
     }
 
     #[test]
@@ -147,7 +150,10 @@ mod tests {
     #[test]
     fn planner_cannot_apply_patch() {
         let result = check_tool_authorized(&AgentRole::Planner, "apply_patch");
-        assert!(matches!(result, Err(PolicyViolation::UnauthorizedTool { .. })));
+        assert!(matches!(
+            result,
+            Err(PolicyViolation::UnauthorizedTool { .. })
+        ));
     }
 
     #[test]
@@ -160,7 +166,10 @@ mod tests {
     #[test]
     fn reviewer_cannot_patch() {
         let result = check_tool_authorized(&AgentRole::Reviewer, "apply_patch");
-        assert!(matches!(result, Err(PolicyViolation::UnauthorizedTool { .. })));
+        assert!(matches!(
+            result,
+            Err(PolicyViolation::UnauthorizedTool { .. })
+        ));
     }
 
     #[test]
@@ -171,13 +180,19 @@ mod tests {
     #[test]
     fn qa_executor_cannot_apply_patch() {
         let result = check_tool_authorized(&AgentRole::QaExecutor, "apply_patch");
-        assert!(matches!(result, Err(PolicyViolation::UnauthorizedTool { .. })));
+        assert!(matches!(
+            result,
+            Err(PolicyViolation::UnauthorizedTool { .. })
+        ));
     }
 
     #[test]
     fn unknown_role_denied_everything() {
         let result = check_tool_authorized(&AgentRole::Unknown, "read_file");
-        assert!(matches!(result, Err(PolicyViolation::UnauthorizedTool { .. })));
+        assert!(matches!(
+            result,
+            Err(PolicyViolation::UnauthorizedTool { .. })
+        ));
     }
 
     #[test]

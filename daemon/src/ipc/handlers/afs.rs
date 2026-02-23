@@ -17,7 +17,9 @@ fn watched_projects() -> &'static Mutex<HashSet<String>> {
 
 /// AFS init: scaffold `.claude/` directory tree for a project.
 pub async fn init(params: Value, _ctx: &AppContext) -> Result<Value> {
-    let path = params.get("path").and_then(|v| v.as_str())
+    let path = params
+        .get("path")
+        .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("missing path"))?;
 
     // Reject relative paths and directory traversal components.
@@ -90,15 +92,23 @@ pub async fn init(params: Value, _ctx: &AppContext) -> Result<Value> {
 }
 
 pub async fn status(params: Value, ctx: &AppContext) -> Result<Value> {
-    let repo_path = params.get("repo_path").and_then(|v| v.as_str()).unwrap_or("");
+    let repo_path = params
+        .get("repo_path")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
     let claude_dir = std::path::Path::new(repo_path).join(".claude");
 
     let has_active_md = claude_dir.join("tasks/active.md").exists();
     let has_queue_json = claude_dir.join("tasks/queue.json").exists();
 
-    let task_counts = ctx.task_storage.summary(
-        if repo_path.is_empty() { None } else { Some(repo_path) }
-    ).await?;
+    let task_counts = ctx
+        .task_storage
+        .summary(if repo_path.is_empty() {
+            None
+        } else {
+            Some(repo_path)
+        })
+        .await?;
 
     Ok(json!({
         "repo_path": repo_path,
@@ -109,7 +119,10 @@ pub async fn status(params: Value, ctx: &AppContext) -> Result<Value> {
 }
 
 pub async fn sync_instructions(params: Value, _ctx: &AppContext) -> Result<Value> {
-    let repo_path = params.get("repo_path").and_then(|v| v.as_str()).unwrap_or("");
+    let repo_path = params
+        .get("repo_path")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
     if !repo_path.is_empty() {
         let rp = std::path::Path::new(repo_path);
         if !rp.is_absolute() {
@@ -151,7 +164,9 @@ pub async fn sync_instructions(params: Value, _ctx: &AppContext) -> Result<Value
 }
 
 pub async fn register_project(params: Value, ctx: &AppContext) -> Result<Value> {
-    let repo_path = params.get("repo_path").and_then(|v| v.as_str())
+    let repo_path = params
+        .get("repo_path")
+        .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("missing repo_path"))?;
 
     // Guard against duplicate watcher threads for the same project path.
@@ -163,10 +178,8 @@ pub async fn register_project(params: Value, ctx: &AppContext) -> Result<Value> 
         watched.insert(repo_path.to_string());
     }
 
-    let watcher = crate::tasks::watcher::AfsWatcher::new(
-        ctx.task_storage.clone(),
-        ctx.broadcaster.clone(),
-    );
+    let watcher =
+        crate::tasks::watcher::AfsWatcher::new(ctx.task_storage.clone(), ctx.broadcaster.clone());
     Arc::new(watcher).watch_project(std::path::PathBuf::from(repo_path))?;
 
     Ok(json!({ "ok": true, "repo_path": repo_path }))

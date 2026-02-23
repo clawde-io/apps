@@ -187,11 +187,7 @@ mod tests {
         };
 
         let seq0 = log
-            .append(
-                TaskEventKind::TaskCreated { spec },
-                "daemon",
-                "corr-000",
-            )
+            .append(TaskEventKind::TaskCreated { spec }, "daemon", "corr-000")
             .await
             .unwrap();
         assert_eq!(seq0, 0);

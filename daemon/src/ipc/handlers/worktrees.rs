@@ -45,8 +45,8 @@ pub async fn list(_params: Value, ctx: &AppContext) -> Result<Value> {
 /// The task must already be in `Done` state. This does NOT auto-approve —
 /// the caller is responsible for QA gating before invoking this method.
 pub async fn merge(params: Value, ctx: &AppContext) -> Result<Value> {
-    let task_id = sv(&params, "task_id")
-        .ok_or_else(|| anyhow::anyhow!("missing field: task_id"))?;
+    let task_id =
+        sv(&params, "task_id").ok_or_else(|| anyhow::anyhow!("missing field: task_id"))?;
 
     crate::worktree::merge::merge_to_main(&ctx.worktree_manager, task_id).await?;
 
@@ -58,8 +58,7 @@ pub async fn merge(params: Value, ctx: &AppContext) -> Result<Value> {
 /// Params: (none required)
 /// Returns: `{ removed: N }` — number of worktrees cleaned up
 pub async fn cleanup(_params: Value, ctx: &AppContext) -> Result<Value> {
-    let removed =
-        crate::worktree::cleanup::cleanup_empty_worktrees(&ctx.worktree_manager).await?;
+    let removed = crate::worktree::cleanup::cleanup_empty_worktrees(&ctx.worktree_manager).await?;
 
     Ok(json!({ "removed": removed }))
 }
@@ -69,8 +68,8 @@ pub async fn cleanup(_params: Value, ctx: &AppContext) -> Result<Value> {
 /// Params: `{ task_id: string }`
 /// Returns: `{ task_id, diff: string, stats: { files_changed, insertions, deletions } }`
 pub async fn diff(params: Value, ctx: &AppContext) -> Result<Value> {
-    let task_id = sv(&params, "task_id")
-        .ok_or_else(|| anyhow::anyhow!("missing field: task_id"))?;
+    let task_id =
+        sv(&params, "task_id").ok_or_else(|| anyhow::anyhow!("missing field: task_id"))?;
 
     let info = ctx
         .worktree_manager

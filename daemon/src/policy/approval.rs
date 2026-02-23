@@ -152,11 +152,7 @@ impl ApprovalRouter {
     /// elapses.
     ///
     /// Returns `TimedOut` if the timeout expires before a decision is made.
-    pub async fn wait_for_decision(
-        &self,
-        approval_id: &str,
-        timeout: Duration,
-    ) -> ApprovalStatus {
+    pub async fn wait_for_decision(&self, approval_id: &str, timeout: Duration) -> ApprovalStatus {
         let mut rx = self.tx.subscribe();
         let deadline = tokio::time::Instant::now() + timeout;
 
@@ -221,7 +217,13 @@ mod tests {
     async fn grant_changes_status() {
         let router = ApprovalRouter::new();
         let id = router
-            .request_approval("t1", "agent-1", "apply_patch", "patch summary", RiskLevel::High)
+            .request_approval(
+                "t1",
+                "agent-1",
+                "apply_patch",
+                "patch summary",
+                RiskLevel::High,
+            )
             .await;
 
         router.grant(&id).await.expect("grant");
@@ -233,7 +235,13 @@ mod tests {
     async fn deny_changes_status() {
         let router = ApprovalRouter::new();
         let id = router
-            .request_approval("t1", "agent-1", "apply_patch", "patch summary", RiskLevel::High)
+            .request_approval(
+                "t1",
+                "agent-1",
+                "apply_patch",
+                "patch summary",
+                RiskLevel::High,
+            )
             .await;
 
         router.deny(&id, "not allowed").await.expect("deny");
@@ -245,7 +253,13 @@ mod tests {
     async fn wait_returns_granted() {
         let router = Arc::new(ApprovalRouter::new());
         let id = router
-            .request_approval("t1", "agent-1", "apply_patch", "patch summary", RiskLevel::High)
+            .request_approval(
+                "t1",
+                "agent-1",
+                "apply_patch",
+                "patch summary",
+                RiskLevel::High,
+            )
             .await;
 
         let router2 = Arc::clone(&router);
@@ -265,7 +279,13 @@ mod tests {
     async fn wait_times_out() {
         let router = ApprovalRouter::new();
         let id = router
-            .request_approval("t1", "agent-1", "apply_patch", "patch summary", RiskLevel::High)
+            .request_approval(
+                "t1",
+                "agent-1",
+                "apply_patch",
+                "patch summary",
+                RiskLevel::High,
+            )
             .await;
 
         let status = router

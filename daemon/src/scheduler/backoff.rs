@@ -82,7 +82,10 @@ mod tests {
         let b1 = next_backoff(1, &cfg);
         let b2 = next_backoff(2, &cfg);
         // Allow for jitter — just ensure general trend.
-        assert!(b2 >= b0, "later attempt should generally have longer backoff");
+        assert!(
+            b2 >= b0,
+            "later attempt should generally have longer backoff"
+        );
         let _ = b1; // used
     }
 

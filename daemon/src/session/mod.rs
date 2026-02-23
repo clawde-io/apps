@@ -110,7 +110,9 @@ impl SessionManager {
             }
         }
 
-        let permissions_json = permissions.as_ref().map(serde_json::to_string)
+        let permissions_json = permissions
+            .as_ref()
+            .map(serde_json::to_string)
             .transpose()
             .context("failed to serialize permissions")?;
         let row = self
@@ -300,11 +302,8 @@ impl SessionManager {
 
         // Use worktree path if one was created for this session, otherwise
         // fall back to the original repo path for isolation-free operation.
-        let effective_path = worktree::effective_repo_path(
-            &self.data_dir,
-            session_id,
-            &session_row.repo_path,
-        );
+        let effective_path =
+            worktree::effective_repo_path(&self.data_dir, session_id, &session_row.repo_path);
 
         // Get or create a runner for this session.
         // Provider is matched from the persisted session row so the correct
@@ -387,11 +386,7 @@ impl SessionManager {
     /// - `file_read` / `file_write` / `shell_exec` / `git`
     ///
     /// Returns `Ok(())` if permitted, or an error with code -32002 if denied.
-    pub async fn check_tool_permission(
-        &self,
-        session_id: &str,
-        tool_name: &str,
-    ) -> Result<()> {
+    pub async fn check_tool_permission(&self, session_id: &str, tool_name: &str) -> Result<()> {
         let session_row = self
             .storage
             .get_session(session_id)
@@ -403,8 +398,7 @@ impl SessionManager {
             None => return Ok(()), // No restrictions
         };
 
-        let permissions: Vec<String> = serde_json::from_str(permissions_json)
-            .unwrap_or_default();
+        let permissions: Vec<String> = serde_json::from_str(permissions_json).unwrap_or_default();
 
         if permissions.is_empty() {
             return Ok(()); // Empty array also means all permissions
@@ -434,8 +428,7 @@ impl SessionManager {
         for (session_id, handle) in handles {
             // Give each runner up to 5 seconds to stop cleanly; kill if it hangs.
             let stop_result =
-                tokio::time::timeout(std::time::Duration::from_secs(5), handle.runner.stop())
-                    .await;
+                tokio::time::timeout(std::time::Duration::from_secs(5), handle.runner.stop()).await;
             if stop_result.is_err() {
                 tracing::warn!(id = %session_id, "runner did not stop within 5s during drain");
             }
@@ -528,9 +521,10 @@ async fn check_provider_ready(provider: &str) -> Result<()> {
 }
 
 fn row_to_view(row: crate::storage::SessionRow) -> SessionView {
-    let permissions = row.permissions.as_ref().and_then(|json_str| {
-        serde_json::from_str::<Vec<String>>(json_str).ok()
-    });
+    let permissions = row
+        .permissions
+        .as_ref()
+        .and_then(|json_str| serde_json::from_str::<Vec<String>>(json_str).ok());
     SessionView {
         id: row.id,
         provider: row.provider,
@@ -557,16 +551,22 @@ fn row_to_view(row: crate::storage::SessionRow) -> SessionView {
 /// of being granted shell execution rights.
 fn tool_name_to_scope(tool_name: &str) -> &'static str {
     let lower = tool_name.to_lowercase();
-    if lower.contains("read") || lower.contains("glob") || lower.contains("grep")
-        || lower.contains("fetch") || lower.contains("search")
+    if lower.contains("read")
+        || lower.contains("glob")
+        || lower.contains("grep")
+        || lower.contains("fetch")
+        || lower.contains("search")
     {
         "file_read"
     } else if lower.contains("write") || lower.contains("edit") || lower.contains("notebook") {
         "file_write"
     } else if lower.contains("git") {
         "git"
-    } else if lower.contains("bash") || lower.contains("shell") || lower.contains("exec")
-        || lower.contains("run") || lower.contains("command")
+    } else if lower.contains("bash")
+        || lower.contains("shell")
+        || lower.contains("exec")
+        || lower.contains("run")
+        || lower.contains("command")
     {
         "shell_exec"
     } else {

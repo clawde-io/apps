@@ -1,8 +1,16 @@
 use anyhow::{Context as _, Result};
 use clap::{Parser, Subcommand};
 use clawd::{
-    account::AccountRegistry, auth, config::DaemonConfig, identity, ipc::event::EventBroadcaster,
-    license, mdns, relay, repo::RepoRegistry, service, session::SessionManager, storage::Storage,
+    account::AccountRegistry,
+    auth,
+    config::DaemonConfig,
+    identity,
+    ipc::event::EventBroadcaster,
+    license, mdns, relay,
+    repo::RepoRegistry,
+    service,
+    session::SessionManager,
+    storage::Storage,
     tasks::{
         storage::{ActivityQueryParams, AgentTaskRow, TaskListParams},
         TaskStorage,
@@ -272,8 +280,7 @@ async fn main() -> Result<()> {
         Some(Command::Init { path }) => {
             let path = match path {
                 Some(p) => p,
-                None => std::env::current_dir()
-                    .context("failed to determine current directory")?,
+                None => std::env::current_dir().context("failed to determine current directory")?,
             };
             run_init(&path).await?;
         }
@@ -419,7 +426,12 @@ async fn run_init(path: &std::path::Path) -> Result<()> {
 // ── clawd update ──────────────────────────────────────────────────────────────
 
 async fn run_update(check_only: bool, apply_only: bool) -> Result<()> {
-    let config = Arc::new(DaemonConfig::new(None, None, Some("error".to_string()), None));
+    let config = Arc::new(DaemonConfig::new(
+        None,
+        None,
+        Some("error".to_string()),
+        None,
+    ));
     let broadcaster = Arc::new(EventBroadcaster::new());
     let updater = update::Updater::new(config, broadcaster);
 
@@ -466,21 +478,30 @@ async fn open_task_storage(data_dir: Option<std::path::PathBuf>) -> Result<TaskS
 
 /// Resolve task ID from positional arg or --task flag.
 fn resolve_task_id(id: Option<String>, task: Option<String>) -> Result<String> {
-    id.or(task).ok_or_else(|| anyhow::anyhow!("task ID required (positional or --task)"))
+    id.or(task)
+        .ok_or_else(|| anyhow::anyhow!("task ID required (positional or --task)"))
 }
 
 async fn run_tasks(action: TasksAction, data_dir: Option<std::path::PathBuf>) -> Result<()> {
     let ts = open_task_storage(data_dir).await?;
 
     match action {
-        TasksAction::List { repo, status, phase, limit, json } => {
-            let tasks = ts.list_tasks(&TaskListParams {
-                repo_path: repo,
-                status,
-                phase,
-                limit: Some(limit),
-                ..Default::default()
-            }).await?;
+        TasksAction::List {
+            repo,
+            status,
+            phase,
+            limit,
+            json,
+        } => {
+            let tasks = ts
+                .list_tasks(&TaskListParams {
+                    repo_path: repo,
+                    status,
+                    phase,
+                    limit: Some(limit),
+                    ..Default::default()
+                })
+                .await?;
             if json {
                 println!("{}", serde_json::to_string(&tasks)?);
             } else if tasks.is_empty() {
@@ -512,11 +533,17 @@ async fn run_tasks(action: TasksAction, data_dir: Option<std::path::PathBuf>) ->
             }
         }
 
-        TasksAction::Claim { id, task, agent, .. } => {
+        TasksAction::Claim {
+            id, task, agent, ..
+        } => {
             let task_id = resolve_task_id(id, task)?;
             let t = ts.claim_task(&task_id, &agent, None).await?;
             println!("Claimed: {} — {}", t.id, t.title);
-            println!("Status: {} by {}", t.status, t.claimed_by.as_deref().unwrap_or("?"));
+            println!(
+                "Status: {} by {}",
+                t.status,
+                t.claimed_by.as_deref().unwrap_or("?")
+            );
         }
 
         TasksAction::Release { id, task, agent } => {
@@ -525,38 +552,78 @@ async fn run_tasks(action: TasksAction, data_dir: Option<std::path::PathBuf>) ->
             println!("Released: {task_id}");
         }
 
-        TasksAction::Done { id, task, notes, agent: _, .. } => {
+        TasksAction::Done {
+            id,
+            task,
+            notes,
+            agent: _,
+            ..
+        } => {
             let task_id = resolve_task_id(id, task)?;
             let notes_text = notes.ok_or_else(|| anyhow::anyhow!("--notes required for done"))?;
-            let t = ts.update_status(&task_id, "done", Some(&notes_text), None).await?;
+            let t = ts
+                .update_status(&task_id, "done", Some(&notes_text), None)
+                .await?;
             println!("Done: {} — {}", t.id, t.title);
         }
 
-        TasksAction::Blocked { id, task, notes, .. } => {
+        TasksAction::Blocked {
+            id, task, notes, ..
+        } => {
             let task_id = resolve_task_id(id, task)?;
-            let t = ts.update_status(&task_id, "blocked", None, notes.as_deref()).await?;
+            let t = ts
+                .update_status(&task_id, "blocked", None, notes.as_deref())
+                .await?;
             println!("Blocked: {} — {}", t.id, t.title);
         }
 
-        TasksAction::Heartbeat { id, task, agent, .. } => {
+        TasksAction::Heartbeat {
+            id, task, agent, ..
+        } => {
             let task_id = resolve_task_id(id, task)?;
             ts.heartbeat_task(&task_id, &agent).await?;
             // Silent success — hook calls this fire-and-forget
         }
 
-        TasksAction::Add { title, repo, phase, severity, file } => {
+        TasksAction::Add {
+            title,
+            repo,
+            phase,
+            severity,
+            file,
+        } => {
             let repo_path = repo.as_deref().unwrap_or(".");
             let id = format!("{:x}", rand_u64());
-            let t = ts.add_task(
-                &id, &title, None,
-                phase.as_deref(), None, None,
-                Some(&severity), file.as_deref(), None, None, None, None,
-                repo_path,
-            ).await?;
+            let t = ts
+                .add_task(
+                    &id,
+                    &title,
+                    None,
+                    phase.as_deref(),
+                    None,
+                    None,
+                    Some(&severity),
+                    file.as_deref(),
+                    None,
+                    None,
+                    None,
+                    None,
+                    repo_path,
+                )
+                .await?;
             println!("Added: {} — {}", t.id, t.title);
         }
 
-        TasksAction::Log { id, task, agent, action, detail, notes, entry_type, repo } => {
+        TasksAction::Log {
+            id,
+            task,
+            agent,
+            action,
+            detail,
+            notes,
+            entry_type,
+            repo,
+        } => {
             let repo_path = repo.as_deref().unwrap_or(".");
             let task_id = id.or(task);
             // Accept --detail or --notes as the detail field
@@ -570,22 +637,40 @@ async fn run_tasks(action: TasksAction, data_dir: Option<std::path::PathBuf>) ->
                 detail_text.as_deref(),
                 None,
                 repo_path,
-            ).await?;
+            )
+            .await?;
             // Silent — called by PostToolUse hook fire-and-forget
         }
 
-        TasksAction::Note { id, task, phase, text, note, agent, repo } => {
+        TasksAction::Note {
+            id,
+            task,
+            phase,
+            text,
+            note,
+            agent,
+            repo,
+        } => {
             let repo_path = repo.as_deref().unwrap_or(".");
             let task_id = id.or(task);
-            let note_text = text.or(note)
+            let note_text = text
+                .or(note)
                 .ok_or_else(|| anyhow::anyhow!("note text required (positional or --note)"))?;
-            ts.post_note(&agent, task_id.as_deref(), phase.as_deref(), &note_text, repo_path).await?;
+            ts.post_note(
+                &agent,
+                task_id.as_deref(),
+                phase.as_deref(),
+                &note_text,
+                repo_path,
+            )
+            .await?;
             println!("Note posted.");
         }
 
         TasksAction::FromPlanning { file, repo } => {
             let repo_path = repo.as_deref().unwrap_or(".");
-            let content = tokio::fs::read_to_string(&file).await
+            let content = tokio::fs::read_to_string(&file)
+                .await
                 .map_err(|e| anyhow::anyhow!("Cannot read file {}: {e}", file.display()))?;
             let parsed = clawd::tasks::markdown_parser::parse_active_md(&content);
             if parsed.is_empty() {
@@ -601,7 +686,8 @@ async fn run_tasks(action: TasksAction, data_dir: Option<std::path::PathBuf>) ->
             let md_path = active_md.unwrap_or_else(|| {
                 std::path::PathBuf::from(repo_path).join(".claude/tasks/active.md")
             });
-            let content = tokio::fs::read_to_string(&md_path).await
+            let content = tokio::fs::read_to_string(&md_path)
+                .await
                 .map_err(|e| anyhow::anyhow!("Cannot read {}: {e}", md_path.display()))?;
             let parsed = clawd::tasks::markdown_parser::parse_active_md(&content);
             let count = ts.backfill_from_tasks(parsed, repo_path).await?;
@@ -637,22 +723,34 @@ async fn run_tasks(action: TasksAction, data_dir: Option<std::path::PathBuf>) ->
             }
         }
 
-        TasksAction::Activity { repo, task, phase, limit } => {
-            let rows = ts.query_activity(&ActivityQueryParams {
-                repo_path: repo,
-                task_id: task,
-                phase,
-                limit: Some(limit),
-                ..Default::default()
-            }).await?;
+        TasksAction::Activity {
+            repo,
+            task,
+            phase,
+            limit,
+        } => {
+            let rows = ts
+                .query_activity(&ActivityQueryParams {
+                    repo_path: repo,
+                    task_id: task,
+                    phase,
+                    limit: Some(limit),
+                    ..Default::default()
+                })
+                .await?;
             if rows.is_empty() {
                 println!("No activity found.");
             } else {
                 for r in &rows {
                     let task_label = r.task_id.as_deref().unwrap_or("-");
-                    println!("[{}] {} | {} | {} | {}",
-                        r.ts, r.agent, r.action, task_label,
-                        r.detail.as_deref().unwrap_or(""));
+                    println!(
+                        "[{}] {} | {} | {} | {}",
+                        r.ts,
+                        r.agent,
+                        r.action,
+                        task_label,
+                        r.detail.as_deref().unwrap_or("")
+                    );
                 }
             }
         }
@@ -683,7 +781,10 @@ fn print_task_detail(t: &AgentTaskRow) {
 
 fn rand_u64() -> u64 {
     use std::time::{SystemTime, UNIX_EPOCH};
-    let ns = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().subsec_nanos();
+    let ns = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .subsec_nanos();
     let pid = std::process::id() as u64;
     // simple non-crypto ID
     (ns as u64).wrapping_mul(1_000_003).wrapping_add(pid)
@@ -832,11 +933,11 @@ async fn run_server(
     let task_storage = Arc::new(TaskStorage::new(storage.pool().clone()));
 
     // ── Phase 43c/43m: worktree manager + scheduler components ───────────────
-    let worktree_manager = std::sync::Arc::new(
-        clawd::worktree::WorktreeManager::new(&config.data_dir)
-    );
+    let worktree_manager =
+        std::sync::Arc::new(clawd::worktree::WorktreeManager::new(&config.data_dir));
     let account_pool = std::sync::Arc::new(clawd::scheduler::accounts::AccountPool::new());
-    let rate_limit_tracker = std::sync::Arc::new(clawd::scheduler::rate_limits::RateLimitTracker::new());
+    let rate_limit_tracker =
+        std::sync::Arc::new(clawd::scheduler::rate_limits::RateLimitTracker::new());
     let fallback_engine = std::sync::Arc::new(clawd::scheduler::fallback::FallbackEngine::new(
         std::sync::Arc::clone(&account_pool),
         std::sync::Arc::clone(&rate_limit_tracker),

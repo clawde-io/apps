@@ -28,28 +28,6 @@ class _UpdateBannerState extends ConsumerState<UpdateBanner> {
   String? _latestVersion;
   bool _applying = false;
 
-  @override
-  void initState() {
-    super.initState();
-    // Listen for the daemon.updateAvailable push event.
-    // Called in initState so the listener is registered only once, not on
-    // every rebuild.
-    ref.listen<AsyncValue<Map<String, dynamic>>>(
-      daemonPushEventsProvider,
-      (_, next) {
-        next.whenData((event) {
-          if (event['method'] == 'daemon.updateAvailable') {
-            final params = event['params'] as Map<String, dynamic>?;
-            final latest = params?['latest'] as String?;
-            if (latest != null && latest != _latestVersion) {
-              if (mounted) setState(() => _latestVersion = latest);
-            }
-          }
-        });
-      },
-    );
-  }
-
   void _dismiss() => setState(() => _latestVersion = null);
 
   Future<void> _applyUpdate() async {
@@ -68,6 +46,23 @@ class _UpdateBannerState extends ConsumerState<UpdateBanner> {
 
   @override
   Widget build(BuildContext context) {
+    // ref.listen must be called in build, not initState. Riverpod handles
+    // deduplication across rebuilds automatically.
+    ref.listen<AsyncValue<Map<String, dynamic>>>(
+      daemonPushEventsProvider,
+      (_, next) {
+        next.whenData((event) {
+          if (event['method'] == 'daemon.updateAvailable') {
+            final params = event['params'] as Map<String, dynamic>?;
+            final latest = params?['latest'] as String?;
+            if (latest != null && latest != _latestVersion) {
+              if (mounted) setState(() => _latestVersion = latest);
+            }
+          }
+        });
+      },
+    );
+
     return Column(
       children: [
         if (_latestVersion != null)

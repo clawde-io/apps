@@ -18,10 +18,10 @@ use super::sandbox::PolicyViolation;
 /// patterns in `evals::scanners::secrets` but is used here at the *policy
 /// layer* — i.e. before a tool is even invoked.
 pub static NEVER_EXPOSE_PATTERNS: &[&str] = &[
-    r"sk-[A-Za-z0-9\-_]{20,}",              // Anthropic / OpenAI API key
-    r"ghp_[A-Za-z0-9]{36}",                  // GitHub classic PAT
-    r"github_pat_[A-Za-z0-9_]{82}",          // GitHub fine-grained PAT
-    r"AKIA[0-9A-Z]{16}",                      // AWS access key ID
+    r"sk-[A-Za-z0-9\-_]{20,}",      // Anthropic / OpenAI API key
+    r"ghp_[A-Za-z0-9]{36}",         // GitHub classic PAT
+    r"github_pat_[A-Za-z0-9_]{82}", // GitHub fine-grained PAT
+    r"AKIA[0-9A-Z]{16}",            // AWS access key ID
     r"-----BEGIN\s+(?:RSA |EC |OPENSSH )?PRIVATE KEY-----", // PEM header
     r#"(?i)(password|secret|token|api_key|auth_key|private_key)\s*[:=]\s*["']?[A-Za-z0-9+/\-_]{8,}"#,
 ];
@@ -65,20 +65,13 @@ impl SecretsVault {
 /// Returns the first `PolicyViolation::SecretDetected` found, or `Ok(())` if
 /// the arguments are clean.  Callers should reject the tool call entirely on
 /// violation.
-pub fn check_tool_args(
-    tool: &str,
-    args: &serde_json::Value,
-) -> Result<(), PolicyViolation> {
+pub fn check_tool_args(tool: &str, args: &serde_json::Value) -> Result<(), PolicyViolation> {
     scan_value(tool, args, "args")
 }
 
 // ─── Private helpers ──────────────────────────────────────────────────────────
 
-fn scan_value(
-    tool: &str,
-    value: &serde_json::Value,
-    path: &str,
-) -> Result<(), PolicyViolation> {
+fn scan_value(tool: &str, value: &serde_json::Value, path: &str) -> Result<(), PolicyViolation> {
     match value {
         serde_json::Value::String(s) => {
             check_string(tool, s, path)?;
@@ -100,11 +93,7 @@ fn scan_value(
     Ok(())
 }
 
-fn check_string(
-    _tool: &str,
-    s: &str,
-    path: &str,
-) -> Result<(), PolicyViolation> {
+fn check_string(_tool: &str, s: &str, path: &str) -> Result<(), PolicyViolation> {
     for regex in COMPILED_PATTERNS.iter() {
         if let Some(m) = regex.find(s) {
             let matched = m.as_str();

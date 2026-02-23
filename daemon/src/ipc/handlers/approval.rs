@@ -53,8 +53,8 @@ pub async fn list(_params: Value, ctx: &AppContext) -> Result<Value> {
 /// Finds the task awaiting approval with the given `approval_id` and transitions
 /// it: `grant` → `in_progress` (Active), `deny` → `blocked`.
 pub async fn respond(params: Value, ctx: &AppContext) -> Result<Value> {
-    let approval_id = sv(&params, "approval_id")
-        .ok_or_else(|| anyhow::anyhow!("missing field: approval_id"))?;
+    let approval_id =
+        sv(&params, "approval_id").ok_or_else(|| anyhow::anyhow!("missing field: approval_id"))?;
     let decision = sv(&params, "decision")
         .ok_or_else(|| anyhow::anyhow!("missing field: decision (must be 'grant' or 'deny')"))?;
     let reason = sv(&params, "reason").unwrap_or("user decision");

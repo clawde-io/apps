@@ -39,7 +39,10 @@ async fn test_create_and_list_worktree() {
 
     assert_eq!(info.task_id, "task-abc");
     assert!(info.branch.starts_with("claw/task-abc-"));
-    assert!(info.worktree_path.exists(), "worktree directory should exist");
+    assert!(
+        info.worktree_path.exists(),
+        "worktree directory should exist"
+    );
 
     // List should contain exactly one entry.
     let list = manager.list().await;
@@ -79,7 +82,9 @@ async fn test_write_path_validation() {
 
     // Invalid path — outside the worktree (targets main workspace).
     let invalid_path = vec![repo_dir.join("src").join("main.rs")];
-    let result = manager.validate_write_paths("task-xyz", &invalid_path).await;
+    let result = manager
+        .validate_write_paths("task-xyz", &invalid_path)
+        .await;
     assert!(result.is_err(), "path outside worktree should be rejected");
 
     // Unknown task_id — should error.

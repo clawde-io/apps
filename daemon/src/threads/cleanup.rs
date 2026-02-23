@@ -21,10 +21,7 @@ use tracing::info;
 /// threads persist forever.
 ///
 /// Returns the number of threads updated.
-pub async fn archive_completed_threads(
-    pool: &SqlitePool,
-    older_than: Duration,
-) -> Result<u64> {
+pub async fn archive_completed_threads(pool: &SqlitePool, older_than: Duration) -> Result<u64> {
     let cutoff = Utc::now()
         - chrono::Duration::from_std(older_than)
             .map_err(|e| anyhow::anyhow!("duration conversion failed: {e}"))?;
@@ -45,7 +42,11 @@ pub async fn archive_completed_threads(
 
     let count = result.rows_affected();
     if count > 0 {
-        info!(count, older_than_secs = older_than.as_secs(), "archived completed task threads");
+        info!(
+            count,
+            older_than_secs = older_than.as_secs(),
+            "archived completed task threads"
+        );
     }
 
     Ok(count)

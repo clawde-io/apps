@@ -83,8 +83,14 @@ mod tests {
 
     #[test]
     fn router_role_maps_to_haiku() {
-        assert_eq!(recommend_model("router", "low"), "claude-haiku-4-5-20251001");
-        assert_eq!(recommend_model("router", "high"), "claude-haiku-4-5-20251001");
+        assert_eq!(
+            recommend_model("router", "low"),
+            "claude-haiku-4-5-20251001"
+        );
+        assert_eq!(
+            recommend_model("router", "high"),
+            "claude-haiku-4-5-20251001"
+        );
     }
 
     #[test]

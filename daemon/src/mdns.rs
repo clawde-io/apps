@@ -55,8 +55,8 @@ pub fn advertise(daemon_id: &str, port: u16) -> Option<MdnsGuard> {
 }
 
 fn try_advertise(daemon_id: &str, port: u16) -> anyhow::Result<MdnsGuard> {
-    let mdns = ServiceDaemon::new()
-        .map_err(|e| anyhow::anyhow!("failed to start mDNS daemon: {e}"))?;
+    let mdns =
+        ServiceDaemon::new().map_err(|e| anyhow::anyhow!("failed to start mDNS daemon: {e}"))?;
 
     // Instance name: clawd-{first 8 chars of daemon_id}
     let id_len = daemon_id.len();

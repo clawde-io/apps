@@ -72,7 +72,13 @@ pub async fn create(params: Value, ctx: &AppContext) -> Result<Value> {
 
     let session = ctx
         .session_manager
-        .create(&p.provider, &p.repo_path, &title, ctx.config.max_sessions, p.permissions)
+        .create(
+            &p.provider,
+            &p.repo_path,
+            &title,
+            ctx.config.max_sessions,
+            p.permissions,
+        )
         .await?;
     ctx.telemetry
         .send(TelemetryEvent::new("session.start").with_provider(&p.provider));

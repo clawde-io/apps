@@ -40,18 +40,19 @@ pub async fn merge_to_main(manager: &WorktreeManager, task_id: &str) -> Result<(
         .ok_or_else(|| anyhow::anyhow!("no worktree found for task {}", task_id))?;
 
     if info.status != WorktreeStatus::Done {
-        bail!("task {} worktree is not in Done state — cannot merge", task_id);
+        bail!(
+            "task {} worktree is not in Done state — cannot merge",
+            task_id
+        );
     }
 
     let repo_path = info.repo_path.clone();
     let branch = info.branch.clone();
     let task_id_owned = task_id.to_string();
 
-    tokio::task::spawn_blocking(move || {
-        merge_branch_to_main(&repo_path, &branch, &task_id_owned)
-    })
-    .await
-    .context("merge task panicked")??;
+    tokio::task::spawn_blocking(move || merge_branch_to_main(&repo_path, &branch, &task_id_owned))
+        .await
+        .context("merge task panicked")??;
 
     manager.set_status(task_id, WorktreeStatus::Merged).await;
     info!(task_id, branch = %info.branch, "worktree merged to main");
@@ -64,8 +65,7 @@ pub async fn merge_to_main(manager: &WorktreeManager, task_id: &str) -> Result<(
 /// Compute the diff between the worktree's current HEAD and its merge base
 /// with the main branch. Returns a unified diff string.
 fn diff_against_main(wt_path: &std::path::Path, _branch: &str) -> Result<String> {
-    let repo = git2::Repository::open(wt_path)
-        .context("failed to open worktree for diff")?;
+    let repo = git2::Repository::open(wt_path).context("failed to open worktree for diff")?;
 
     let head = repo.head().context("worktree has no HEAD")?;
     let head_commit = head
@@ -108,13 +108,9 @@ fn diff_against_main(wt_path: &std::path::Path, _branch: &str) -> Result<String>
 /// Strategy:
 /// 1. If the branch is a direct descendant of HEAD, fast-forward.
 /// 2. Otherwise, create a merge commit.
-fn merge_branch_to_main(
-    repo_path: &std::path::Path,
-    branch: &str,
-    task_id: &str,
-) -> Result<()> {
-    let repo = git2::Repository::open(repo_path)
-        .context("failed to open main repository for merge")?;
+fn merge_branch_to_main(repo_path: &std::path::Path, branch: &str, task_id: &str) -> Result<()> {
+    let repo =
+        git2::Repository::open(repo_path).context("failed to open main repository for merge")?;
 
     // Resolve the task branch to an annotated commit.
     let branch_ref = repo
@@ -128,7 +124,9 @@ fn merge_branch_to_main(
 
     let annotated = repo
         .reference_to_annotated_commit(
-            &repo.find_reference(&branch_ref_name).context("failed to find branch reference")?,
+            &repo
+                .find_reference(&branch_ref_name)
+                .context("failed to find branch reference")?,
         )
         .context("failed to create annotated commit")?;
 
@@ -187,7 +185,8 @@ fn merge_branch_to_main(
         )
         .context("failed to create merge commit")?;
 
-        repo.cleanup_state().context("failed to cleanup merge state")?;
+        repo.cleanup_state()
+            .context("failed to cleanup merge state")?;
     }
 
     Ok(())

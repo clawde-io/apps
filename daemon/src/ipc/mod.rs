@@ -13,7 +13,10 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
-use tokio_tungstenite::{accept_async_with_config, tungstenite::{protocol::WebSocketConfig, Message}};
+use tokio_tungstenite::{
+    accept_async_with_config,
+    tungstenite::{protocol::WebSocketConfig, Message},
+};
 use tracing::{debug, error, info, trace, warn};
 
 // ─── Rate limiting ──────────────────────────────────────────────────────────
@@ -517,60 +520,60 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
         "tool.approve" => handlers::tool::approve(params, ctx).await,
         "tool.reject" => handlers::tool::reject(params, ctx).await,
         // ─── Task system ─────────────────────────────────────────────────────
-        "tasks.list"           => handlers::tasks::list(params, ctx).await,
-        "tasks.get"            => handlers::tasks::get(params, ctx).await,
-        "tasks.claim"          => handlers::tasks::claim(params, ctx).await,
-        "tasks.release"        => handlers::tasks::release(params, ctx).await,
-        "tasks.heartbeat"      => handlers::tasks::heartbeat(params, ctx).await,
-        "tasks.updateStatus"   => handlers::tasks::update_status(params, ctx).await,
-        "tasks.addTask"        => handlers::tasks::add_task(params, ctx).await,
-        "tasks.bulkAdd"        => handlers::tasks::bulk_add(params, ctx).await,
-        "tasks.logActivity"    => handlers::tasks::log_activity(params, ctx).await,
-        "tasks.note"           => handlers::tasks::note(params, ctx).await,
-        "tasks.activity"       => handlers::tasks::activity(params, ctx).await,
-        "tasks.fromPlanning"   => handlers::tasks::from_planning(params, ctx).await,
-        "tasks.fromChecklist"  => handlers::tasks::from_checklist(params, ctx).await,
-        "tasks.summary"        => handlers::tasks::summary(params, ctx).await,
-        "tasks.export"         => handlers::tasks::export(params, ctx).await,
-        "tasks.validate"       => handlers::tasks::validate(params, ctx).await,
-        "tasks.sync"           => handlers::tasks::sync(params, ctx).await,
+        "tasks.list" => handlers::tasks::list(params, ctx).await,
+        "tasks.get" => handlers::tasks::get(params, ctx).await,
+        "tasks.claim" => handlers::tasks::claim(params, ctx).await,
+        "tasks.release" => handlers::tasks::release(params, ctx).await,
+        "tasks.heartbeat" => handlers::tasks::heartbeat(params, ctx).await,
+        "tasks.updateStatus" => handlers::tasks::update_status(params, ctx).await,
+        "tasks.addTask" => handlers::tasks::add_task(params, ctx).await,
+        "tasks.bulkAdd" => handlers::tasks::bulk_add(params, ctx).await,
+        "tasks.logActivity" => handlers::tasks::log_activity(params, ctx).await,
+        "tasks.note" => handlers::tasks::note(params, ctx).await,
+        "tasks.activity" => handlers::tasks::activity(params, ctx).await,
+        "tasks.fromPlanning" => handlers::tasks::from_planning(params, ctx).await,
+        "tasks.fromChecklist" => handlers::tasks::from_checklist(params, ctx).await,
+        "tasks.summary" => handlers::tasks::summary(params, ctx).await,
+        "tasks.export" => handlers::tasks::export(params, ctx).await,
+        "tasks.validate" => handlers::tasks::validate(params, ctx).await,
+        "tasks.sync" => handlers::tasks::sync(params, ctx).await,
         // ─── Phase 43b: Task State Engine ────────────────────────────────────
-        "tasks.createSpec"     => handlers::tasks::create_from_spec(params, ctx).await,
-        "tasks.transition"     => handlers::tasks::transition(params, ctx).await,
-        "tasks.listEvents"     => handlers::tasks::list_events(params, ctx).await,
+        "tasks.createSpec" => handlers::tasks::create_from_spec(params, ctx).await,
+        "tasks.transition" => handlers::tasks::transition(params, ctx).await,
+        "tasks.listEvents" => handlers::tasks::list_events(params, ctx).await,
         // ─── Agent registry ──────────────────────────────────────────────────
-        "tasks.agents.register"    => handlers::agents::register(params, ctx).await,
-        "tasks.agents.list"        => handlers::agents::list(params, ctx).await,
-        "tasks.agents.heartbeat"   => handlers::agents::heartbeat(params, ctx).await,
-        "tasks.agents.disconnect"  => handlers::agents::disconnect(params, ctx).await,
+        "tasks.agents.register" => handlers::agents::register(params, ctx).await,
+        "tasks.agents.list" => handlers::agents::list(params, ctx).await,
+        "tasks.agents.heartbeat" => handlers::agents::heartbeat(params, ctx).await,
+        "tasks.agents.disconnect" => handlers::agents::disconnect(params, ctx).await,
         // ─── Phase 43e: Multi-agent orchestration ─────────────────────────────────
-        "agents.spawn"      => handlers::agents::spawn_agent(params, ctx).await,
-        "agents.list"       => handlers::agents::list_orchestrated(params, ctx).await,
-        "agents.cancel"     => handlers::agents::cancel_agent(params, ctx).await,
-        "agents.heartbeat"  => handlers::agents::orchestrator_heartbeat(params, ctx).await,
+        "agents.spawn" => handlers::agents::spawn_agent(params, ctx).await,
+        "agents.list" => handlers::agents::list_orchestrated(params, ctx).await,
+        "agents.cancel" => handlers::agents::cancel_agent(params, ctx).await,
+        "agents.heartbeat" => handlers::agents::orchestrator_heartbeat(params, ctx).await,
         // ─── AFS ─────────────────────────────────────────────────────────────
-        "afs.init"              => handlers::afs::init(params, ctx).await,
-        "afs.status"            => handlers::afs::status(params, ctx).await,
-        "afs.syncInstructions"  => handlers::afs::sync_instructions(params, ctx).await,
-        "afs.register"          => handlers::afs::register_project(params, ctx).await,
+        "afs.init" => handlers::afs::init(params, ctx).await,
+        "afs.status" => handlers::afs::status(params, ctx).await,
+        "afs.syncInstructions" => handlers::afs::sync_instructions(params, ctx).await,
+        "afs.register" => handlers::afs::register_project(params, ctx).await,
         // ─── Observability / Traces ───────────────────────────────────────────
-        "traces.query"          => handlers::telemetry::query_traces(params, ctx).await,
-        "traces.summary"        => handlers::telemetry::summary(params, ctx).await,
+        "traces.query" => handlers::telemetry::query_traces(params, ctx).await,
+        "traces.summary" => handlers::telemetry::summary(params, ctx).await,
         // ─── Phase 43c: Task Worktrees ────────────────────────────────────────
-        "worktrees.list"        => handlers::worktrees::list(params, ctx).await,
-        "worktrees.merge"       => handlers::worktrees::merge(params, ctx).await,
-        "worktrees.cleanup"     => handlers::worktrees::cleanup(params, ctx).await,
-        "worktrees.diff"        => handlers::worktrees::diff(params, ctx).await,
+        "worktrees.list" => handlers::worktrees::list(params, ctx).await,
+        "worktrees.merge" => handlers::worktrees::merge(params, ctx).await,
+        "worktrees.cleanup" => handlers::worktrees::cleanup(params, ctx).await,
+        "worktrees.diff" => handlers::worktrees::diff(params, ctx).await,
         // ─── Human-approval workflow ──────────────────────────────────────────
-        "approval.list"         => handlers::approval::list(params, ctx).await,
-        "approval.respond"      => handlers::approval::respond(params, ctx).await,
+        "approval.list" => handlers::approval::list(params, ctx).await,
+        "approval.respond" => handlers::approval::respond(params, ctx).await,
         // ─── Phase 43m: Account Scheduler ────────────────────────────────────
-        "scheduler.status"      => handlers::scheduler::status(params, ctx).await,
+        "scheduler.status" => handlers::scheduler::status(params, ctx).await,
         // ─── Phase 43f: Conversation Threading ───────────────────────────────────
-        "threads.start"         => handlers::threads::start_thread(ctx, params).await,
-        "threads.resume"        => handlers::threads::resume_thread(ctx, params).await,
-        "threads.fork"          => handlers::threads::fork_thread(ctx, params).await,
-        "threads.list"          => handlers::threads::list_threads(ctx, params).await,
+        "threads.start" => handlers::threads::start_thread(ctx, params).await,
+        "threads.resume" => handlers::threads::resume_thread(ctx, params).await,
+        "threads.fork" => handlers::threads::fork_thread(ctx, params).await,
+        "threads.list" => handlers::threads::list_threads(ctx, params).await,
         _ => Err(anyhow::anyhow!("METHOD_NOT_FOUND:{}", method)),
     }
 }
@@ -585,17 +588,38 @@ fn classify_error(e: &anyhow::Error, _method: &str) -> (i32, String) {
     }
 
     // Task system uses "TASK_CODE:{numeric_code}" markers.
-    if msg.contains(&format!("TASK_CODE:{}", crate::tasks::storage::TASK_NOT_FOUND)) {
+    if msg.contains(&format!(
+        "TASK_CODE:{}",
+        crate::tasks::storage::TASK_NOT_FOUND
+    )) {
         return (TASK_NOT_FOUND_CODE, "Task not found".to_string());
     }
-    if msg.contains(&format!("TASK_CODE:{}", crate::tasks::storage::TASK_ALREADY_CLAIMED)) {
-        return (TASK_ALREADY_CLAIMED_CODE, "Task already claimed by another agent".to_string());
+    if msg.contains(&format!(
+        "TASK_CODE:{}",
+        crate::tasks::storage::TASK_ALREADY_CLAIMED
+    )) {
+        return (
+            TASK_ALREADY_CLAIMED_CODE,
+            "Task already claimed by another agent".to_string(),
+        );
     }
-    if msg.contains(&format!("TASK_CODE:{}", crate::tasks::storage::MISSING_COMPLETION_NOTES)) {
-        return (MISSING_COMPLETION_NOTES_CODE, "Completion notes are required when marking a task done".to_string());
+    if msg.contains(&format!(
+        "TASK_CODE:{}",
+        crate::tasks::storage::MISSING_COMPLETION_NOTES
+    )) {
+        return (
+            MISSING_COMPLETION_NOTES_CODE,
+            "Completion notes are required when marking a task done".to_string(),
+        );
     }
-    if msg.contains(&format!("TASK_CODE:{}", crate::tasks::storage::TASK_NOT_RESUMABLE)) {
-        return (TASK_NOT_RESUMABLE_CODE, "Task cannot be resumed — not in interrupted or pending state".to_string());
+    if msg.contains(&format!(
+        "TASK_CODE:{}",
+        crate::tasks::storage::TASK_NOT_RESUMABLE
+    )) {
+        return (
+            TASK_NOT_RESUMABLE_CODE,
+            "Task cannot be resumed — not in interrupted or pending state".to_string(),
+        );
     }
 
     // ── All-caps sentinel markers (set explicitly by each error site) ─────────
@@ -629,7 +653,10 @@ fn classify_error(e: &anyhow::Error, _method: &str) -> (i32, String) {
         );
     }
     if msg.contains("RATE_LIMITED") {
-        return (RATE_LIMITED, "AI provider rate limit — try again shortly".to_string());
+        return (
+            RATE_LIMITED,
+            "AI provider rate limit — try again shortly".to_string(),
+        );
     }
 
     // ── Fallback heuristics for legacy error strings not yet converted ────────
@@ -645,7 +672,10 @@ fn classify_error(e: &anyhow::Error, _method: &str) -> (i32, String) {
         return (REPO_NOT_FOUND, "Repo not found".to_string());
     }
     if msg.contains("rate limit") || msg.contains("rate_limit") {
-        return (RATE_LIMITED, "AI provider rate limit — try again shortly".to_string());
+        return (
+            RATE_LIMITED,
+            "AI provider rate limit — try again shortly".to_string(),
+        );
     }
     if msg.contains("missing field") || msg.contains("invalid type") {
         return (INVALID_PARAMS, format!("Invalid params: {}", msg));

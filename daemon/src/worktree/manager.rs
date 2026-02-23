@@ -144,16 +144,15 @@ impl WorktreeManager {
         let repo_path = info.repo_path.clone();
 
         // Remove the worktree via git2 (best-effort; directory cleanup always runs).
-        let result = tokio::task::spawn_blocking(move || remove_worktree_blocking(&repo_path, &wt_path))
-            .await
-            .context("worktree removal task panicked")?;
+        let result =
+            tokio::task::spawn_blocking(move || remove_worktree_blocking(&repo_path, &wt_path))
+                .await
+                .context("worktree removal task panicked")?;
 
         if let Err(e) = result {
             warn!(task_id, err = %e, "git worktree removal failed — cleaning directory manually");
             if info.worktree_path.exists() {
-                tokio::fs::remove_dir_all(&info.worktree_path)
-                    .await
-                    .ok();
+                tokio::fs::remove_dir_all(&info.worktree_path).await.ok();
             }
         }
 
@@ -179,11 +178,7 @@ impl WorktreeManager {
     ///
     /// Returns the task_ids of worktrees whose changed files overlap with
     /// `files`. Uses git status of each active worktree to detect overlap.
-    pub async fn check_file_conflicts(
-        &self,
-        repo_path: &Path,
-        files: &[PathBuf],
-    ) -> Vec<String> {
+    pub async fn check_file_conflicts(&self, repo_path: &Path, files: &[PathBuf]) -> Vec<String> {
         let infos: Vec<WorktreeInfo> = {
             let map = self.worktrees.read().await;
             map.values()
@@ -200,10 +195,9 @@ impl WorktreeManager {
             let task_id = info.task_id.clone();
             let check_files = files_owned.clone();
 
-            let has_conflict = tokio::task::spawn_blocking(move || {
-                worktree_touches_files(&wt, &check_files)
-            })
-            .await;
+            let has_conflict =
+                tokio::task::spawn_blocking(move || worktree_touches_files(&wt, &check_files))
+                    .await;
 
             match has_conflict {
                 Ok(Ok(true)) => conflicting.push(task_id),
@@ -358,8 +352,7 @@ fn remove_worktree_blocking(repo_path: &Path, wt_path: &Path) -> Result<()> {
 /// Returns `Ok(true)` if the worktree at `wt_path` has any changed files
 /// that overlap with `check_files`.
 fn worktree_touches_files(wt_path: &Path, check_files: &[PathBuf]) -> Result<bool> {
-    let repo = git2::Repository::open(wt_path)
-        .context("failed to open worktree repository")?;
+    let repo = git2::Repository::open(wt_path).context("failed to open worktree repository")?;
     let statuses = repo
         .statuses(None)
         .context("failed to get worktree status")?;

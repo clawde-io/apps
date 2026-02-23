@@ -66,10 +66,16 @@ mod tests {
     fn detects_changed_prompt() {
         let mut store = PromptVersionStore::new();
         let changed_first = store.register("router", "You are the Router agent.");
-        assert!(changed_first, "first registration should be marked as changed");
+        assert!(
+            changed_first,
+            "first registration should be marked as changed"
+        );
 
         let changed_same = store.register("router", "You are the Router agent.");
-        assert!(!changed_same, "same content should not be marked as changed");
+        assert!(
+            !changed_same,
+            "same content should not be marked as changed"
+        );
 
         let changed_new = store.register("router", "You are the Router agent v2.");
         assert!(changed_new, "different content should be marked as changed");

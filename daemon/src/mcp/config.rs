@@ -108,14 +108,13 @@ impl McpServersConfig {
             )
         })?;
 
-        let parsed: JsonMcpServersFile =
-            serde_json::from_str(&raw).map_err(|e| {
-                anyhow::anyhow!(
-                    "invalid mcp-servers.json at '{}': {}",
-                    config_path.display(),
-                    e
-                )
-            })?;
+        let parsed: JsonMcpServersFile = serde_json::from_str(&raw).map_err(|e| {
+            anyhow::anyhow!(
+                "invalid mcp-servers.json at '{}': {}",
+                config_path.display(),
+                e
+            )
+        })?;
 
         let servers: Vec<McpServerConfig> = parsed
             .servers

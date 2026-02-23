@@ -3,11 +3,7 @@ use chrono::Utc;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
-use tokio::{
-    fs::OpenOptions,
-    io::AsyncWriteExt,
-    sync::Mutex,
-};
+use tokio::{fs::OpenOptions, io::AsyncWriteExt, sync::Mutex};
 
 /// Maximum audit log file size before rotation (50 MB).
 const ROTATE_BYTES: u64 = 50 * 1024 * 1024;
@@ -177,7 +173,15 @@ mod tests {
     async fn appends_line_to_file() {
         let dir = tempfile::tempdir().unwrap();
         let log = AuditLog::new(dir.path());
-        let entry = AuditEntry::new("s1", Some("ag1".to_string()), "read_file", "{}", "low", "auto-approved", 0);
+        let entry = AuditEntry::new(
+            "s1",
+            Some("ag1".to_string()),
+            "read_file",
+            "{}",
+            "low",
+            "auto-approved",
+            0,
+        );
         log.append(&entry).await;
 
         let content = tokio::fs::read_to_string(dir.path().join("audit.log"))

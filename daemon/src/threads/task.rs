@@ -29,8 +29,7 @@ impl TaskThread {
     ) -> Result<Thread> {
         let thread_id = new_thread_id();
         let now = Utc::now().to_rfc3339();
-        let model_json = serde_json::to_string(&model_config)
-            .unwrap_or_else(|_| "{}".to_string());
+        let model_json = serde_json::to_string(&model_config).unwrap_or_else(|_| "{}".to_string());
 
         sqlx::query(
             "INSERT INTO threads
@@ -47,15 +46,23 @@ impl TaskThread {
         .execute(pool)
         .await?;
 
-        let row: (String, String, Option<String>, Option<String>, String, String, String, String) =
-            sqlx::query_as(
-                "SELECT thread_id, thread_type, task_id, parent_thread_id,
+        let row: (
+            String,
+            String,
+            Option<String>,
+            Option<String>,
+            String,
+            String,
+            String,
+            String,
+        ) = sqlx::query_as(
+            "SELECT thread_id, thread_type, task_id, parent_thread_id,
                         status, model_config, created_at, updated_at
                  FROM threads WHERE thread_id = ?",
-            )
-            .bind(&thread_id)
-            .fetch_one(pool)
-            .await?;
+        )
+        .bind(&thread_id)
+        .fetch_one(pool)
+        .await?;
 
         row_to_thread(row)
     }
@@ -69,10 +76,7 @@ impl TaskThread {
     ///   3. Relevant file snapshots at the time of seed
     ///
     /// They do NOT inherit control thread conversation history.
-    pub fn seed_context(
-        task_spec: &serde_json::Value,
-        repo_state: &str,
-    ) -> Vec<serde_json::Value> {
+    pub fn seed_context(task_spec: &serde_json::Value, repo_state: &str) -> Vec<serde_json::Value> {
         let title = task_spec
             .get("title")
             .and_then(|v| v.as_str())
@@ -113,9 +117,7 @@ impl TaskThread {
              {test_plan}"
         );
 
-        let repo_content = format!(
-            "## Current Repository State\n\n```\n{repo_state}\n```"
-        );
+        let repo_content = format!("## Current Repository State\n\n```\n{repo_state}\n```");
 
         vec![
             serde_json::json!({ "role": "system", "content": system_content }),

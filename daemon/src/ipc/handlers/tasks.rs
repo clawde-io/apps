@@ -1,7 +1,6 @@
 use crate::tasks::{
     events::{new_correlation_id, TaskEventKind},
-    markdown_parser,
-    queue_serializer,
+    markdown_parser, queue_serializer,
     replay::ReplayEngine,
     schema::{Priority, RiskLevel, TaskSpec},
     storage::{ActivityQueryParams, TaskListParams, TASK_NOT_FOUND},
@@ -30,8 +29,13 @@ fn validate_task_id(id: &str) -> Result<()> {
     if id.contains('\0') {
         bail!("invalid task_id: null byte");
     }
-    if !id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
-        bail!("invalid task_id: only alphanumeric characters, hyphens, and underscores are allowed");
+    if !id
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+    {
+        bail!(
+            "invalid task_id: only alphanumeric characters, hyphens, and underscores are allowed"
+        );
     }
     Ok(())
 }
@@ -70,9 +74,12 @@ pub async fn list(params: Value, ctx: &AppContext) -> Result<Value> {
 }
 
 pub async fn get(params: Value, ctx: &AppContext) -> Result<Value> {
-    let id = sv(&params, "task_id")
-        .ok_or_else(|| anyhow::anyhow!("TASK_CODE:{}", TASK_NOT_FOUND))?;
-    let task = ctx.task_storage.get_task(id).await?
+    let id =
+        sv(&params, "task_id").ok_or_else(|| anyhow::anyhow!("TASK_CODE:{}", TASK_NOT_FOUND))?;
+    let task = ctx
+        .task_storage
+        .get_task(id)
+        .await?
         .ok_or_else(|| anyhow::anyhow!("TASK_CODE:{}", TASK_NOT_FOUND))?;
     Ok(json!({ "task": task }))
 }
@@ -82,28 +89,53 @@ pub async fn claim(params: Value, ctx: &AppContext) -> Result<Value> {
     let agent_id = sv(&params, "agent_id").ok_or_else(|| anyhow::anyhow!("missing agent_id"))?;
 
     let existing = ctx.task_storage.get_task(task_id).await?;
-    let is_resume = existing.as_ref().map(|t| t.status == "interrupted").unwrap_or(false);
+    let is_resume = existing
+        .as_ref()
+        .map(|t| t.status == "interrupted")
+        .unwrap_or(false);
 
     let task = ctx.task_storage.claim_task(task_id, agent_id, None).await?;
-    let _ = ctx.task_storage.set_agent_current_task(agent_id, Some(task_id)).await;
+    let _ = ctx
+        .task_storage
+        .set_agent_current_task(agent_id, Some(task_id))
+        .await;
 
     let (action, detail) = if is_resume {
-        ("session_resume", "Resumed from interrupted state.".to_string())
+        (
+            "session_resume",
+            "Resumed from interrupted state.".to_string(),
+        )
     } else {
         ("task_claimed", "pending → in_progress".to_string())
     };
 
-    let _ = ctx.task_storage.log_activity(
-        agent_id, Some(task_id), task.phase.as_deref(),
-        action, "system", Some(&detail), None, &task.repo_path,
-    ).await;
+    let _ = ctx
+        .task_storage
+        .log_activity(
+            agent_id,
+            Some(task_id),
+            task.phase.as_deref(),
+            action,
+            "system",
+            Some(&detail),
+            None,
+            &task.repo_path,
+        )
+        .await;
 
-    let event = if is_resume { "task.resumed" } else { "task.claimed" };
-    ctx.broadcaster.broadcast(event, json!({
-        "task_id": task_id,
-        "agent_id": agent_id,
-        "is_resume": is_resume,
-    }));
+    let event = if is_resume {
+        "task.resumed"
+    } else {
+        "task.claimed"
+    };
+    ctx.broadcaster.broadcast(
+        event,
+        json!({
+            "task_id": task_id,
+            "agent_id": agent_id,
+            "is_resume": is_resume,
+        }),
+    );
 
     let _ = queue_serializer::flush_queue(&ctx.task_storage, &task.repo_path).await;
     Ok(json!({ "task": task, "is_resume": is_resume }))
@@ -112,14 +144,21 @@ pub async fn claim(params: Value, ctx: &AppContext) -> Result<Value> {
 pub async fn release(params: Value, ctx: &AppContext) -> Result<Value> {
     let task_id = sv(&params, "task_id").ok_or_else(|| anyhow::anyhow!("missing task_id"))?;
     let agent_id = sv(&params, "agent_id").ok_or_else(|| anyhow::anyhow!("missing agent_id"))?;
-    let task = ctx.task_storage.get_task(task_id).await?
+    let task = ctx
+        .task_storage
+        .get_task(task_id)
+        .await?
         .ok_or_else(|| anyhow::anyhow!("TASK_CODE:{}", TASK_NOT_FOUND))?;
 
     ctx.task_storage.release_task(task_id, agent_id).await?;
-    let _ = ctx.task_storage.set_agent_current_task(agent_id, None).await;
+    let _ = ctx
+        .task_storage
+        .set_agent_current_task(agent_id, None)
+        .await;
     let _ = queue_serializer::flush_queue(&ctx.task_storage, &task.repo_path).await;
 
-    ctx.broadcaster.broadcast("task.released", json!({ "task_id": task_id }));
+    ctx.broadcaster
+        .broadcast("task.released", json!({ "task_id": task_id }));
     Ok(json!({ "ok": true }))
 }
 
@@ -138,19 +177,32 @@ pub async fn update_status(params: Value, ctx: &AppContext) -> Result<Value> {
     let block_reason = sv(&params, "block_reason");
     let agent_id = sv(&params, "agent_id").unwrap_or("system");
 
-    let task = ctx.task_storage.update_status(task_id, new_status, notes, block_reason).await?;
+    let task = ctx
+        .task_storage
+        .update_status(task_id, new_status, notes, block_reason)
+        .await?;
 
-    let _ = ctx.task_storage.log_activity(
-        agent_id, Some(task_id), task.phase.as_deref(),
-        "status_transition", "system",
-        Some(&format!("→ {}", new_status)),
-        None, &task.repo_path,
-    ).await;
+    let _ = ctx
+        .task_storage
+        .log_activity(
+            agent_id,
+            Some(task_id),
+            task.phase.as_deref(),
+            "status_transition",
+            "system",
+            Some(&format!("→ {}", new_status)),
+            None,
+            &task.repo_path,
+        )
+        .await;
 
-    ctx.broadcaster.broadcast("task.statusChanged", json!({
-        "task_id": task_id,
-        "status": new_status,
-    }));
+    ctx.broadcaster.broadcast(
+        "task.statusChanged",
+        json!({
+            "task_id": task_id,
+            "status": new_status,
+        }),
+    );
 
     let _ = queue_serializer::flush_queue(&ctx.task_storage, &task.repo_path).await;
     Ok(json!({ "task": task }))
@@ -165,49 +217,68 @@ pub async fn add_task(params: Value, ctx: &AppContext) -> Result<Value> {
     let depends_str = params.get("depends_on").map(|v| v.to_string());
     let tags_str = params.get("tags").map(|v| v.to_string());
 
-    let task = ctx.task_storage.add_task(
-        id, title,
-        sv(&params, "type"),
-        sv(&params, "phase"),
-        sv(&params, "group"),
-        sv(&params, "parent_id"),
-        sv(&params, "severity"),
-        sv(&params, "file"),
-        files_str.as_deref(),
-        depends_str.as_deref(),
-        tags_str.as_deref(),
-        n(&params, "estimated_minutes"),
-        repo_path,
-    ).await?;
+    let task = ctx
+        .task_storage
+        .add_task(
+            id,
+            title,
+            sv(&params, "type"),
+            sv(&params, "phase"),
+            sv(&params, "group"),
+            sv(&params, "parent_id"),
+            sv(&params, "severity"),
+            sv(&params, "file"),
+            files_str.as_deref(),
+            depends_str.as_deref(),
+            tags_str.as_deref(),
+            n(&params, "estimated_minutes"),
+            repo_path,
+        )
+        .await?;
 
-    ctx.broadcaster.broadcast("task.created", json!({ "task_id": id }));
+    ctx.broadcaster
+        .broadcast("task.created", json!({ "task_id": id }));
     let _ = queue_serializer::flush_queue(&ctx.task_storage, repo_path).await;
     Ok(json!({ "task": task }))
 }
 
 pub async fn bulk_add(params: Value, ctx: &AppContext) -> Result<Value> {
-    let tasks_arr = params.get("tasks")
+    let tasks_arr = params
+        .get("tasks")
         .and_then(|v| v.as_array())
         .ok_or_else(|| anyhow::anyhow!("missing tasks array"))?
         .clone();
-    let repo_path = sv(&params, "repo_path").ok_or_else(|| anyhow::anyhow!("missing repo_path"))?.to_string();
+    let repo_path = sv(&params, "repo_path")
+        .ok_or_else(|| anyhow::anyhow!("missing repo_path"))?
+        .to_string();
 
     let mut created = 0usize;
     for t in &tasks_arr {
-        let id = t.get("id").and_then(|v| v.as_str()).ok_or_else(|| anyhow::anyhow!("task missing id"))?;
-        let title = t.get("title").and_then(|v| v.as_str()).ok_or_else(|| anyhow::anyhow!("task missing title"))?;
-        ctx.task_storage.add_task(
-            id, title,
-            t.get("type").and_then(|v| v.as_str()),
-            t.get("phase").and_then(|v| v.as_str()),
-            t.get("group").and_then(|v| v.as_str()),
-            t.get("parent_id").and_then(|v| v.as_str()),
-            t.get("severity").and_then(|v| v.as_str()),
-            t.get("file").and_then(|v| v.as_str()),
-            None, None, None,
-            t.get("estimated_minutes").and_then(|v| v.as_i64()),
-            &repo_path,
-        ).await?;
+        let id = t
+            .get("id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("task missing id"))?;
+        let title = t
+            .get("title")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("task missing title"))?;
+        ctx.task_storage
+            .add_task(
+                id,
+                title,
+                t.get("type").and_then(|v| v.as_str()),
+                t.get("phase").and_then(|v| v.as_str()),
+                t.get("group").and_then(|v| v.as_str()),
+                t.get("parent_id").and_then(|v| v.as_str()),
+                t.get("severity").and_then(|v| v.as_str()),
+                t.get("file").and_then(|v| v.as_str()),
+                None,
+                None,
+                None,
+                t.get("estimated_minutes").and_then(|v| v.as_i64()),
+                &repo_path,
+            )
+            .await?;
         created += 1;
     }
 
@@ -221,18 +292,22 @@ pub async fn log_activity(params: Value, ctx: &AppContext) -> Result<Value> {
     let repo_path = sv(&params, "repo_path").ok_or_else(|| anyhow::anyhow!("missing repo_path"))?;
     let meta_str = params.get("meta").map(|v| v.to_string());
 
-    let entry = ctx.task_storage.log_activity(
-        agent,
-        sv(&params, "task_id"),
-        sv(&params, "phase"),
-        action,
-        sv(&params, "entry_type").unwrap_or("auto"),
-        sv(&params, "detail"),
-        meta_str.as_deref(),
-        repo_path,
-    ).await?;
+    let entry = ctx
+        .task_storage
+        .log_activity(
+            agent,
+            sv(&params, "task_id"),
+            sv(&params, "phase"),
+            action,
+            sv(&params, "entry_type").unwrap_or("auto"),
+            sv(&params, "detail"),
+            meta_str.as_deref(),
+            repo_path,
+        )
+        .await?;
 
-    ctx.broadcaster.broadcast("task.activityLogged", serde_json::to_value(&entry)?);
+    ctx.broadcaster
+        .broadcast("task.activityLogged", serde_json::to_value(&entry)?);
     Ok(json!({ "ok": true, "id": entry.id }))
 }
 
@@ -242,21 +317,29 @@ pub async fn note(params: Value, ctx: &AppContext) -> Result<Value> {
     let repo_path = sv(&params, "repo_path").ok_or_else(|| anyhow::anyhow!("missing repo_path"))?;
     // Truncate at char boundary — slicing by byte length panics on multi-byte chars.
     let note_text: &str = if note_text.chars().count() > 2000 {
-        let byte_end = note_text.char_indices().nth(2000).map(|(i, _)| i).unwrap_or(note_text.len());
+        let byte_end = note_text
+            .char_indices()
+            .nth(2000)
+            .map(|(i, _)| i)
+            .unwrap_or(note_text.len());
         &note_text[..byte_end]
     } else {
         note_text
     };
 
-    let entry = ctx.task_storage.post_note(
-        agent,
-        sv(&params, "task_id"),
-        sv(&params, "phase"),
-        note_text,
-        repo_path,
-    ).await?;
+    let entry = ctx
+        .task_storage
+        .post_note(
+            agent,
+            sv(&params, "task_id"),
+            sv(&params, "phase"),
+            note_text,
+            repo_path,
+        )
+        .await?;
 
-    ctx.broadcaster.broadcast("task.activityLogged", serde_json::to_value(&entry)?);
+    ctx.broadcaster
+        .broadcast("task.activityLogged", serde_json::to_value(&entry)?);
     Ok(json!({ "ok": true, "id": entry.id }))
 }
 
@@ -284,10 +367,14 @@ pub async fn from_planning(params: Value, ctx: &AppContext) -> Result<Value> {
     // Validate that the path is absolute and within the repo directory.
     validate_planning_path(path, repo_path)?;
 
-    let content = tokio::fs::read_to_string(path).await
+    let content = tokio::fs::read_to_string(path)
+        .await
         .map_err(|e| anyhow::anyhow!("cannot read planning doc: {e}"))?;
     let parsed = markdown_parser::parse_active_md(&content);
-    let count = ctx.task_storage.backfill_from_tasks(parsed, repo_path).await?;
+    let count = ctx
+        .task_storage
+        .backfill_from_tasks(parsed, repo_path)
+        .await?;
     let _ = queue_serializer::flush_queue(&ctx.task_storage, repo_path).await;
 
     Ok(json!({ "imported": count }))
@@ -306,10 +393,13 @@ pub async fn export(params: Value, ctx: &AppContext) -> Result<Value> {
     let format = sv(&params, "format").unwrap_or("json");
     let repo_path = sv(&params, "repo_path");
 
-    let tasks = ctx.task_storage.list_tasks(&TaskListParams {
-        repo_path: repo_path.map(String::from),
-        ..Default::default()
-    }).await?;
+    let tasks = ctx
+        .task_storage
+        .list_tasks(&TaskListParams {
+            repo_path: repo_path.map(String::from),
+            ..Default::default()
+        })
+        .await?;
 
     match format {
         "csv" => {
@@ -353,20 +443,30 @@ pub async fn validate(params: Value, ctx: &AppContext) -> Result<Value> {
         }
         let candidate = root.join(".claude/tasks/active.md");
         let canonical_root = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
-        let canonical_candidate = std::fs::canonicalize(&candidate).unwrap_or_else(|_| candidate.clone());
+        let canonical_candidate =
+            std::fs::canonicalize(&candidate).unwrap_or_else(|_| candidate.clone());
         if !canonical_candidate.starts_with(&canonical_root) {
             anyhow::bail!("active.md path escapes repo root");
         }
     }
 
     let active_md_path = format!("{}/.claude/tasks/active.md", repo_path);
-    let content = tokio::fs::read_to_string(&active_md_path).await.unwrap_or_default();
+    let content = tokio::fs::read_to_string(&active_md_path)
+        .await
+        .unwrap_or_default();
     let md_tasks = markdown_parser::parse_active_md(&content);
 
-    let db_tasks = ctx.task_storage.list_tasks(&TaskListParams {
-        repo_path: if repo_path.is_empty() { None } else { Some(repo_path.to_string()) },
-        ..Default::default()
-    }).await?;
+    let db_tasks = ctx
+        .task_storage
+        .list_tasks(&TaskListParams {
+            repo_path: if repo_path.is_empty() {
+                None
+            } else {
+                Some(repo_path.to_string())
+            },
+            ..Default::default()
+        })
+        .await?;
 
     let md_ids: std::collections::HashSet<String> = md_tasks.iter().map(|t| t.id.clone()).collect();
     let db_ids: std::collections::HashSet<String> = db_tasks.iter().map(|t| t.id.clone()).collect();
@@ -374,14 +474,18 @@ pub async fn validate(params: Value, ctx: &AppContext) -> Result<Value> {
     let only_in_md: Vec<&String> = md_ids.difference(&db_ids).collect();
     let only_in_db: Vec<&String> = db_ids.difference(&md_ids).collect();
 
-    let mismatches: Vec<Value> = md_tasks.iter()
+    let mismatches: Vec<Value> = md_tasks
+        .iter()
         .filter_map(|md| {
             db_tasks.iter().find(|db| db.id == md.id).and_then(|db| {
                 if db.status != md.status {
                     Some(json!({ "id": md.id, "md": md.status, "db": db.status }))
-                } else { None }
+                } else {
+                    None
+                }
             })
-        }).collect();
+        })
+        .collect();
 
     Ok(json!({
         "only_in_markdown": only_in_md,
@@ -402,16 +506,22 @@ pub async fn sync(params: Value, ctx: &AppContext) -> Result<Value> {
         }
         let candidate = root.join(".claude/tasks/active.md");
         let canonical_root = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
-        let canonical_candidate = std::fs::canonicalize(&candidate).unwrap_or_else(|_| candidate.clone());
+        let canonical_candidate =
+            std::fs::canonicalize(&candidate).unwrap_or_else(|_| candidate.clone());
         if !canonical_candidate.starts_with(&canonical_root) {
             anyhow::bail!("active.md path escapes repo root");
         }
     }
 
     let active_md_path = format!("{}/.claude/tasks/active.md", repo_path);
-    let content = tokio::fs::read_to_string(&active_md_path).await.unwrap_or_default();
+    let content = tokio::fs::read_to_string(&active_md_path)
+        .await
+        .unwrap_or_default();
     let parsed = markdown_parser::parse_active_md(&content);
-    let count = ctx.task_storage.backfill_from_tasks(parsed, repo_path).await?;
+    let count = ctx
+        .task_storage
+        .backfill_from_tasks(parsed, repo_path)
+        .await?;
     let _ = queue_serializer::flush_queue(&ctx.task_storage, repo_path).await;
     Ok(json!({ "synced": count }))
 }
@@ -543,7 +653,8 @@ pub async fn create_from_spec(params: Value, ctx: &AppContext) -> Result<Value> 
 pub async fn transition(params: Value, ctx: &AppContext) -> Result<Value> {
     let task_id = sv(&params, "task_id").ok_or_else(|| anyhow::anyhow!("missing task_id"))?;
     validate_task_id(task_id)?;
-    let event_type = sv(&params, "event_type").ok_or_else(|| anyhow::anyhow!("missing event_type"))?;
+    let event_type =
+        sv(&params, "event_type").ok_or_else(|| anyhow::anyhow!("missing event_type"))?;
     let actor = sv(&params, "actor").unwrap_or("user");
 
     let kind = match event_type {
@@ -613,9 +724,7 @@ pub async fn transition(params: Value, ctx: &AppContext) -> Result<Value> {
 
     let engine = ReplayEngine::new(task_id, &ctx.config.data_dir)?;
     let current_state = engine.replay().await?;
-    let (new_state, _seq) = engine
-        .append_and_reduce(kind, actor, current_state)
-        .await?;
+    let (new_state, _seq) = engine.append_and_reduce(kind, actor, current_state).await?;
 
     ctx.broadcaster.broadcast(
         "task.stateChanged",
@@ -641,10 +750,7 @@ pub async fn transition(params: Value, ctx: &AppContext) -> Result<Value> {
 pub async fn list_events(params: Value, ctx: &AppContext) -> Result<Value> {
     let task_id = sv(&params, "task_id").ok_or_else(|| anyhow::anyhow!("missing task_id"))?;
     validate_task_id(task_id)?;
-    let from_seq = params
-        .get("from_seq")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0);
+    let from_seq = params.get("from_seq").and_then(|v| v.as_u64()).unwrap_or(0);
     let limit = params
         .get("limit")
         .and_then(|v| v.as_u64())

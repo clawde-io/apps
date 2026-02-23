@@ -3,25 +3,46 @@ use anyhow::Result;
 use serde_json::{json, Value};
 
 pub async fn register(params: Value, ctx: &AppContext) -> Result<Value> {
-    let agent_id = params.get("agent_id").and_then(|v| v.as_str())
+    let agent_id = params
+        .get("agent_id")
+        .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("missing agent_id"))?;
-    let agent_type = params.get("agent_type").and_then(|v| v.as_str()).unwrap_or("claude");
+    let agent_type = params
+        .get("agent_type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("claude");
     let session_id = params.get("session_id").and_then(|v| v.as_str());
-    let repo_path = params.get("repo_path").and_then(|v| v.as_str()).unwrap_or("");
+    let repo_path = params
+        .get("repo_path")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
 
-    let agent = ctx.task_storage.register_agent(agent_id, agent_type, session_id, repo_path).await?;
+    let agent = ctx
+        .task_storage
+        .register_agent(agent_id, agent_type, session_id, repo_path)
+        .await?;
 
-    let _ = ctx.task_storage.log_activity(
-        agent_id, None, None,
-        "session_start", "system",
-        Some("Agent registered"),
-        None, repo_path,
-    ).await;
+    let _ = ctx
+        .task_storage
+        .log_activity(
+            agent_id,
+            None,
+            None,
+            "session_start",
+            "system",
+            Some("Agent registered"),
+            None,
+            repo_path,
+        )
+        .await;
 
-    ctx.broadcaster.broadcast("agent.connected", json!({
-        "agent_id": agent_id,
-        "agent_type": agent_type,
-    }));
+    ctx.broadcaster.broadcast(
+        "agent.connected",
+        json!({
+            "agent_id": agent_id,
+            "agent_type": agent_type,
+        }),
+    );
 
     Ok(json!({ "agent": agent }))
 }
@@ -33,17 +54,22 @@ pub async fn list(params: Value, ctx: &AppContext) -> Result<Value> {
 }
 
 pub async fn heartbeat(params: Value, ctx: &AppContext) -> Result<Value> {
-    let agent_id = params.get("agent_id").and_then(|v| v.as_str())
+    let agent_id = params
+        .get("agent_id")
+        .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("missing agent_id"))?;
     ctx.task_storage.update_agent_heartbeat(agent_id).await?;
     Ok(json!({ "ok": true }))
 }
 
 pub async fn disconnect(params: Value, ctx: &AppContext) -> Result<Value> {
-    let agent_id = params.get("agent_id").and_then(|v| v.as_str())
+    let agent_id = params
+        .get("agent_id")
+        .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("missing agent_id"))?;
     ctx.task_storage.mark_agent_disconnected(agent_id).await?;
-    ctx.broadcaster.broadcast("agent.disconnected", json!({ "agent_id": agent_id }));
+    ctx.broadcaster
+        .broadcast("agent.disconnected", json!({ "agent_id": agent_id }));
     Ok(json!({ "ok": true }))
 }
 
@@ -139,12 +165,8 @@ pub async fn orchestrator_heartbeat(params: Value, ctx: &AppContext) -> Result<V
         .get("agent_id")
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("missing agent_id"))?;
-    let tokens_used = params
-        .get("tokens_used")
-        .and_then(|v| v.as_u64());
-    let cost_usd = params
-        .get("cost_usd")
-        .and_then(|v| v.as_f64());
+    let tokens_used = params.get("tokens_used").and_then(|v| v.as_u64());
+    let cost_usd = params.get("cost_usd").and_then(|v| v.as_f64());
 
     let ok = ctx
         .orchestrator

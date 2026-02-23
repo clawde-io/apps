@@ -124,7 +124,9 @@ async fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
         } else {
             tokio::fs::copy(&src_path, &dst_path)
                 .await
-                .with_context(|| format!("copy {} -> {}", src_path.display(), dst_path.display()))?;
+                .with_context(|| {
+                    format!("copy {} -> {}", src_path.display(), dst_path.display())
+                })?;
         }
     }
     Ok(())

@@ -12,12 +12,13 @@ const QUERY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
 /// Execute a future with the standard query timeout.
 /// Returns an error if the operation takes longer than `QUERY_TIMEOUT`.
-async fn with_timeout<T>(
-    fut: impl std::future::Future<Output = Result<T>>,
-) -> Result<T> {
+async fn with_timeout<T>(fut: impl std::future::Future<Output = Result<T>>) -> Result<T> {
     match tokio::time::timeout(QUERY_TIMEOUT, fut).await {
         Ok(result) => result,
-        Err(_) => Err(anyhow::anyhow!("database query timed out after {}s", QUERY_TIMEOUT.as_secs())),
+        Err(_) => Err(anyhow::anyhow!(
+            "database query timed out after {}s",
+            QUERY_TIMEOUT.as_secs()
+        )),
     }
 }
 
@@ -492,12 +493,13 @@ impl Storage {
         with_timeout(async {
             // Safe: `days` is u32 (max ~4.3 billion) and i64 can hold any u32 value without overflow.
             let cutoff = (chrono::Utc::now() - chrono::Duration::days(days as i64)).to_rfc3339();
-            let n =
-                sqlx::query("DELETE FROM sessions WHERE status IN ('idle','error') AND updated_at < ?")
-                    .bind(&cutoff)
-                    .execute(&self.pool)
-                    .await?
-                    .rows_affected();
+            let n = sqlx::query(
+                "DELETE FROM sessions WHERE status IN ('idle','error') AND updated_at < ?",
+            )
+            .bind(&cutoff)
+            .execute(&self.pool)
+            .await?
+            .rows_affected();
             Ok(n)
         })
         .await

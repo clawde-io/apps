@@ -126,7 +126,9 @@ fn normalize_path(path: &std::path::Path) -> std::path::PathBuf {
     let mut parts: Vec<std::ffi::OsString> = Vec::new();
     for component in path.components() {
         match component {
-            Component::ParentDir => { parts.pop(); }
+            Component::ParentDir => {
+                parts.pop();
+            }
             Component::CurDir => {}
             other => parts.push(other.as_os_str().to_os_string()),
         }

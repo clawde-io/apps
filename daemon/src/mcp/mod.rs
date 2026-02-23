@@ -34,26 +34,13 @@ pub mod transport;
 // ─── Flat re-exports ──────────────────────────────────────────────────────────
 
 pub use transport::{
-    McpCancelledNotification,
-    McpError,
-    McpMessage,
-    McpProgressNotification,
-    McpResponse,
-    McpTransport,
-    McpTransportHandler,
-    MCP_INTERNAL_ERROR,
-    MCP_INVALID_PARAMS,
-    MCP_INVALID_REQUEST,
-    MCP_METHOD_NOT_FOUND,
-    MCP_PARSE_ERROR,
-    MCP_PROVIDER_NOT_AVAILABLE,
-    handle_initialize,
-    handle_initialized,
-    handle_ping,
-    send_progress,
+    handle_initialize, handle_initialized, handle_ping, send_progress, McpCancelledNotification,
+    McpError, McpMessage, McpProgressNotification, McpResponse, McpTransport, McpTransportHandler,
+    MCP_INTERNAL_ERROR, MCP_INVALID_PARAMS, MCP_INVALID_REQUEST, MCP_METHOD_NOT_FOUND,
+    MCP_PARSE_ERROR, MCP_PROVIDER_NOT_AVAILABLE,
 };
 
-pub use tools::{McpToolDef, clawd_tools, handle_tools_list};
+pub use tools::{clawd_tools, handle_tools_list, McpToolDef};
 
 pub use dispatch::McpDispatcher;
 
@@ -61,4 +48,4 @@ pub use client::{McpClient, McpServerConfig, McpTrustLevel};
 
 pub use config::McpServersConfig;
 
-pub use capabilities::{ClawdCapabilities, negotiate};
+pub use capabilities::{negotiate, ClawdCapabilities};

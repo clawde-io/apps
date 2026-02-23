@@ -78,8 +78,10 @@ impl CodexRunner {
                 debug!(target: "codex_stderr", "{}", line);
                 // Detect rate-limit patterns: "rate limit", "too many requests", "429".
                 let lower = line.to_lowercase();
-                if lower.contains("rate limit") || lower.contains("rate_limit")
-                    || lower.contains("too many requests") || lower.contains("429")
+                if lower.contains("rate limit")
+                    || lower.contains("rate_limit")
+                    || lower.contains("too many requests")
+                    || lower.contains("429")
                 {
                     broadcaster_err.broadcast(
                         "session.statusChanged",

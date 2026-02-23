@@ -26,13 +26,14 @@ pub fn estimate_tokens(text: &str) -> u64 {
 ///
 /// Returns `(input_tokens, output_tokens)` where either may be `None` if the
 /// header is absent or cannot be parsed as an integer.
-pub fn parse_token_headers(
-    headers: &HashMap<String, String>,
-) -> (Option<u64>, Option<u64>) {
+pub fn parse_token_headers(headers: &HashMap<String, String>) -> (Option<u64>, Option<u64>) {
     // Helper: try several header name variants, case-insensitive keys assumed already lowered.
     let lookup = |keys: &[&str]| -> Option<u64> {
         for key in keys {
-            if let Some(v) = headers.get(*key).or_else(|| headers.get(&key.to_lowercase())) {
+            if let Some(v) = headers
+                .get(*key)
+                .or_else(|| headers.get(&key.to_lowercase()))
+            {
                 if let Ok(n) = v.parse::<u64>() {
                     return Some(n);
                 }
@@ -79,8 +80,14 @@ mod tests {
     #[test]
     fn parse_headers_claude_style() {
         let mut h = HashMap::new();
-        h.insert("x-request-usage-input-tokens".to_string(), "100".to_string());
-        h.insert("x-request-usage-output-tokens".to_string(), "200".to_string());
+        h.insert(
+            "x-request-usage-input-tokens".to_string(),
+            "100".to_string(),
+        );
+        h.insert(
+            "x-request-usage-output-tokens".to_string(),
+            "200".to_string(),
+        );
         let (i, o) = parse_token_headers(&h);
         assert_eq!(i, Some(100));
         assert_eq!(o, Some(200));

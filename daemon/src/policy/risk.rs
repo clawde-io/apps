@@ -52,12 +52,7 @@ impl RiskDatabase {
         }
 
         // ── Medium risk — state-mutating but reversible ───────────────────
-        for tool in &[
-            "run_tests",
-            "create_task",
-            "claim_task",
-            "transition_task",
-        ] {
+        for tool in &["run_tests", "create_task", "claim_task", "transition_task"] {
             rules.insert((*tool).to_string(), RiskLevel::Medium);
         }
 
@@ -118,10 +113,7 @@ impl RiskDatabase {
     /// Defaults to `Medium` when the tool is not in the database, so unknown
     /// tools require an active task before they can execute.
     pub fn get_risk(&self, tool: &str) -> RiskLevel {
-        self.rules
-            .get(tool)
-            .cloned()
-            .unwrap_or(RiskLevel::Medium)
+        self.rules.get(tool).cloned().unwrap_or(RiskLevel::Medium)
     }
 }
 

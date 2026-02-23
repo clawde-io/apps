@@ -119,7 +119,10 @@ mod tests {
     async fn test_validate_empty_dir() {
         let dir = TempDir::new().unwrap();
         let missing = validate_claw_dir(dir.path()).await;
-        assert!(!missing.is_empty(), "should report missing items in empty dir");
+        assert!(
+            !missing.is_empty(),
+            "should report missing items in empty dir"
+        );
     }
 
     #[tokio::test]
@@ -127,6 +130,10 @@ mod tests {
         let dir = TempDir::new().unwrap();
         init_claw_dir(dir.path()).await.unwrap();
         let missing = validate_claw_dir(dir.path()).await;
-        assert!(missing.is_empty(), "no missing items after init: {:?}", missing);
+        assert!(
+            missing.is_empty(),
+            "no missing items after init: {:?}",
+            missing
+        );
     }
 }

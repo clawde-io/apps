@@ -74,11 +74,7 @@ impl SessionSnapshotStore {
     /// Retrieve the latest snapshot for a `(thread_id, vendor)` pair.
     ///
     /// Returns `None` if no snapshot has been saved yet.
-    pub async fn get_latest(
-        &self,
-        thread_id: &str,
-        vendor: &str,
-    ) -> Option<SessionSnapshot> {
+    pub async fn get_latest(&self, thread_id: &str, vendor: &str) -> Option<SessionSnapshot> {
         let map = self.inner.read().await;
         map.get(&(thread_id.to_string(), vendor.to_string()))
             .cloned()

@@ -89,11 +89,7 @@ impl ReplayEngine {
 
                     // Auto-checkpoint if thresholds met
                     if CheckpointManager::should_checkpoint(events_since_last_checkpoint, event) {
-                        if let Err(e) = self
-                            .checkpoint_mgr
-                            .save(&new_state, event.seq)
-                            .await
-                        {
+                        if let Err(e) = self.checkpoint_mgr.save(&new_state, event.seq).await {
                             tracing::warn!(err = %e, "failed to save auto-checkpoint during replay");
                         } else {
                             events_since_last_checkpoint = 0;
@@ -202,10 +198,7 @@ impl ReplayEngine {
     /// - If state is `Blocked` with `retry_after` in the future: still blocked.
     ///
     /// Returns the materialized state so the caller decides what action to take.
-    pub async fn recover_agent_crash(
-        task_id: &str,
-        data_dir: &Path,
-    ) -> Result<MaterializedTask> {
+    pub async fn recover_agent_crash(task_id: &str, data_dir: &Path) -> Result<MaterializedTask> {
         let engine = Self::new(task_id, data_dir)?;
         let state = engine.replay().await?;
 
