@@ -136,6 +136,7 @@ async fn test_method_not_found() {
 }
 
 #[tokio::test]
+#[ignore = "requires claude CLI installed locally (not available in CI)"]
 async fn test_session_create_list_get_delete() {
     let (url, _ctx) = start_test_daemon().await;
     let tmp_repo = tempfile::tempdir().unwrap();
@@ -208,6 +209,7 @@ async fn test_repo_not_a_git_repo() {
 }
 
 #[tokio::test]
+#[ignore = "requires claude CLI installed locally (not available in CI)"]
 async fn test_get_messages_empty() {
     let (url, _ctx) = start_test_daemon().await;
     let tmp_repo = tempfile::tempdir().unwrap();
