@@ -3,10 +3,13 @@
 //! `codex mcp-server` spawns a stdio MCP server.  This module wraps the
 //! existing `McpClient` to provide a typed, Codex-specific façade.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use std::collections::HashMap;
 
 use crate::mcp::client::{McpClient, McpServerConfig, McpTrustLevel};
+
+/// Timeout for the MCP server initialization handshake.
+const MCP_INIT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
 // ─── CodexMcpServer ───────────────────────────────────────────────────────────
 
@@ -19,6 +22,8 @@ pub struct CodexMcpServer {
 impl CodexMcpServer {
     /// Spawn `codex mcp-server` as a child process and perform the MCP
     /// `initialize` handshake.
+    ///
+    /// Fails with an error if the handshake does not complete within 10 seconds.
     pub async fn spawn() -> Result<Self> {
         let config = McpServerConfig {
             name: "codex".to_string(),
@@ -28,7 +33,10 @@ impl CodexMcpServer {
             // Codex is a first-party provider; trust its responses.
             trust: McpTrustLevel::Trusted,
         };
-        let client = McpClient::spawn(config).await?;
+        let client = tokio::time::timeout(MCP_INIT_TIMEOUT, McpClient::spawn(config))
+            .await
+            .context("MCP server initialization timed out after 10 seconds")?
+            .context("MCP server spawn failed")?;
         Ok(Self {
             client,
             server_name: "codex".to_string(),

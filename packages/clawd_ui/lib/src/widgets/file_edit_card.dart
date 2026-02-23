@@ -30,7 +30,8 @@ class FileEditCard extends StatefulWidget {
   /// Number of lines removed (shown in red).
   final int linesRemoved;
 
-  /// Raw unified diff content to show when expanded. If null, diff is hidden.
+  /// Raw unified diff content to show when expanded. If null or empty, diff
+  /// preview is hidden and a placeholder is shown instead.
   final String? diffContent;
 
   /// Whether the diff is expanded by default.
@@ -83,6 +84,11 @@ class _FileEditCardState extends State<FileEditCard> {
     return parts.sublist(0, parts.length - 1).join('/');
   }
 
+  // M16: A diff is considered "present" only when the content is non-null
+  // and non-empty. Empty diff strings produce a misleading blank preview.
+  bool get _hasDiff =>
+      widget.diffContent != null && widget.diffContent!.isNotEmpty;
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -97,7 +103,7 @@ class _FileEditCardState extends State<FileEditCard> {
         children: [
           // ── Header row ────────────────────────────────────────────────────
           InkWell(
-            onTap: widget.diffContent != null
+            onTap: _hasDiff
                 ? () => setState(() => _expanded = !_expanded)
                 : null,
             borderRadius: BorderRadius.circular(8),
@@ -154,7 +160,7 @@ class _FileEditCardState extends State<FileEditCard> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                  if (widget.onOpenFullDiff != null && widget.diffContent != null) ...[
+                  if (widget.onOpenFullDiff != null && _hasDiff) ...[
                     const SizedBox(width: 4),
                     InkWell(
                       onTap: widget.onOpenFullDiff,
@@ -172,7 +178,7 @@ class _FileEditCardState extends State<FileEditCard> {
                       ),
                     ),
                   ],
-                  if (widget.diffContent != null) ...[
+                  if (_hasDiff) ...[
                     const SizedBox(width: 4),
                     Icon(
                       _expanded
@@ -187,7 +193,7 @@ class _FileEditCardState extends State<FileEditCard> {
             ),
           ),
           // ── Diff preview ──────────────────────────────────────────────────
-          if (_expanded && widget.diffContent != null)
+          if (_expanded && _hasDiff)
             Container(
               decoration: const BoxDecoration(
                 border: Border(
@@ -210,6 +216,19 @@ class _DiffView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // M16: Guard against empty diff content — show a placeholder rather than
+    // rendering a blank area. Callers should use _hasDiff before constructing
+    // this widget, but this provides a safe fallback.
+    if (diff.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Text(
+          'No diff content available.',
+          style: TextStyle(fontSize: 11, color: Colors.white38),
+        ),
+      );
+    }
+
     final lines = diff.split('\n');
     return Container(
       constraints: const BoxConstraints(maxHeight: 300),

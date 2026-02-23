@@ -103,13 +103,13 @@ impl RateLimitTracker {
             .entry(account_id.to_string())
             .or_insert_with(Self::make_windows);
         rpm.record_event(now);
-        // Record one token-event per token (simplification: record `tokens` as a single
-        // weight event is tracked via the per-minute counter in `accounts.rs`).
-        // Here we keep it simple: one TPM event carries a weight, but SlidingWindow
-        // counts events, so we approximate by recording once and tracking tokens
-        // via the accounts module. For TPM we record a single event to mark the call.
-        let _ = tokens; // Weight tracked separately in AccountPool.
-        tpm.record_event(now);
+        // Record one TPM event per token so that SlidingWindow.count_in_window()
+        // correctly reflects cumulative token usage against DEFAULT_TPM_MAX.
+        // Capped at DEFAULT_TPM_MAX to bound memory in pathological cases.
+        let capped = tokens.min(DEFAULT_TPM_MAX);
+        for _ in 0..capped {
+            tpm.record_event(now);
+        }
     }
 
     /// Returns `true` if the account is currently rate-limited (RPM or TPM).

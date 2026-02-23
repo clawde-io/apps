@@ -10,13 +10,20 @@ import 'package:clawde/services/tray_service.dart';
 import 'package:clawde/features/command_palette/command_palette.dart';
 import 'package:clawde/features/chat/widgets/new_session_dialog.dart';
 
-class ClawDEApp extends ConsumerWidget {
+class ClawDEApp extends ConsumerStatefulWidget {
   const ClawDEApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // Wire daemon state changes to the system tray icon.
-    ref.listen<DaemonState>(daemonProvider, (_, next) {
+  ConsumerState<ClawDEApp> createState() => _ClawDEAppState();
+}
+
+class _ClawDEAppState extends ConsumerState<ClawDEApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Wire daemon state changes to the system tray icon. Registered once in
+    // initState so the listener is never duplicated on rebuild.
+    ref.listenManual<DaemonState>(daemonProvider, (_, next) {
       final trayState = switch (next.status) {
         DaemonStatus.connected => TrayIconState.connected,
         DaemonStatus.error => TrayIconState.error,
@@ -24,7 +31,10 @@ class ClawDEApp extends ConsumerWidget {
       };
       TrayService.instance.setState(trayState);
     });
+  }
 
+  @override
+  Widget build(BuildContext context) {
     return MaterialApp.router(
       title: 'ClawDE',
       theme: AppTheme.dark(),

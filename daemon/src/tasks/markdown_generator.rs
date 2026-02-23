@@ -7,7 +7,7 @@
 //!   - Never removes existing rows (deferred tasks stay with 🚫)
 
 use super::storage::AgentTaskRow;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 pub fn status_to_symbol(status: &str) -> &'static str {
     match status {
@@ -25,6 +25,8 @@ pub fn status_to_symbol(status: &str) -> &'static str {
 
 /// Given the original active.md content and current DB tasks,
 /// returns updated active.md content with only status symbols changed.
+/// Tasks in the DB that are absent from the markdown are appended at the
+/// bottom so they are never silently lost (M1 fix).
 pub fn regenerate(original: &str, db_tasks: &[AgentTaskRow]) -> String {
     // Build lookup: task_id -> current status
     let status_map: HashMap<&str, &str> = db_tasks
@@ -33,6 +35,7 @@ pub fn regenerate(original: &str, db_tasks: &[AgentTaskRow]) -> String {
         .collect();
 
     let mut output_lines: Vec<String> = Vec::new();
+    let mut seen_ids: HashSet<&str> = HashSet::new();
 
     for line in original.lines() {
         let trimmed = line.trim();
@@ -57,6 +60,7 @@ pub fn regenerate(original: &str, db_tasks: &[AgentTaskRow]) -> String {
 
                 if is_task_row {
                     if let Some(&new_status) = status_map.get(id_raw) {
+                        seen_ids.insert(id_raw);
                         let new_symbol = status_to_symbol(new_status);
                         // Replace the last column (status symbol) only
                         let updated = replace_last_table_col(trimmed, new_symbol);
@@ -68,6 +72,30 @@ pub fn regenerate(original: &str, db_tasks: &[AgentTaskRow]) -> String {
         }
 
         output_lines.push(line.to_string());
+    }
+
+    // Append tasks that exist in the DB but were not found in the markdown.
+    // This prevents silently dropping tasks created programmatically via RPC.
+    let new_tasks: Vec<&AgentTaskRow> = db_tasks
+        .iter()
+        .filter(|t| !seen_ids.contains(t.id.as_str()))
+        .collect();
+
+    if !new_tasks.is_empty() {
+        output_lines.push(String::new());
+        output_lines.push("## New Tasks (auto-added from database)".to_string());
+        output_lines.push(String::new());
+        output_lines.push("| ID | Severity | Title | File | Status |".to_string());
+        output_lines.push("|---|---|---|---|---|".to_string());
+        for task in new_tasks {
+            let sym = status_to_symbol(&task.status);
+            let severity = task.severity.as_deref().unwrap_or("-");
+            let file = task.file.as_deref().unwrap_or("-");
+            output_lines.push(format!(
+                "| {} | {} | {} | {} | {} |",
+                task.id, severity, task.title, file, sym
+            ));
+        }
     }
 
     let mut result = output_lines.join("\n");
@@ -95,6 +123,36 @@ fn replace_last_table_col(row: &str, new_value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn make_task(id: &str, status: &str) -> AgentTaskRow {
+        AgentTaskRow {
+            id: id.into(),
+            status: status.into(),
+            title: "Test task".into(),
+            task_type: None,
+            phase: None,
+            group: None,
+            parent_id: None,
+            severity: Some("medium".into()),
+            claimed_by: None,
+            claimed_at: None,
+            started_at: None,
+            completed_at: None,
+            last_heartbeat: None,
+            file: None,
+            files: None,
+            depends_on: None,
+            blocks: None,
+            tags: None,
+            notes: None,
+            block_reason: None,
+            estimated_minutes: None,
+            actual_minutes: None,
+            repo_path: "/tmp".into(),
+            created_at: 0,
+            updated_at: 0,
+        }
+    }
 
     #[test]
     fn replaces_status_symbol() {
@@ -129,5 +187,21 @@ mod tests {
         let result = regenerate(original, &[task]);
         assert!(result.contains("✅"), "Expected ✅ in: {result}");
         assert!(!result.contains("🔲"), "Should not have 🔲 in: {result}");
+    }
+
+    #[test]
+    fn appends_db_tasks_not_in_markdown() {
+        let original = "| FP-C1 | CRITICAL | Fix something | file.dart | 🔲 |\n";
+        let in_markdown = make_task("FP-C1", "done");
+        let db_only = make_task("FP-C2", "pending");
+        let result = regenerate(original, &[in_markdown, db_only]);
+        assert!(
+            result.contains("FP-C2"),
+            "DB-only task should appear in output: {result}"
+        );
+        assert!(
+            result.contains("New Tasks"),
+            "Should have auto-added section: {result}"
+        );
     }
 }

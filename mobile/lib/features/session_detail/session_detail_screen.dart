@@ -29,6 +29,17 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+
+    // ME-05: react to new messages and auto-scroll.
+    // Called in initState so the listener is registered only once, not on
+    // every rebuild.
+    ref.listen(messageListProvider(widget.sessionId), (prev, next) {
+      final prevCount = prev?.valueOrNull?.length ?? 0;
+      final nextCount = next.valueOrNull?.length ?? 0;
+      if (nextCount > prevCount) {
+        _scrollToBottom();
+      }
+    });
   }
 
   @override
@@ -79,15 +90,6 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final session = _findSession();
-
-    // ME-05: react to new messages and auto-scroll
-    ref.listen(messageListProvider(widget.sessionId), (prev, next) {
-      final prevCount = prev?.valueOrNull?.length ?? 0;
-      final nextCount = next.valueOrNull?.length ?? 0;
-      if (nextCount > prevCount) {
-        _scrollToBottom();
-      }
-    });
 
     final messagesAsync = ref.watch(messageListProvider(widget.sessionId));
     final toolCallsAsync = ref.watch(toolCallProvider(widget.sessionId));
@@ -300,9 +302,10 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
   /// Extract file edit information from message metadata.
   List<_FileEditInfo> _extractFileEdits(Message msg) {
     final edits = <_FileEditInfo>[];
-    final files = msg.metadata['files'] as List<dynamic>?;
-    if (files == null) return edits;
-    for (final f in files) {
+    final rawFiles = msg.metadata['files'];
+    // M13: Guard against unexpected types before casting.
+    if (rawFiles is! List<dynamic>) return edits;
+    for (final f in rawFiles) {
       if (f is Map<String, dynamic>) {
         edits.add(_FileEditInfo(
           filePath: f['path'] as String? ?? '',

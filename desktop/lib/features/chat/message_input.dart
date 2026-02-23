@@ -102,6 +102,11 @@ class _MentionMessageInputState extends ConsumerState<MentionMessageInput> {
   }
 
   void _showOverlay() {
+    // M11: Guard against inserting into the overlay after the widget has been
+    // disposed. The TextEditingController listener (_onTextChanged) can fire
+    // after dispose() completes (before removeListener takes effect), so an
+    // explicit mounted check is needed here.
+    if (!mounted) return;
     _removeOverlay();
     _overlayEntry = OverlayEntry(builder: (_) => _buildOverlay());
     Overlay.of(context).insert(_overlayEntry!);

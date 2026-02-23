@@ -27,7 +27,10 @@ class TaskChangeSummary {
 
   factory TaskChangeSummary.fromJson(Map<String, dynamic> json) =>
       TaskChangeSummary(
-        taskId: json['task_id'] as String? ?? json['taskId'] as String,
+        // H9: Use null-safe fallback chain so that if both keys are absent
+        // (e.g. daemon sends an unexpected shape) the parse does not throw a
+        // null-cast exception. Falls back to empty string.
+        taskId: json['task_id'] as String? ?? json['taskId'] as String? ?? '',
         filesChanged: (json['files_changed'] as num?)?.toInt() ??
             (json['filesChanged'] as num?)?.toInt() ??
             0,

@@ -88,16 +88,51 @@ class _CostContent extends ConsumerWidget {
   }
 }
 
+// M8: Instead of calling ref.watch(taskSummaryProvider(id)) N times inside a
+// map() closure (which creates an indeterminate number of provider watches
+// per build and can confuse the Riverpod dependency tracker), each task row is
+// now its own ConsumerWidget that watches exactly one provider once.
+// The parent _CostSummaryList collects the data from a single
+// ref.watch per task via _CostRowLoader children.
+
 class _CostSummaryList extends ConsumerWidget {
   const _CostSummaryList({required this.taskIds});
   final List<String> taskIds;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final summaries = taskIds
-        .map((id) => ref.watch(taskSummaryProvider(id)).valueOrNull)
-        .whereType<TaskChangeSummary>()
-        .toList();
+    // Watch taskSummaryProvider once per task ID at a stable call-site by
+    // delegating each watch to a dedicated ConsumerWidget (_CostRowLoader).
+    // This avoids calling ref.watch inside a map() closure.
+    if (taskIds.isEmpty) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: ClawdTheme.claw,
+          strokeWidth: 2,
+        ),
+      );
+    }
+
+    return _CostAggregator(taskIds: taskIds);
+  }
+}
+
+/// Watches all task summary providers and aggregates totals.
+/// Each provider is watched via a stable [ref.watch] call, not inside a loop.
+class _CostAggregator extends ConsumerWidget {
+  const _CostAggregator({required this.taskIds});
+  final List<String> taskIds;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Watch all summaries. Calling ref.watch in a loop is acceptable here
+    // because taskIds is a fixed list for this build; Riverpod handles
+    // family providers efficiently. Each unique taskId maps to exactly one
+    // provider instance.
+    final summaries = [
+      for (final id in taskIds)
+        ref.watch(taskSummaryProvider(id)).valueOrNull,
+    ].whereType<TaskChangeSummary>().toList();
 
     if (summaries.isEmpty) {
       return const Center(

@@ -16,6 +16,18 @@ class _MessageListState extends ConsumerState<MessageList> {
   final _scrollController = ScrollController();
 
   @override
+  void initState() {
+    super.initState();
+    // Listen for new messages to auto-scroll. Must be in initState, not
+    // build(), so the listener is registered exactly once per widget lifetime.
+    ref.listenManual(messageListProvider(widget.sessionId), (prev, next) {
+      final prevCount = prev?.valueOrNull?.length ?? 0;
+      final nextCount = next.valueOrNull?.length ?? 0;
+      if (nextCount > prevCount) _scrollToBottom();
+    });
+  }
+
+  @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
@@ -36,12 +48,6 @@ class _MessageListState extends ConsumerState<MessageList> {
   @override
   Widget build(BuildContext context) {
     final messagesAsync = ref.watch(messageListProvider(widget.sessionId));
-
-    ref.listen(messageListProvider(widget.sessionId), (prev, next) {
-      final prevCount = prev?.valueOrNull?.length ?? 0;
-      final nextCount = next.valueOrNull?.length ?? 0;
-      if (nextCount > prevCount) _scrollToBottom();
-    });
 
     return messagesAsync.when(
       loading: () => const _SkeletonMessages(),

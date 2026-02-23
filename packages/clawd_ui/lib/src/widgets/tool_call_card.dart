@@ -125,7 +125,7 @@ class _StatusChip extends StatelessWidget {
   (String, Color) get _label => switch (status) {
         ToolCallStatus.pending => ('Pending', ClawdTheme.warning),
         ToolCallStatus.running => ('Running', ClawdTheme.info),
-        ToolCallStatus.completed || ToolCallStatus.done => ('Done', ClawdTheme.success),
+        ToolCallStatus.completed => ('Done', ClawdTheme.success),
         ToolCallStatus.error => ('Error', ClawdTheme.error),
       };
 

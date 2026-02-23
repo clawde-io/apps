@@ -138,8 +138,15 @@ impl McpClient {
             next_id: AtomicU64::new(1),
         };
 
-        // MCP initialize handshake.
-        client.initialize().await?;
+        // MCP initialize handshake — 10 s timeout to guard against servers that never respond.
+        tokio::time::timeout(std::time::Duration::from_secs(10), client.initialize())
+            .await
+            .unwrap_or_else(|_| {
+                Err(anyhow::anyhow!(
+                    "MCP server '{}' did not complete initialize within 10 s",
+                    client.config.name
+                ))
+            })?;
 
         Ok(client)
     }

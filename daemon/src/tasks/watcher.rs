@@ -1,7 +1,7 @@
 //! AfsWatcher — watches `.claude/` directories for human edits and file system events.
 //! Uses the `notify` crate (already in Cargo.toml) with 200ms debounce.
 
-use super::{markdown_parser, queue_serializer, storage::TaskStorage};
+use super::{markdown_generator, markdown_parser, queue_serializer, storage::TaskStorage};
 use crate::ipc::event::EventBroadcaster;
 use anyhow::Result;
 // Use notify through notify_debouncer_full to avoid version conflicts
@@ -252,6 +252,24 @@ async fn handle_afs_event(
 
             // Regenerate queue.json
             queue_serializer::flush_queue(storage, &repo_path).await?;
+
+            // Regenerate active.md from DB to sync status symbols back to the file.
+            // Re-read DB tasks and write the updated markdown to avoid stale symbols.
+            let db_tasks = storage.list_tasks(&super::storage::TaskListParams {
+                repo_path: Some(repo_path.clone()),
+                ..Default::default()
+            }).await?;
+            let updated_md = markdown_generator::regenerate(&content, &db_tasks);
+            if updated_md != content {
+                // Update hash so the watcher ignores the write-back we're about to do.
+                let updated_hash = content_hash(&updated_md);
+                {
+                    let mut h = hashes.lock().await;
+                    h.insert(project_root.to_path_buf(), updated_hash);
+                }
+                tokio::fs::write(&active_md_path, &updated_md).await?;
+                debug!("AFS: wrote updated status symbols back to active.md");
+            }
 
             broadcaster.broadcast(
                 "afs.activeMdSynced",

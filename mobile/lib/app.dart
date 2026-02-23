@@ -91,46 +91,9 @@ class _MobileShellState extends ConsumerState<_MobileShell> {
       _router.go('/session/$sessionId');
       _persistLastSession(sessionId);
     };
-  }
-
-  /// FA-C2: Restore the previously active daemon host on cold start.
-  /// Reads the persisted host ID, finds the host, and reconnects to it.
-  Future<void> _restoreActiveHost() async {
-    final hostId = await ref.read(persistedActiveHostProvider.future);
-    if (hostId == null || !mounted) return;
-    final hosts = await ref.read(hostListProvider.future);
-    final host = hosts.where((h) => h.id == hostId).firstOrNull;
-    if (host != null && mounted) {
-      ref.read(activeHostIdProvider.notifier).state = host.id;
-      await ref.read(settingsProvider.notifier).setDaemonUrl(host.url);
-    }
-  }
-
-  /// SH-05: Navigate to the last active session on app restart.
-  Future<void> _restoreLastSession() async {
-    final prefs = await SharedPreferences.getInstance();
-    final id = prefs.getString(_kLastSessionKey);
-    if (id != null && mounted) {
-      _router.go('/session/$id');
-    }
-  }
-
-  /// SH-05: Save the active session ID so it can be restored on next launch.
-  Future<void> _persistLastSession(String sessionId) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kLastSessionKey, sessionId);
-  }
-
-  String? _sessionName(String sessionId) {
-    final sessions = ref.read(sessionListProvider).valueOrNull;
-    final session = sessions?.where((s) => s.id == sessionId).firstOrNull;
-    return session?.repoPath.split('/').last;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // React to daemon push events.
-    ref.listen(daemonPushEventsProvider, (_, next) {
+    // React to daemon push events. Registered once in initState so the
+    // listener is not re-subscribed on every rebuild.
+    ref.listenManual(daemonPushEventsProvider, (_, next) {
       next.whenData((event) {
         final method = event['method'] as String?;
         final params = event['params'] as Map?;
@@ -172,7 +135,44 @@ class _MobileShellState extends ConsumerState<_MobileShell> {
         }
       });
     });
+  }
 
+  /// FA-C2: Restore the previously active daemon host on cold start.
+  /// Reads the persisted host ID, finds the host, and reconnects to it.
+  Future<void> _restoreActiveHost() async {
+    final hostId = await ref.read(persistedActiveHostProvider.future);
+    if (hostId == null || !mounted) return;
+    final hosts = await ref.read(hostListProvider.future);
+    final host = hosts.where((h) => h.id == hostId).firstOrNull;
+    if (host != null && mounted) {
+      ref.read(activeHostIdProvider.notifier).state = host.id;
+      await ref.read(settingsProvider.notifier).setDaemonUrl(host.url);
+    }
+  }
+
+  /// SH-05: Navigate to the last active session on app restart.
+  Future<void> _restoreLastSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    final id = prefs.getString(_kLastSessionKey);
+    if (id != null && mounted) {
+      _router.go('/session/$id');
+    }
+  }
+
+  /// SH-05: Save the active session ID so it can be restored on next launch.
+  Future<void> _persistLastSession(String sessionId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kLastSessionKey, sessionId);
+  }
+
+  String? _sessionName(String sessionId) {
+    final sessions = ref.read(sessionListProvider).valueOrNull;
+    final session = sessions?.where((s) => s.id == sessionId).firstOrNull;
+    return session?.repoPath.split('/').last;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     // MN-05: total pending tool calls for badge on Sessions tab.
     final sessions = ref.watch(sessionListProvider).valueOrNull ?? [];
     final totalPending = sessions.fold<int>(

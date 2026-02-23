@@ -118,22 +118,20 @@ class WorktreeStatusWidget extends ConsumerWidget {
               Row(
                 children: [
                   if (status.pendingMerge)
+                    // Disabled until worktrees.merge/abandon RPCs are implemented
                     _ActionButton(
                       label: 'Merge',
                       icon: Icons.merge,
                       color: Colors.green,
-                      onTap: () {
-                        // TODO(43l): wire to worktrees.merge RPC
-                      },
+                      onTap: null,
                     ),
                   if (status.pendingMerge) const SizedBox(width: 8),
+                  // Disabled until worktrees.merge/abandon RPCs are implemented
                   _ActionButton(
                     label: 'Abandon',
                     icon: Icons.delete_outline,
                     color: Colors.red,
-                    onTap: () {
-                      // TODO(43l): wire to worktrees.abandon RPC
-                    },
+                    onTap: null,
                   ),
                 ],
               ),
@@ -222,31 +220,35 @@ class _ActionButton extends StatelessWidget {
   final String label;
   final IconData icon;
   final Color color;
-  final VoidCallback onTap;
+  // M10: onTap is nullable — null disables the button.
+  // Disabled until worktrees.merge/abandon RPCs are implemented.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final isDisabled = onTap == null;
+    final effectiveColor = isDisabled ? color.withValues(alpha: 0.3) : color;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(6),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
+          color: effectiveColor.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
+          border: Border.all(color: effectiveColor.withValues(alpha: 0.3)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 12, color: color),
+            Icon(icon, size: 12, color: effectiveColor),
             const SizedBox(width: 4),
             Text(
               label,
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: color,
+                color: effectiveColor,
               ),
             ),
           ],

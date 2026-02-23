@@ -8,24 +8,34 @@ import 'package:clawde/features/chat/widgets/message_list.dart';
 import 'package:clawde/features/chat/widgets/desktop_message_input.dart';
 import 'package:clawde/features/chat/widgets/tool_call_panel.dart';
 
-class ChatContent extends ConsumerWidget {
+class ChatContent extends ConsumerStatefulWidget {
   const ChatContent({super.key});
 
+  @override
+  ConsumerState<ChatContent> createState() => _ChatContentState();
+}
+
+class _ChatContentState extends ConsumerState<ChatContent> {
   String _repoName(String path) {
     final parts = path.replaceAll(r'\', '/').split('/');
     return parts.where((p) => p.isNotEmpty).lastOrNull ?? path;
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final session = ref.watch(activeSessionProvider);
-
-    // Update window title when active session changes (DP-03).
-    ref.listen(activeSessionProvider, (_, next) {
+  void initState() {
+    super.initState();
+    // Update window title when active session changes (DP-03). Registered
+    // once in initState — never in build() — to avoid multiple subscriptions.
+    ref.listenManual(activeSessionProvider, (_, next) {
       final title =
           next != null ? 'ClawDE — ${_repoName(next.repoPath)}' : 'ClawDE';
       windowManager.setTitle(title);
     });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final session = ref.watch(activeSessionProvider);
 
     if (session == null) {
       return const EmptyState(

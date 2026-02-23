@@ -33,17 +33,7 @@ impl Orchestrator {
         worktree_path: Option<String>,
         previous_provider: Option<Provider>,
     ) -> Result<String, OrchestratorError> {
-        {
-            let registry = self.registry.read().await;
-            let current_count = registry.count_by_role(&role);
-            if current_count >= role.max_concurrent() {
-                return Err(OrchestratorError::ConcurrencyCapReached {
-                    role: role.as_str().to_string(),
-                    limit: role.max_concurrent(),
-                });
-            }
-        }
-
+        // Compute routing before acquiring the write lock (no shared state needed).
         let providers = vec![Provider::Claude, Provider::Codex];
         let decision =
             route_agent(&role, complexity, previous_provider.as_ref(), &providers);
@@ -56,7 +46,7 @@ impl Orchestrator {
 
         let record = AgentRecord {
             agent_id: agent_id.clone(),
-            role,
+            role: role.clone(),
             task_id: task_id.to_string(),
             provider: decision.provider,
             model: decision.model,
@@ -70,7 +60,18 @@ impl Orchestrator {
             error: None,
         };
 
-        self.registry.write().await.register(record);
+        // Hold the write lock for the entire check-then-register sequence to
+        // prevent a TOCTOU race where two concurrent spawns both pass the cap
+        // check on separate read locks and then both register.
+        let mut registry = self.registry.write().await;
+        let current_count = registry.count_by_role(&role);
+        if current_count >= role.max_concurrent() {
+            return Err(OrchestratorError::ConcurrencyCapReached {
+                role: role.as_str().to_string(),
+                limit: role.max_concurrent(),
+            });
+        }
+        registry.register(record);
         Ok(agent_id)
     }
 

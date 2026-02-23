@@ -107,13 +107,16 @@ pub fn check_tool_allowed(
 
 /// Returns `true` if `target` is under `worktree` (inclusive).
 ///
-/// Uses component-level path comparison (not string prefix matching) to
-/// prevent traversal attacks such as `/worktree/../secret` or
+/// Canonicalizes both paths first (resolving symlinks and `..` components) to
+/// prevent traversal attacks via symlinks, `/worktree/../secret`, or
 /// `/worktree_extra/file` falsely matching `/worktree`.
+/// Falls back to lexical normalization if the filesystem path does not exist.
 fn is_within_worktree(target: &str, worktree: &str) -> bool {
-    let base = normalize_path(std::path::Path::new(worktree));
-    let t = normalize_path(std::path::Path::new(target));
-    t.starts_with(&base)
+    let wt = std::path::Path::new(worktree);
+    let t = std::path::Path::new(target);
+    let base = wt.canonicalize().unwrap_or_else(|_| normalize_path(wt));
+    let resolved = t.canonicalize().unwrap_or_else(|_| normalize_path(t));
+    resolved.starts_with(&base)
 }
 
 /// Normalize a path by resolving `.` and `..` components without filesystem

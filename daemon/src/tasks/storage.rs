@@ -185,10 +185,12 @@ impl TaskStorage {
         }
         if let Some(ref tag) = params.tag {
             rows.retain(|r| {
-                r.tags
-                    .as_deref()
-                    .unwrap_or("[]")
-                    .contains(tag.as_str())
+                // Parse the JSON array to avoid substring false-positives (e.g.
+                // tag "foo" matching tags JSON containing "foobar").
+                let tags_json = r.tags.as_deref().unwrap_or("[]");
+                serde_json::from_str::<Vec<String>>(tags_json)
+                    .map(|tags| tags.iter().any(|t| t == tag))
+                    .unwrap_or(false)
             });
         }
 

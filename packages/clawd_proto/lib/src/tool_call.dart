@@ -4,9 +4,12 @@ library;
 import 'dart:convert';
 import 'dart:developer' as dev;
 
-/// Daemon sends `"done"` for finished tool calls; `completed` is the Dart
-/// alias. Both are valid — `done` is included for exhaustive switch correctness.
-enum ToolCallStatus { pending, running, completed, done, error }
+/// Canonical status values for a tool call.
+///
+/// The daemon wire format sends `"done"` for finished tool calls.
+/// `_parseStatus` maps both `"done"` and `"completed"` to [completed]
+/// so callers always see a single canonical value.
+enum ToolCallStatus { pending, running, completed, error }
 
 class ToolCall {
   final String id;
@@ -44,11 +47,24 @@ class ToolCall {
             : null,
       );
 
+  /// Map daemon wire strings to [ToolCallStatus].
+  ///
+  /// - `"done"` and `"completed"` both map to [ToolCallStatus.completed]
+  ///   (daemon sends `"done"`; `"completed"` is accepted for forward-compat).
+  /// - Unknown values fall back to [ToolCallStatus.error].
   static ToolCallStatus _parseStatus(String s) {
-    try {
-      return ToolCallStatus.values.byName(s);
-    } catch (_) {
-      return ToolCallStatus.error;
+    switch (s) {
+      case 'done':
+      case 'completed':
+        return ToolCallStatus.completed;
+      case 'running':
+        return ToolCallStatus.running;
+      case 'pending':
+        return ToolCallStatus.pending;
+      case 'error':
+        return ToolCallStatus.error;
+      default:
+        return ToolCallStatus.error;
     }
   }
 

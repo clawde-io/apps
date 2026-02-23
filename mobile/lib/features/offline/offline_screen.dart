@@ -81,17 +81,25 @@ class SessionCacheNotifier extends AsyncNotifier<List<CachedSessionSummary>> {
     return _loadFromDisk();
   }
 
+  // M14: Wrap the full disk-load in try/finally so that if SharedPreferences
+  // itself throws, the provider still settles to a valid empty list rather
+  // than staying in a loading state.
   Future<List<CachedSessionSummary>> _loadFromDisk() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_kCachedSessionsKey);
-    if (raw == null) return [];
     try {
-      final list = jsonDecode(raw) as List<dynamic>;
-      return list
-          .map((e) =>
-              CachedSessionSummary.fromJson(e as Map<String, dynamic>))
-          .toList();
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_kCachedSessionsKey);
+      if (raw == null) return [];
+      try {
+        final list = jsonDecode(raw) as List<dynamic>;
+        return list
+            .map((e) =>
+                CachedSessionSummary.fromJson(e as Map<String, dynamic>))
+            .toList();
+      } catch (_) {
+        return [];
+      }
     } catch (_) {
+      // SharedPreferences unavailable or any unexpected error — return empty.
       return [];
     }
   }
@@ -348,16 +356,24 @@ class _OfflineScreenState extends ConsumerState<OfflineScreen>
     super.dispose();
   }
 
+  // M12: Add if (mounted) guard before the initial setState and use a
+  // finally block to guarantee _retrying is always reset even if the
+  // reconnect call throws.
   Future<void> _retry() async {
+    if (!mounted) return;
     setState(() => _retrying = true);
-    if (widget.onRetry != null) {
-      widget.onRetry!();
-    } else {
-      await ref.read(daemonProvider.notifier).reconnect();
+    try {
+      if (widget.onRetry != null) {
+        widget.onRetry!();
+      } else {
+        await ref.read(daemonProvider.notifier).reconnect();
+      }
+      // Wait a moment for the connection attempt to resolve.
+      await Future<void>.delayed(const Duration(seconds: 2));
+    } finally {
+      // H8: Always clear the loading state, even if reconnect throws.
+      if (mounted) setState(() => _retrying = false);
     }
-    // Wait a moment for the connection attempt to resolve.
-    await Future<void>.delayed(const Duration(seconds: 2));
-    if (mounted) setState(() => _retrying = false);
   }
 
   @override
