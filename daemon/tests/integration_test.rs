@@ -4,8 +4,8 @@ use std::io::{Read as _, Write as _};
 use std::net::TcpStream;
 use clawd::{
     account::AccountRegistry, config::DaemonConfig, ipc::event::EventBroadcaster,
-    repo::RepoRegistry, session::SessionManager, storage::Storage, tasks::TaskStorage,
-    telemetry, update, AppContext,
+    repo::RepoRegistry, scheduler, session::SessionManager, storage::Storage, tasks::TaskStorage,
+    telemetry, update, worktree, AppContext,
 };
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
@@ -36,6 +36,12 @@ async fn start_test_daemon() -> (String, Arc<AppContext>) {
     let config_arc = Arc::clone(&config);
     let account_registry = Arc::new(AccountRegistry::new(storage.clone(), broadcaster.clone()));
     let updater = Arc::new(update::spawn(config_arc.clone(), broadcaster.clone()));
+    let account_pool = Arc::new(scheduler::accounts::AccountPool::new());
+    let rate_limit_tracker = Arc::new(scheduler::rate_limits::RateLimitTracker::new());
+    let fallback_engine = Arc::new(scheduler::fallback::FallbackEngine::new(
+        Arc::clone(&account_pool),
+        Arc::clone(&rate_limit_tracker),
+    ));
     let ctx = Arc::new(AppContext {
         config,
         storage,
@@ -54,6 +60,12 @@ async fn start_test_daemon() -> (String, Arc<AppContext>) {
         started_at: std::time::Instant::now(),
         auth_token: String::new(),
         task_storage: Arc::new(TaskStorage::new(storage_pool)),
+        worktree_manager: Arc::new(worktree::WorktreeManager::new(&data_dir)),
+        account_pool,
+        rate_limit_tracker,
+        fallback_engine,
+        scheduler_queue: Arc::new(scheduler::queue::SchedulerQueue::new()),
+        orchestrator: Arc::new(clawd::agents::orchestrator::Orchestrator::new()),
     });
 
     let ctx_server = ctx.clone();

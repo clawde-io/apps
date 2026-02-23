@@ -13,3 +13,7 @@ export 'src/agent_task.dart';
 export 'src/agent_activity.dart';
 export 'src/task_dtos.dart';
 export 'src/task_events.dart';
+
+// Phase 43l — multi-agent UX types
+export 'src/agent.dart';
+export 'src/worktree_status.dart';

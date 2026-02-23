@@ -27,6 +27,10 @@ impl Drop for MdnsGuard {
 
 /// Start advertising `_clawde._tcp.local.` on `port`.
 /// Returns `None` if mDNS is unavailable (non-fatal).
+///
+/// mDNS failure is explicitly logged at WARN level and the daemon continues
+/// starting without LAN discovery. This is expected on headless servers,
+/// containers, or systems without multicast networking.
 pub fn advertise(daemon_id: &str, port: u16) -> Option<MdnsGuard> {
     match try_advertise(daemon_id, port) {
         Ok(guard) => {
@@ -37,14 +41,22 @@ pub fn advertise(daemon_id: &str, port: u16) -> Option<MdnsGuard> {
             Some(guard)
         }
         Err(e) => {
-            warn!(err = %e, "mDNS advertisement unavailable (non-fatal)");
+            warn!(
+                err = %e,
+                port = port,
+                "mDNS advertisement failed — LAN discovery will not be available. \
+                 The daemon will continue starting without mDNS. \
+                 Clients must connect via explicit address (localhost:{}).",
+                port,
+            );
             None
         }
     }
 }
 
 fn try_advertise(daemon_id: &str, port: u16) -> anyhow::Result<MdnsGuard> {
-    let mdns = ServiceDaemon::new()?;
+    let mdns = ServiceDaemon::new()
+        .map_err(|e| anyhow::anyhow!("failed to start mDNS daemon: {e}"))?;
 
     // Instance name: clawd-{first 8 chars of daemon_id}
     let id_len = daemon_id.len();

@@ -3,6 +3,19 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// Default timeout for individual SQLite queries (same as storage/mod.rs).
+const QUERY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Execute a future with the standard query timeout.
+async fn with_timeout<T>(
+    fut: impl std::future::Future<Output = Result<T>>,
+) -> Result<T> {
+    match tokio::time::timeout(QUERY_TIMEOUT, fut).await {
+        Ok(result) => result,
+        Err(_) => Err(anyhow!("database query timed out after {}s", QUERY_TIMEOUT.as_secs())),
+    }
+}
+
 // ─── Error codes ─────────────────────────────────────────────────────────────
 
 pub const TASK_NOT_FOUND: i32 = -32010;
@@ -134,16 +147,20 @@ impl TaskStorage {
     pub async fn list_tasks(&self, params: &TaskListParams) -> Result<Vec<AgentTaskRow>> {
         let limit = params.limit.unwrap_or(200).min(500);
         let offset = params.offset.unwrap_or(0);
+        let pool = self.pool.clone();
 
-        let mut rows: Vec<AgentTaskRow> = sqlx::query_as(
-            "SELECT * FROM agent_tasks ORDER BY
-             CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END,
-             updated_at DESC
-             LIMIT ? OFFSET ?"
-        )
-        .bind(limit)
-        .bind(offset)
-        .fetch_all(&self.pool)
+        let mut rows: Vec<AgentTaskRow> = with_timeout(async {
+            Ok(sqlx::query_as(
+                "SELECT * FROM agent_tasks ORDER BY
+                 CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END,
+                 updated_at DESC
+                 LIMIT ? OFFSET ?"
+            )
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&pool)
+            .await?)
+        })
         .await?;
 
         // Post-filter (SQLite has limited dynamic WHERE support without a query builder)
@@ -233,8 +250,40 @@ impl TaskStorage {
 
     /// Atomic claim — single UPDATE that only touches unclaimed/pending rows.
     /// Returns Ok(task) if claimed, Err with TASK_ALREADY_CLAIMED code if someone beat us.
-    pub async fn claim_task(&self, task_id: &str, agent_id: &str) -> Result<AgentTaskRow> {
+    ///
+    /// For interrupted tasks, enforces a re-claim window: the task must have been
+    /// interrupted within `heartbeat_timeout_secs` (default 90s) to be re-claimed.
+    /// Tasks interrupted longer ago are treated as stale and must be explicitly
+    /// reset to pending before being claimed.
+    pub async fn claim_task(
+        &self,
+        task_id: &str,
+        agent_id: &str,
+        heartbeat_timeout_secs: Option<i64>,
+    ) -> Result<AgentTaskRow> {
         let now = now_ts();
+        let reclaim_window = heartbeat_timeout_secs.unwrap_or(90);
+
+        // For interrupted tasks, verify they are within the re-claim window.
+        // This prevents stale interrupted tasks from being silently re-claimed
+        // long after the original agent disappeared.
+        if let Some(task) = self.get_task(task_id).await? {
+            if task.status == "interrupted" {
+                if let Some(last_hb) = task.last_heartbeat {
+                    let elapsed = now - last_hb;
+                    if elapsed > reclaim_window * 2 {
+                        // Task has been interrupted for too long — reject re-claim.
+                        // The caller should reset it to pending first.
+                        return Err(anyhow!(
+                            "TASK_CODE:{} — interrupted task exceeded re-claim window ({}s elapsed, {}s max)",
+                            TASK_NOT_RESUMABLE,
+                            elapsed,
+                            reclaim_window * 2
+                        ));
+                    }
+                }
+            }
+        }
 
         // Allow re-claim of interrupted tasks by any agent.
         let rows_affected = sqlx::query(

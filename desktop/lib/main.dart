@@ -4,6 +4,7 @@ import 'package:window_manager/window_manager.dart';
 import 'package:clawde/app.dart';
 import 'package:clawde/services/daemon_manager.dart';
 import 'package:clawde/services/snackbar_service.dart';
+import 'package:clawde/services/tray_service.dart';
 import 'package:clawde/services/updater_service.dart';
 import 'package:clawd_core/clawd_core.dart';
 
@@ -12,6 +13,19 @@ void main() async {
   await windowManager.ensureInitialized();
   await UpdaterService.instance.init();
   await DaemonManager.instance.ensureRunning();
+
+  // Initialise tray BEFORE the window is shown so the icon is ready.
+  await TrayService.instance.init(
+    onQuit: () async {
+      await DaemonManager.instance.shutdown();
+      await windowManager.destroy();
+    },
+  );
+
+  // Show tray error state if the daemon failed to start.
+  if (DaemonManager.instance.startFailed) {
+    await TrayService.instance.setState(TrayIconState.error);
+  }
 
   const WindowOptions windowOptions = WindowOptions(
     minimumSize: Size(900, 600),
@@ -25,7 +39,7 @@ void main() async {
     await windowManager.focus();
   });
 
-  // Intercept window close so we can shut down the daemon gracefully.
+  // Intercept window close — minimize to tray rather than quit.
   windowManager.addListener(_AppWindowListener());
   await windowManager.setPreventClose(true);
 
@@ -57,7 +71,8 @@ void main() async {
 class _AppWindowListener extends WindowListener {
   @override
   Future<void> onWindowClose() async {
-    await DaemonManager.instance.shutdown();
-    await windowManager.destroy();
+    // Minimize to tray instead of quitting.
+    // The user quits via "Quit ClawDE" in the tray menu.
+    await windowManager.hide();
   }
 }

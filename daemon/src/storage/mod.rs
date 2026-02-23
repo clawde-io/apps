@@ -1,8 +1,25 @@
+pub mod event_log;
+
 use anyhow::Result;
 use chrono::Utc;
 use sqlx::{sqlite::SqliteConnectOptions, SqlitePool};
 use std::{path::Path, str::FromStr};
 use uuid::Uuid;
+
+/// Default timeout for individual SQLite queries.
+/// Prevents hung queries from blocking the daemon indefinitely.
+const QUERY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Execute a future with the standard query timeout.
+/// Returns an error if the operation takes longer than `QUERY_TIMEOUT`.
+async fn with_timeout<T>(
+    fut: impl std::future::Future<Output = Result<T>>,
+) -> Result<T> {
+    match tokio::time::timeout(QUERY_TIMEOUT, fut).await {
+        Ok(result) => result,
+        Err(_) => Err(anyhow::anyhow!("database query timed out after {}s", QUERY_TIMEOUT.as_secs())),
+    }
+}
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct SessionRow {
@@ -14,6 +31,9 @@ pub struct SessionRow {
     pub created_at: String,
     pub updated_at: String,
     pub message_count: i64,
+    /// JSON array of permission scopes, e.g. `["file_read","file_write","shell_exec","git"]`.
+    /// NULL means all permissions granted (default).
+    pub permissions: Option<String>,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -33,6 +53,7 @@ pub struct LicenseCacheRow {
     pub features: String, // JSON string
     pub cached_at: String,
     pub valid_until: String,
+    pub hmac: Option<String>, // HMAC-SHA256 hex digest for integrity verification
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -89,6 +110,8 @@ impl Storage {
             include_str!("migrations/001_init.sql"),
             include_str!("migrations/002_license.sql"),
             include_str!("migrations/003_agent_tasks.sql"),
+            include_str!("migrations/004_task_events.sql"),
+            include_str!("migrations/007_threads.sql"),
         ] {
             for stmt in sql.split(';') {
                 let stmt = stmt.trim();
@@ -97,6 +120,24 @@ impl Storage {
                 }
             }
         }
+
+        // Idempotent column additions (ALTER TABLE IF NOT EXISTS is not
+        // supported in SQLite, so we attempt the ALTER and ignore the
+        // "duplicate column name" error).
+        let alter_stmts = [
+            "ALTER TABLE license_cache ADD COLUMN hmac TEXT",
+            "ALTER TABLE sessions ADD COLUMN permissions TEXT",
+        ];
+        for stmt in alter_stmts {
+            let result = sqlx::query(stmt).execute(pool).await;
+            if let Err(e) = result {
+                let msg = e.to_string();
+                if !msg.contains("duplicate column") {
+                    return Err(e.into());
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -107,12 +148,13 @@ impl Storage {
         provider: &str,
         repo_path: &str,
         title: &str,
+        permissions: Option<&str>,
     ) -> Result<SessionRow> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
         sqlx::query(
-            "INSERT INTO sessions (id, provider, repo_path, title, status, created_at, updated_at, message_count)
-             VALUES (?, ?, ?, ?, 'idle', ?, ?, 0)",
+            "INSERT INTO sessions (id, provider, repo_path, title, status, created_at, updated_at, message_count, permissions)
+             VALUES (?, ?, ?, ?, 'idle', ?, ?, 0, ?)",
         )
         .bind(&id)
         .bind(provider)
@@ -120,6 +162,7 @@ impl Storage {
         .bind(title)
         .bind(&now)
         .bind(&now)
+        .bind(permissions)
         .execute(&self.pool)
         .await?;
         self.get_session(&id)
@@ -135,11 +178,14 @@ impl Storage {
     }
 
     pub async fn list_sessions(&self) -> Result<Vec<SessionRow>> {
-        Ok(
-            sqlx::query_as("SELECT * FROM sessions ORDER BY created_at DESC")
-                .fetch_all(&self.pool)
-                .await?,
-        )
+        with_timeout(async {
+            Ok(
+                sqlx::query_as("SELECT * FROM sessions ORDER BY created_at DESC")
+                    .fetch_all(&self.pool)
+                    .await?,
+            )
+        })
+        .await
     }
 
     pub async fn count_sessions(&self) -> Result<u64> {
@@ -158,6 +204,26 @@ impl Storage {
             .execute(&self.pool)
             .await?;
         Ok(())
+    }
+
+    /// Atomically claims a session for a new turn by setting its status to
+    /// `"running"` only when it is currently `"idle"` or `"error"`. Returns
+    /// `true` if the claim succeeded, `false` if another caller already holds
+    /// the session (i.e. status was `"running"` or `"paused"`).
+    ///
+    /// This eliminates the TOCTOU window that would otherwise exist between
+    /// reading the status and starting the runner.
+    pub async fn claim_session_for_run(&self, id: &str) -> Result<bool> {
+        let now = Utc::now().to_rfc3339();
+        let result = sqlx::query(
+            "UPDATE sessions SET status = 'running', updated_at = ? \
+             WHERE id = ? AND status IN ('idle', 'error')",
+        )
+        .bind(&now)
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
+        Ok(result.rows_affected() > 0)
     }
 
     pub async fn increment_message_count(&self, session_id: &str) -> Result<()> {
@@ -390,26 +456,29 @@ impl Storage {
     ///
     /// Returns the total number of sessions recovered.
     pub async fn recover_stale_sessions(&self) -> Result<u64> {
-        let now = Utc::now().to_rfc3339();
-        let crashed = sqlx::query(
-            "UPDATE sessions SET status = 'error', updated_at = ?
-             WHERE status IN ('running', 'waiting')",
-        )
-        .bind(&now)
-        .execute(&self.pool)
-        .await?
-        .rows_affected();
+        with_timeout(async {
+            let now = Utc::now().to_rfc3339();
+            let crashed = sqlx::query(
+                "UPDATE sessions SET status = 'error', updated_at = ?
+                 WHERE status IN ('running', 'waiting')",
+            )
+            .bind(&now)
+            .execute(&self.pool)
+            .await?
+            .rows_affected();
 
-        let paused = sqlx::query(
-            "UPDATE sessions SET status = 'idle', updated_at = ?
-             WHERE status = 'paused'",
-        )
-        .bind(&now)
-        .execute(&self.pool)
-        .await?
-        .rows_affected();
+            let paused = sqlx::query(
+                "UPDATE sessions SET status = 'idle', updated_at = ?
+                 WHERE status = 'paused'",
+            )
+            .bind(&now)
+            .execute(&self.pool)
+            .await?
+            .rows_affected();
 
-        Ok(crashed + paused)
+            Ok(crashed + paused)
+        })
+        .await
     }
 
     // ─── Maintenance ────────────────────────────────────────────────────────
@@ -420,15 +489,18 @@ impl Storage {
         if days == 0 {
             return Ok(0);
         }
-        // Safe: `days` is u32 (max ~4.3 billion) and i64 can hold any u32 value without overflow.
-        let cutoff = (chrono::Utc::now() - chrono::Duration::days(days as i64)).to_rfc3339();
-        let n =
-            sqlx::query("DELETE FROM sessions WHERE status IN ('idle','error') AND updated_at < ?")
-                .bind(&cutoff)
-                .execute(&self.pool)
-                .await?
-                .rows_affected();
-        Ok(n)
+        with_timeout(async {
+            // Safe: `days` is u32 (max ~4.3 billion) and i64 can hold any u32 value without overflow.
+            let cutoff = (chrono::Utc::now() - chrono::Duration::days(days as i64)).to_rfc3339();
+            let n =
+                sqlx::query("DELETE FROM sessions WHERE status IN ('idle','error') AND updated_at < ?")
+                    .bind(&cutoff)
+                    .execute(&self.pool)
+                    .await?
+                    .rows_affected();
+            Ok(n)
+        })
+        .await
     }
 
     /// Run SQLite VACUUM to reclaim disk space after pruning.
@@ -473,20 +545,23 @@ impl Storage {
         features: &str,
         cached_at: &str,
         valid_until: &str,
+        hmac: Option<&str>,
     ) -> Result<()> {
         sqlx::query(
-            "INSERT INTO license_cache (id, tier, features, cached_at, valid_until)
-             VALUES (1, ?, ?, ?, ?)
+            "INSERT INTO license_cache (id, tier, features, cached_at, valid_until, hmac)
+             VALUES (1, ?, ?, ?, ?, ?)
              ON CONFLICT(id) DO UPDATE SET
                tier = excluded.tier,
                features = excluded.features,
                cached_at = excluded.cached_at,
-               valid_until = excluded.valid_until",
+               valid_until = excluded.valid_until,
+               hmac = excluded.hmac",
         )
         .bind(tier)
         .bind(features)
         .bind(cached_at)
         .bind(valid_until)
+        .bind(hmac)
         .execute(&self.pool)
         .await?;
         Ok(())

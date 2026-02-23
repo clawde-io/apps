@@ -8,6 +8,9 @@ CREATE TABLE IF NOT EXISTS license_cache (
     valid_until TEXT NOT NULL    -- ISO-8601: cached_at + 7 days grace
 );
 
+-- Add HMAC integrity column (idempotent — SQLite ignores if exists via PRAGMA check).
+-- ALTER TABLE is not idempotent in SQLite, so the Rust migration runner handles this.
+
 -- Accounts for multi-account pool (B7).
 CREATE TABLE IF NOT EXISTS accounts (
     id               TEXT PRIMARY KEY,

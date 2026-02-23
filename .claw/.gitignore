@@ -1,0 +1,8 @@
+# Worktrees are local — never commit
+worktrees/
+
+# Telemetry traces are local — never commit
+telemetry/
+
+# Commit these:
+# policies/, templates/, evals/datasets/, README.md, .gitignore

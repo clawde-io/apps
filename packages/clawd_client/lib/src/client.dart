@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as dev;
+import 'dart:typed_data';
 
 import 'package:clawd_proto/clawd_proto.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
@@ -29,6 +30,7 @@ class RelayOptions {
     required this.daemonId,
     required this.userToken,
     this.enableE2e = true,
+    this.e2eSeed,
   });
 
   /// The daemon's unique ID (registered with the relay server).
@@ -39,6 +41,17 @@ class RelayOptions {
 
   /// Whether to perform E2E key exchange (recommended; default true).
   final bool enableE2e;
+
+  /// Optional 32-byte seed for deriving a stable X25519 keypair.
+  ///
+  /// When set, the same keypair is used across reconnects and app restarts,
+  /// providing a consistent device identity to the relay server.
+  /// The caller is responsible for generating this seed once and persisting
+  /// it in platform secure storage (e.g. `flutter_secure_storage`).
+  ///
+  /// When null (default), a fresh ephemeral keypair is generated on each
+  /// connection, providing forward secrecy at the cost of key continuity.
+  final Uint8List? e2eSeed;
 }
 
 // ─── Client ───────────────────────────────────────────────────────────────────
@@ -71,11 +84,22 @@ class ClawdClient {
     this.callTimeout = kDefaultCallTimeout,
     this.authToken,
     this.relayOptions,
+    this.relayHandshakeTimeout = const Duration(seconds: 10),
+    this.onRelayProgress,
     @visibleForTesting WebSocketChannel Function(Uri)? channelFactory,
   }) : _channelFactory = channelFactory ?? WebSocketChannel.connect;
 
   final String url;
   final Duration callTimeout;
+
+  /// Timeout for each relay handshake step (connect confirmation, E2E hello).
+  /// Defaults to 10 seconds.
+  final Duration relayHandshakeTimeout;
+
+  /// Optional callback invoked during the relay handshake to report progress.
+  /// The argument is a human-readable status string (e.g. "connecting",
+  /// "waiting for relay", "performing E2E handshake", "authenticating").
+  final void Function(String status)? onRelayProgress;
 
   /// Auth token for the daemon.  When set, [connect] sends a `daemon.auth`
   /// RPC immediately after the WebSocket (and optional relay/E2E) handshake.
@@ -89,6 +113,7 @@ class ClawdClient {
 
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _subscription;
+  bool _disposed = false;
   int _idCounter = 0;
   final Map<int, Completer<dynamic>> _pending = {};
   final StreamController<Map<String, dynamic>> _pushEvents =
@@ -113,6 +138,7 @@ class ClawdClient {
     final relay = relayOptions;
     if (relay != null) {
       // 1. Send relay connect message.
+      onRelayProgress?.call('connecting to relay');
       _sendRaw(jsonEncode({
         'type': 'connect',
         'daemonId': relay.daemonId,
@@ -120,13 +146,15 @@ class ClawdClient {
       }));
 
       // 2. Wait for relay to confirm the connection.
+      onRelayProgress?.call('waiting for relay confirmation');
       await _waitForPushEvent(
         'connected',
-        timeout: const Duration(seconds: 10),
+        timeout: relayHandshakeTimeout,
       );
 
       // 3. E2E handshake.
       if (relay.enableE2e) {
+        onRelayProgress?.call('performing E2E key exchange');
         await _performE2eHandshake();
       }
     }
@@ -134,11 +162,14 @@ class ClawdClient {
     // 4. Authenticate with the daemon (encrypted when E2E is active).
     final token = authToken;
     if (token != null && token.isNotEmpty) {
+      onRelayProgress?.call('authenticating');
       await call<Map<String, dynamic>>('daemon.auth', {'token': token});
     }
+    onRelayProgress?.call('connected');
   }
 
   void disconnect() {
+    _disposed = true;
     _subscription?.cancel();
     _subscription = null;
     _channel?.sink.close();
@@ -151,9 +182,23 @@ class ClawdClient {
   /// Throws [ClawdDisconnectedError] if not connected or connection drops.
   /// Throws [ClawdRpcError] if the daemon returns an error response.
   /// Throws [ClawdTimeoutError] if no response arrives within [callTimeout].
+  /// Maximum safe integer for JSON (2^53 - 1). After this, reset the counter.
+  static const int _maxSafeId = 9007199254740991; // Number.MAX_SAFE_INTEGER
+
   Future<T> call<T>(String method, [Map<String, dynamic>? params]) async {
     if (_channel == null) throw const ClawdDisconnectedError();
 
+    // Reset counter when it would overflow and no calls are pending.
+    if (_idCounter >= _maxSafeId && _pending.isEmpty) {
+      assert(() {
+        dev.log(
+          'RPC _idCounter reset from $_idCounter to 0',
+          name: 'clawd_client',
+        );
+        return true;
+      }());
+      _idCounter = 0;
+    }
     final id = ++_idCounter;
     final completer = Completer<dynamic>();
     _pending[id] = completer;
@@ -201,6 +246,7 @@ class ClawdClient {
   }
 
   Future<void> _handleMessageAsync(dynamic raw) async {
+    if (_disposed) return;
     Map<String, dynamic> json;
     try {
       json = jsonDecode(raw as String) as Map<String, dynamic>;
@@ -509,7 +555,11 @@ class ClawdClient {
   // ─── Relay/E2E helpers ─────────────────────────────────────────────────────
 
   Future<void> _performE2eHandshake() async {
-    final handshake = await RelayE2eHandshake.create();
+    // Use a stable seed-derived keypair if provided; otherwise ephemeral.
+    final seed = relayOptions?.e2eSeed;
+    final handshake = seed != null
+        ? await RelayE2eHandshake.createFromSeed(seed)
+        : await RelayE2eHandshake.create();
 
     // Send client hello unencrypted — server needs our pubkey to derive the key.
     _sendRaw(jsonEncode({
@@ -520,7 +570,7 @@ class ClawdClient {
     // Wait for server hello.
     final serverHello = await _waitForPushEvent(
       'e2e_hello',
-      timeout: const Duration(seconds: 10),
+      timeout: relayHandshakeTimeout,
     );
     final serverPubkey = serverHello['pubkey'] as String?;
     if (serverPubkey == null) {

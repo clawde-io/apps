@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:clawd_core/clawd_core.dart';
 import 'package:clawd_ui/clawd_ui.dart';
+
+final _appVersionProvider = FutureProvider<String>((ref) async {
+  final info = await PackageInfo.fromPlatform();
+  return 'v${info.version}';
+});
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -40,9 +46,11 @@ class SettingsScreen extends ConsumerWidget {
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
             ),
           ),
-          const ListTile(
-            title: Text('ClawDE'),
-            subtitle: Text('v0.1.0'),
+          ListTile(
+            title: const Text('ClawDE'),
+            subtitle: Text(
+              ref.watch(_appVersionProvider).valueOrNull ?? 'v...',
+            ),
           ),
           ListTile(
             title: const Text('Source'),

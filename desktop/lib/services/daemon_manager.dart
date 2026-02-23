@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:developer' as dev;
 import 'dart:io';
 
+import 'package:clawd_core/clawd_core.dart' show clawdTokenFilePath;
+
 /// Manages the lifecycle of the bundled `clawd` daemon process.
 ///
 /// On app startup, [ensureRunning] checks if a daemon is already listening on
@@ -64,7 +66,12 @@ class DaemonManager {
     _tokenOverride = await _pollForToken(const Duration(seconds: 5));
     if (_tokenOverride == null) {
       _startFailed = true;
-      dev.log('clawd token did not appear within 5 s', name: 'DaemonManager');
+      dev.log(
+        'clawd token did not appear within 5 s — killing orphaned process',
+        name: 'DaemonManager',
+      );
+      _process!.kill(ProcessSignal.sigkill);
+      _process = null;
     } else {
       dev.log('clawd token ready', name: 'DaemonManager');
     }
@@ -118,7 +125,7 @@ class DaemonManager {
   /// Read the auth token from the platform-appropriate data directory.
   String? _readTokenSync() {
     try {
-      final path = _tokenFilePath();
+      final path = clawdTokenFilePath();
       if (path == null) return null;
       final file = File(path);
       if (!file.existsSync()) return null;
@@ -136,28 +143,6 @@ class DaemonManager {
       final token = _readTokenSync();
       if (token != null) return token;
       await Future<void>.delayed(const Duration(milliseconds: 200));
-    }
-    return null;
-  }
-
-  /// Platform-appropriate path for the daemon's auth token file.
-  /// Must match the path computed by `clawd/src/config/mod.rs`.
-  static String? _tokenFilePath() {
-    if (Platform.isMacOS) {
-      final home = Platform.environment['HOME'];
-      return home != null
-          ? '$home/Library/Application Support/clawd/auth_token'
-          : null;
-    }
-    if (Platform.isLinux) {
-      final xdg = Platform.environment['XDG_DATA_HOME'];
-      if (xdg != null) return '$xdg/clawd/auth_token';
-      final home = Platform.environment['HOME'];
-      return home != null ? '$home/.local/share/clawd/auth_token' : null;
-    }
-    if (Platform.isWindows) {
-      final appdata = Platform.environment['APPDATA'];
-      return appdata != null ? '$appdata\\clawd\\auth_token' : null;
     }
     return null;
   }

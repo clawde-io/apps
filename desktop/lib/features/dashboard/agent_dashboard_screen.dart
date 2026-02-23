@@ -22,7 +22,7 @@ class _AgentDashboardScreenState
     final filter = ref.watch(dashboardFilterProvider);
     final byStatus = ref.watch(tasksByStatusProvider(repoPath));
     final selectedTask = ref.watch(selectedTaskProvider);
-    final summaryAsync = ref.watch(taskSummaryProvider(repoPath));
+    final summaryAsync = ref.watch(taskDashboardStatsProvider(repoPath));
     final activityAsync = ref.watch(activityFeedProvider(repoPath));
     final agentsAsync = ref.watch(agentListProvider(repoPath));
 
@@ -266,7 +266,7 @@ class _DashboardHeader extends ConsumerWidget {
                   .take(4)
                   .map((a) => AgentChip(
                         agentId: a.agentId,
-                        isActive: a.status == AgentStatus.active,
+                        isActive: a.status == AgentViewStatus.active,
                       ))
                   .toList(),
             ),
@@ -311,7 +311,7 @@ class _DashboardHeader extends ConsumerWidget {
               ref.invalidate(taskListProvider);
               ref.invalidate(activityFeedProvider);
               ref.invalidate(agentListProvider);
-              ref.invalidate(taskSummaryProvider);
+              ref.invalidate(taskDashboardStatsProvider);
             },
             padding: const EdgeInsets.all(6),
             constraints: const BoxConstraints(),

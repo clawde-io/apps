@@ -12,6 +12,21 @@ pub async fn status(_params: Value, ctx: &AppContext) -> Result<Value> {
     let total_sessions = ctx.storage.count_sessions().await.unwrap_or(0);
     let watched_repos = ctx.repo_registry.watched_count().await;
     let pending_update = ctx.updater.pending_update().await.map(|u| u.version);
+
+    // Build provider profiles array for the response
+    let providers: Vec<Value> = ["claude", "codex", "cursor"]
+        .iter()
+        .map(|name| {
+            let profile = ctx.config.provider_profile(name);
+            json!({
+                "name": name,
+                "timeout": profile.and_then(|p| p.timeout),
+                "maxTokens": profile.and_then(|p| p.max_tokens),
+                "systemPromptPrefix": profile.and_then(|p| p.system_prompt_prefix.clone()),
+            })
+        })
+        .collect();
+
     Ok(json!({
         "version": env!("CARGO_PKG_VERSION"),
         "daemonId": ctx.daemon_id,
@@ -20,7 +35,8 @@ pub async fn status(_params: Value, ctx: &AppContext) -> Result<Value> {
         "totalSessions": total_sessions,
         "watchedRepos": watched_repos,
         "port": ctx.config.port,
-        "pendingUpdate": pending_update
+        "pendingUpdate": pending_update,
+        "providers": providers
     }))
 }
 

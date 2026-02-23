@@ -52,14 +52,10 @@ class ToolCallNotifier
         calls.map((tc) {
           if (tc.id != tcId) return tc;
           ToolCallStatus parsedStatus;
-          if (status == 'done') {
-            parsedStatus = ToolCallStatus.completed;
-          } else {
-            try {
-              parsedStatus = ToolCallStatus.values.byName(status);
-            } catch (_) {
-              parsedStatus = ToolCallStatus.error;
-            }
+          try {
+            parsedStatus = ToolCallStatus.values.byName(status);
+          } catch (_) {
+            parsedStatus = ToolCallStatus.error;
           }
           return ToolCall(
             id: tc.id,

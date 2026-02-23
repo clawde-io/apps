@@ -9,6 +9,9 @@ struct CreateParams {
     #[serde(rename = "repoPath")]
     repo_path: String,
     title: Option<String>,
+    /// Optional permission scopes. If omitted or empty, all permissions are granted.
+    /// Valid scopes: "file_read", "file_write", "shell_exec", "git".
+    permissions: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -32,18 +35,44 @@ struct GetMessagesParams {
     before: Option<String>,
 }
 
+/// Valid provider names — must match ProviderType.name in clawd_proto.
+const VALID_PROVIDERS: &[&str] = &["claude", "codex", "cursor"];
+
 pub async fn create(params: Value, ctx: &AppContext) -> Result<Value> {
     let p: CreateParams = serde_json::from_value(params)?;
     let title = p.title.unwrap_or_else(|| "New Session".to_string());
+
+    // Strict provider name validation — return -32602 (invalid params) for unknown.
+    if !VALID_PROVIDERS.contains(&p.provider.as_str()) {
+        anyhow::bail!(
+            "invalid type: unknown provider '{}' — must be one of: {}",
+            p.provider,
+            VALID_PROVIDERS.join(", ")
+        );
+    }
 
     // Validate repo_path exists before creating the session record.
     if !std::path::Path::new(&p.repo_path).exists() {
         anyhow::bail!("REPO_NOT_FOUND: repo path does not exist: {}", p.repo_path);
     }
 
+    // Validate permission scope names if provided
+    if let Some(ref perms) = p.permissions {
+        const VALID_SCOPES: &[&str] = &["file_read", "file_write", "shell_exec", "git"];
+        for scope in perms {
+            if !VALID_SCOPES.contains(&scope.as_str()) {
+                anyhow::bail!(
+                    "invalid type: unknown permission scope '{}' — must be one of: {}",
+                    scope,
+                    VALID_SCOPES.join(", ")
+                );
+            }
+        }
+    }
+
     let session = ctx
         .session_manager
-        .create(&p.provider, &p.repo_path, &title, ctx.config.max_sessions)
+        .create(&p.provider, &p.repo_path, &title, ctx.config.max_sessions, p.permissions)
         .await?;
     ctx.telemetry
         .send(TelemetryEvent::new("session.start").with_provider(&p.provider));

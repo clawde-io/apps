@@ -2,8 +2,11 @@
 library;
 
 import 'dart:convert';
+import 'dart:developer' as dev;
 
-enum ToolCallStatus { pending, running, completed, error }
+/// Daemon sends `"done"` for finished tool calls; `completed` is the Dart
+/// alias. Both are valid — `done` is included for exhaustive switch correctness.
+enum ToolCallStatus { pending, running, completed, done, error }
 
 class ToolCall {
   final String id;
@@ -42,8 +45,6 @@ class ToolCall {
       );
 
   static ToolCallStatus _parseStatus(String s) {
-    // Daemon uses "done" for completed tool calls; map to completed.
-    if (s == 'done') return ToolCallStatus.completed;
     try {
       return ToolCallStatus.values.byName(s);
     } catch (_) {
@@ -58,7 +59,9 @@ class ToolCall {
       try {
         final decoded = jsonDecode(raw);
         if (decoded is Map<String, dynamic>) return decoded;
-      } catch (_) {}
+      } catch (_) {
+        dev.log('Failed to parse tool input: $raw', name: 'clawd_proto');
+      }
     }
     return const {};
   }

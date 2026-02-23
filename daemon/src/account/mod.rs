@@ -124,26 +124,66 @@ impl AccountRegistry {
         self.storage.set_account_limited(account_id, None).await
     }
 
+    /// Enforce the max_accounts limit. Returns an error if the limit is
+    /// reached and a new account cannot be registered.
+    pub async fn check_account_limit(&self, max_accounts: usize) -> Result<()> {
+        if max_accounts == 0 {
+            return Ok(()); // unlimited
+        }
+        let accounts = self.storage.list_accounts().await?;
+        if accounts.len() >= max_accounts {
+            anyhow::bail!(
+                "account limit reached ({} max) — remove an existing account before adding a new one",
+                max_accounts
+            );
+        }
+        Ok(())
+    }
+
     /// Detect rate-limit signals in provider output text.
     ///
-    /// Returns Some(cooldown_minutes) if a limit signal is found.
+    /// Returns `Some(cooldown_minutes)` if a limit signal is found.
+    /// Uses structured pattern matching rather than fragile substring checks
+    /// to reduce false positives (e.g. "429" appearing in unrelated data).
     pub fn detect_limit_signal(output: &str) -> Option<i64> {
         let lower = output.to_lowercase();
 
-        // Claude Code patterns
-        if lower.contains("rate limit") || lower.contains("too many requests") {
-            return Some(60); // 1 hour default
-        }
-        if lower.contains("quota exceeded") || lower.contains("usage limit") {
-            return Some(240); // 4 hours for quota
-        }
-        if lower.contains("capacity") && lower.contains("overloaded") {
-            return Some(15); // 15 minutes for overload
+        // ── Structured error codes (highest confidence) ─────────────────────
+        // JSON error type field from providers
+        if lower.contains("\"type\":\"rate_limit_error\"")
+            || lower.contains("\"type\": \"rate_limit_error\"")
+            || lower.contains("\"error_type\":\"rate_limit\"")
+        {
+            return Some(60);
         }
 
-        // HTTP 429 in output
-        if lower.contains("429") || lower.contains("rate_limit_error") {
+        // HTTP status code in structured context (not bare "429" in content)
+        if lower.contains("status: 429")
+            || lower.contains("status\":429")
+            || lower.contains("status\": 429")
+            || lower.contains("http 429")
+            || lower.contains("statuscode: 429")
+        {
             return Some(60);
+        }
+
+        // ── Provider-specific messages (medium confidence) ──────────────────
+        // Claude / Anthropic
+        if lower.contains("rate limit") || lower.contains("rate_limit") {
+            return Some(60);
+        }
+        if lower.contains("too many requests") {
+            return Some(60);
+        }
+
+        // Quota exhaustion (longer cooldown)
+        if lower.contains("quota exceeded") || lower.contains("usage limit") {
+            return Some(240); // 4 hours
+        }
+
+        // Overloaded (short cooldown)
+        if lower.contains("overloaded") && lower.contains("capacity") {
+            return Some(15);
         }
 
         None

@@ -25,14 +25,23 @@ pub fn get_or_create_token(data_dir: &Path) -> Result<String> {
     let token = Uuid::new_v4().to_string().replace('-', "");
 
     std::fs::create_dir_all(data_dir)?;
-    std::fs::write(&path, &token)?;
 
-    // Restrict to owner read/write only on Unix
+    // Create the file with owner-only permissions from the start to eliminate
+    // the TOCTOU window that would exist if we wrote first and chmod'd second.
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut f = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(&path)?;
+        f.write_all(token.as_bytes())?;
     }
+    #[cfg(not(unix))]
+    std::fs::write(&path, &token)?;
 
     Ok(token)
 }

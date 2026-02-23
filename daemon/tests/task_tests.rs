@@ -47,8 +47,8 @@ async fn test_atomic_claim() {
     let ts_a = ts.clone();
     let ts_b = ts.clone();
 
-    let fut_a = tokio::spawn(async move { ts_a.claim_task("atomic-1", "agent-A").await });
-    let fut_b = tokio::spawn(async move { ts_b.claim_task("atomic-1", "agent-B").await });
+    let fut_a = tokio::spawn(async move { ts_a.claim_task("atomic-1", "agent-A", None).await });
+    let fut_b = tokio::spawn(async move { ts_b.claim_task("atomic-1", "agent-B", None).await });
 
     let (res_a, res_b) = tokio::join!(fut_a, fut_b);
     let res_a = res_a.expect("join_a panicked");
@@ -113,7 +113,7 @@ async fn test_completion_notes_enforcement() {
     .await
     .expect("add_task failed");
 
-    ts.claim_task("notes-1", "bot1")
+    ts.claim_task("notes-1", "bot1", None)
         .await
         .expect("claim_task failed");
 
@@ -172,7 +172,7 @@ async fn test_task_lifecycle() {
 
     // Claim.
     let claimed = ts
-        .claim_task("lifecycle-1", "agent-lifecycle")
+        .claim_task("lifecycle-1", "agent-lifecycle", None)
         .await
         .expect("claim_task failed");
 

@@ -513,7 +513,7 @@ void main() {
       };
       final view = AgentView.fromJson(json);
       expect(view.agentId, 'agent-claude-1');
-      expect(view.status, AgentStatus.active);
+      expect(view.status, AgentViewStatus.active);
       expect(view.repoPath, '/home/user/clawde');
       expect(view.agentType, 'claude');
       expect(view.sessionId, 'sess-1');
@@ -533,7 +533,7 @@ void main() {
       };
       final view = AgentView.fromJson(json);
       expect(view.agentId, 'agent-snake-1');
-      expect(view.status, AgentStatus.idle);
+      expect(view.status, AgentViewStatus.idle);
       expect(view.repoPath, '/tmp/repo');
       expect(view.agentType, 'codex');
       expect(view.lastSeen, 1700000002);
@@ -559,7 +559,7 @@ void main() {
         'status': 'unknown_status',
         'repoPath': '/tmp',
       };
-      expect(AgentView.fromJson(json).status, AgentStatus.offline);
+      expect(AgentView.fromJson(json).status, AgentViewStatus.offline);
     });
   });
 

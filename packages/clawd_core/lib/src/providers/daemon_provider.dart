@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'dart:developer' as dev;
-import 'dart:io' show File, Platform;
+import 'dart:io' show File;
 import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:clawd_client/clawd_client.dart';
+import '../utils/paths.dart';
 import 'settings_provider.dart';
 
 /// The connection state of the local clawd daemon.
@@ -126,7 +127,7 @@ class DaemonNotifier extends Notifier<DaemonState> {
   /// file does not exist yet.
   static String? _readLocalAuthToken() {
     try {
-      final path = _localAuthTokenPath();
+      final path = clawdTokenFilePath();
       if (path == null) return null;
       final file = File(path);
       if (!file.existsSync()) return null;
@@ -135,26 +136,6 @@ class DaemonNotifier extends Notifier<DaemonState> {
     } catch (_) {
       return null;
     }
-  }
-
-  static String? _localAuthTokenPath() {
-    if (Platform.isMacOS) {
-      final home = Platform.environment['HOME'];
-      if (home == null) return null;
-      return '$home/Library/Application Support/clawd/auth_token';
-    }
-    if (Platform.isLinux) {
-      final xdg = Platform.environment['XDG_DATA_HOME'];
-      if (xdg != null) return '$xdg/clawd/auth_token';
-      final home = Platform.environment['HOME'];
-      return home != null ? '$home/.local/share/clawd/auth_token' : null;
-    }
-    if (Platform.isWindows) {
-      final appdata = Platform.environment['APPDATA'];
-      return appdata != null ? '$appdata\\clawd\\auth_token' : null;
-    }
-    // Android / iOS — no local daemon, token comes from host pairing
-    return null;
   }
 
   Future<void> _connect() async {
@@ -209,6 +190,9 @@ class DaemonNotifier extends Notifier<DaemonState> {
   /// Reconnect immediately (e.g. user tap or app foreground).
   Future<void> reconnect() {
     _reconnectAttempt = 0;
+    // Clear error state immediately so UI reflects the reconnect attempt.
+    // Cannot use copyWith here because it cannot set errorMessage to null.
+    state = const DaemonState(status: DaemonStatus.connecting);
     return _connect();
   }
 

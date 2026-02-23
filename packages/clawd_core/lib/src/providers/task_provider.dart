@@ -129,7 +129,7 @@ class TaskSummaryNotifier extends FamilyAsyncNotifier<TaskSummary, String?> {
   }
 }
 
-final taskSummaryProvider =
+final taskDashboardStatsProvider =
     AsyncNotifierProviderFamily<TaskSummaryNotifier, TaskSummary, String?>(
   TaskSummaryNotifier.new,
 );
@@ -188,7 +188,7 @@ final activityFeedProvider =
 
 // ─── Agent registry ───────────────────────────────────────────────────────────
 
-class AgentListNotifier
+class AgentViewListNotifier
     extends FamilyAsyncNotifier<List<AgentView>, String?> {
   @override
   Future<List<AgentView>> build(String? arg) async {
@@ -220,8 +220,8 @@ class AgentListNotifier
 }
 
 final agentListProvider =
-    AsyncNotifierProviderFamily<AgentListNotifier, List<AgentView>, String?>(
-  AgentListNotifier.new,
+    AsyncNotifierProviderFamily<AgentViewListNotifier, List<AgentView>, String?>(
+  AgentViewListNotifier.new,
 );
 
 // ─── Selected task ────────────────────────────────────────────────────────────

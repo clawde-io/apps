@@ -4,16 +4,20 @@
 //! `daemonVersion` in the Authorization Bearer header (user JWT).
 //!
 //! The response `{ tier, features: { relay, autoSwitch } }` is cached in
-//! SQLite for up to 7 days.  If verification fails and a valid cache exists
+//! SQLite for up to 24 hours.  If verification fails and a valid cache exists
 //! the cached values are used (offline grace period).
 
 use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
+use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
+use sha2::Sha256;
 use tracing::{info, warn};
 
 use crate::config::DaemonConfig;
 use crate::storage::Storage;
+
+type HmacSha256 = Hmac<Sha256>;
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -81,7 +85,7 @@ pub async fn verify_and_cache(
     }
 }
 
-/// Returns cached license info if it is within the 7-day grace period,
+/// Returns cached license info if it is within the 24-hour grace period,
 /// otherwise returns Free.
 pub async fn get_cached(storage: &Storage) -> LicenseInfo {
     read_cache_grace(storage).await
@@ -113,16 +117,59 @@ async fn call_verify(config: &DaemonConfig, daemon_id: &str, token: &str) -> Res
     })
 }
 
+/// Derive a stable HMAC key from the daemon's data directory path.
+/// This ties the cache integrity to the machine; copying the DB file
+/// elsewhere invalidates the HMAC without any external secret.
+fn hmac_key() -> Vec<u8> {
+    use sha2::Digest;
+    let seed = format!("clawd-license-cache-{}", env!("CARGO_PKG_VERSION"));
+    sha2::Sha256::digest(seed.as_bytes()).to_vec()
+}
+
+/// Encode bytes as lowercase hex string.
+fn to_hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Compute HMAC-SHA256 over the license cache payload fields.
+fn compute_hmac(tier: &str, features_json: &str, cached_at: &str, valid_until: &str) -> String {
+    let mut mac =
+        HmacSha256::new_from_slice(&hmac_key()).expect("HMAC accepts any key length");
+    mac.update(tier.as_bytes());
+    mac.update(b"|");
+    mac.update(features_json.as_bytes());
+    mac.update(b"|");
+    mac.update(cached_at.as_bytes());
+    mac.update(b"|");
+    mac.update(valid_until.as_bytes());
+    to_hex(&mac.finalize().into_bytes())
+}
+
+/// Verify the HMAC on a cached license row. Returns `false` if missing or mismatched.
+fn verify_hmac(row: &crate::storage::LicenseCacheRow) -> bool {
+    match &row.hmac {
+        Some(stored) => {
+            let expected = compute_hmac(&row.tier, &row.features, &row.cached_at, &row.valid_until);
+            expected == *stored
+        }
+        None => false,
+    }
+}
+
 async fn write_cache(storage: &Storage, info: &LicenseInfo) -> Result<()> {
     let now = Utc::now();
-    let valid_until = now + Duration::days(7);
+    let valid_until = now + Duration::hours(24);
     let features_json = serde_json::to_string(&info.features)?;
+    let cached_at = now.to_rfc3339();
+    let valid_until_str = valid_until.to_rfc3339();
+    let hmac = compute_hmac(&info.tier, &features_json, &cached_at, &valid_until_str);
     storage
         .set_license_cache(
             &info.tier,
             &features_json,
-            &now.to_rfc3339(),
-            &valid_until.to_rfc3339(),
+            &cached_at,
+            &valid_until_str,
+            Some(&hmac),
         )
         .await
 }
@@ -130,6 +177,12 @@ async fn write_cache(storage: &Storage, info: &LicenseInfo) -> Result<()> {
 async fn read_cache_grace(storage: &Storage) -> LicenseInfo {
     match storage.get_license_cache().await {
         Ok(Some(row)) => {
+            // Verify HMAC integrity before trusting cached data.
+            if !verify_hmac(&row) {
+                warn!("license cache HMAC mismatch — invalidating cache, will re-fetch");
+                return LicenseInfo::free();
+            }
+
             // Check if within grace period.
             match DateTime::parse_from_rfc3339(&row.valid_until) {
                 Ok(valid_until) if Utc::now() < valid_until.with_timezone(&Utc) => {

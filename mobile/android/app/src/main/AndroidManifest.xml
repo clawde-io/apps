@@ -3,6 +3,12 @@
     <!-- MN-01: Notification permissions (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
+    <!-- MH-6: LAN connectivity checks -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>
+    <!-- MH-5: Multicast lock for mDNS/LAN discovery -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
     <!-- MC-04: Camera for QR code scanning -->
     <uses-permission android:name="android.permission.CAMERA"/>
     <application

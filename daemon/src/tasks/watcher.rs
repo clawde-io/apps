@@ -130,54 +130,61 @@ impl AfsWatcher {
             let root_c = root.clone();
 
             let handler = move |result: DebounceEventResult| {
-                match result {
-                    Ok(events) => {
-                        for event in events {
-                            let path = match event.event.paths.first() {
-                                Some(p) => p.clone(),
-                                None => continue,
-                            };
+                // Wrap in catch_unwind so a panicking path handler doesn't
+                // kill the watcher thread (and silently stop all AFS events).
+                let guard_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    match result {
+                        Ok(events) => {
+                            for event in events {
+                                let path = match event.event.paths.first() {
+                                    Some(p) => p.clone(),
+                                    None => continue,
+                                };
 
-                            if should_ignore(&path) {
-                                continue;
+                                if should_ignore(&path) {
+                                    continue;
+                                }
+
+                                // Only process write/create events
+                                let is_write = matches!(
+                                    event.event.kind,
+                                    EventKind::Modify(_) | EventKind::Create(_)
+                                );
+                                if !is_write {
+                                    continue;
+                                }
+
+                                if let Some(afs_event) = classify_path(&path, &root_c) {
+                                    let storage_i = storage_c.clone();
+                                    let broadcaster_i = broadcaster_c.clone();
+                                    let hashes_i = hashes_c.clone();
+                                    let root_i = root_c.clone();
+
+                                    rt.spawn(async move {
+                                        if let Err(e) = handle_afs_event(
+                                            afs_event,
+                                            &root_i,
+                                            &storage_i,
+                                            &broadcaster_i,
+                                            &hashes_i,
+                                        )
+                                        .await
+                                        {
+                                            warn!("AFS event handling error: {e}");
+                                        }
+                                    });
+                                }
                             }
-
-                            // Only process write/create events
-                            let is_write = matches!(
-                                event.event.kind,
-                                EventKind::Modify(_) | EventKind::Create(_)
-                            );
-                            if !is_write {
-                                continue;
-                            }
-
-                            if let Some(afs_event) = classify_path(&path, &root_c) {
-                                let storage_i = storage_c.clone();
-                                let broadcaster_i = broadcaster_c.clone();
-                                let hashes_i = hashes_c.clone();
-                                let root_i = root_c.clone();
-
-                                rt.spawn(async move {
-                                    if let Err(e) = handle_afs_event(
-                                        afs_event,
-                                        &root_i,
-                                        &storage_i,
-                                        &broadcaster_i,
-                                        &hashes_i,
-                                    )
-                                    .await
-                                    {
-                                        warn!("AFS event handling error: {e}");
-                                    }
-                                });
+                        }
+                        Err(errors) => {
+                            for e in errors {
+                                warn!("Watcher error: {e:?}");
                             }
                         }
                     }
-                    Err(errors) => {
-                        for e in errors {
-                            warn!("Watcher error: {e:?}");
-                        }
-                    }
+                }));
+                if let Err(panic_val) = guard_result {
+                    warn!("AFS watcher handler panicked: {:?}", panic_val);
                 }
             };
 
@@ -225,7 +232,7 @@ async fn handle_afs_event(
             };
 
             // Change detection: skip if hash unchanged (prevents feedback loop)
-            let new_hash = simple_hash(&content);
+            let new_hash = content_hash(&content);
             {
                 let mut h = hashes.lock().await;
                 let prev = h.entry(project_root.to_path_buf()).or_insert(0);
@@ -358,10 +365,11 @@ async fn handle_afs_event(
     Ok(())
 }
 
-fn simple_hash(s: &str) -> u64 {
-    use std::hash::{Hash, Hasher};
-    use std::collections::hash_map::DefaultHasher;
-    let mut h = DefaultHasher::new();
-    s.hash(&mut h);
-    h.finish()
+/// SHA-256 based content hash for change detection.
+/// Returns the first 8 bytes as u64 for compact storage in the hash map.
+/// SHA-256 provides collision resistance that DefaultHasher does not guarantee.
+fn content_hash(s: &str) -> u64 {
+    use sha2::{Digest, Sha256};
+    let hash = Sha256::digest(s.as_bytes());
+    u64::from_le_bytes(hash[..8].try_into().expect("SHA-256 produces 32 bytes"))
 }

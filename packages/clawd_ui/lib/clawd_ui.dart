@@ -26,3 +26,11 @@ export 'src/widgets/filter_bar.dart';
 export 'src/widgets/add_task_dialog.dart';
 export 'src/widgets/project_selector.dart';
 export 'src/widgets/phase_log_view.dart';
+export 'src/widgets/phase_indicator.dart';
+export 'src/widgets/file_edit_card.dart';
+export 'src/widgets/context_budget_bar.dart';
+
+// Phase 43l — multi-agent UX widgets
+export 'src/widgets/agent_feed.dart';
+export 'src/widgets/worktree_status.dart';
+export 'src/widgets/approval_card.dart';

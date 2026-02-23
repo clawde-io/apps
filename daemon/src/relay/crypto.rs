@@ -26,17 +26,21 @@ use chacha20poly1305::{
 use hkdf::Hkdf;
 use rand_core::OsRng;
 use sha2::Sha256;
+use std::sync::atomic::{AtomicU64, Ordering::SeqCst};
 use x25519_dalek::{EphemeralSecret, PublicKey};
 
 // ─── Active E2E session ───────────────────────────────────────────────────────
 
 /// Active E2E session state.  Holds two ChaCha20-Poly1305 ciphers (one per
-/// direction) and monotonic counters to prevent nonce reuse / replay.
+/// direction) and atomic monotonic counters to prevent nonce reuse / replay.
+/// AtomicU64 counters allow safe interior mutability even if the struct is
+/// accessed from multiple tasks (the relay wraps this in a Mutex, but the
+/// atomic counters provide defense-in-depth against accidental aliasing).
 pub struct RelayE2e {
     cipher_recv: ChaCha20Poly1305, // client→daemon
     cipher_send: ChaCha20Poly1305, // daemon→client
-    send_counter: u64,
-    recv_counter: u64,
+    send_counter: AtomicU64,
+    recv_counter: AtomicU64,
 }
 
 impl RelayE2e {
@@ -70,8 +74,8 @@ impl RelayE2e {
             RelayE2e {
                 cipher_recv,
                 cipher_send,
-                send_counter: 0,
-                recv_counter: 0,
+                send_counter: AtomicU64::new(0),
+                recv_counter: AtomicU64::new(0),
             },
         ))
     }
@@ -79,7 +83,7 @@ impl RelayE2e {
     /// Decrypt an incoming (client→daemon) payload.
     ///
     /// `payload_b64` = base64url-nopad( nonce_12 || ciphertext )
-    pub fn decrypt(&mut self, payload_b64: &str) -> Result<String> {
+    pub fn decrypt(&self, payload_b64: &str) -> Result<String> {
         let data = URL_SAFE_NO_PAD
             .decode(payload_b64)
             .context("invalid e2e payload")?;
@@ -89,11 +93,13 @@ impl RelayE2e {
         let (nonce_bytes, ct) = data.split_at(12);
 
         // Replay protection: verify the nonce counter is what we expect.
-        let expected = make_nonce(self.recv_counter);
+        // The caller holds a Mutex over this struct so load+increment is
+        // effectively atomic in the relay context.
+        let expected = make_nonce(self.recv_counter.load(SeqCst));
         if nonce_bytes != expected {
             return Err(anyhow!("nonce mismatch — possible replay attack"));
         }
-        self.recv_counter += 1;
+        self.recv_counter.fetch_add(1, SeqCst);
 
         let pt = self
             .cipher_recv
@@ -105,9 +111,10 @@ impl RelayE2e {
     /// Encrypt an outgoing (daemon→client) frame.
     ///
     /// Returns base64url-nopad( nonce_12 || ciphertext ).
-    pub fn encrypt(&mut self, plaintext: &str) -> Result<String> {
-        let nonce_bytes = make_nonce(self.send_counter);
-        self.send_counter += 1;
+    pub fn encrypt(&self, plaintext: &str) -> Result<String> {
+        // fetch_add returns the old value, which is the nonce counter to use.
+        let counter = self.send_counter.fetch_add(1, SeqCst);
+        let nonce_bytes = make_nonce(counter);
 
         let ct = self
             .cipher_send

@@ -267,7 +267,10 @@ fn parse_diff(diff: git2::Diff) -> Result<Vec<FileDiff>> {
             });
         }
 
-        let file = result.last_mut().unwrap();
+        let file = match result.last_mut() {
+            Some(f) => f,
+            None => return false, // should not happen — entry was just pushed
+        };
 
         if let Some(hunk) = hunk {
             let header = std::str::from_utf8(hunk.header())

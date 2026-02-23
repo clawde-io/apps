@@ -1,7 +1,22 @@
 /// Message types for session chat history.
 library;
 
+import 'dart:developer' as dev;
+
 enum MessageRole { user, assistant, system, tool }
+
+/// Parse a MessageRole from a JSON string, defaulting to [MessageRole.system]
+/// for unknown values rather than throwing an unhandled exception.
+MessageRole _parseRole(String? raw) {
+  if (raw == null) return MessageRole.system;
+  try {
+    return MessageRole.values.byName(raw);
+  } catch (_) {
+    dev.log('unknown MessageRole: $raw — defaulting to system',
+        name: 'clawd_proto');
+    return MessageRole.system;
+  }
+}
 
 class Message {
   final String id;
@@ -25,7 +40,7 @@ class Message {
   factory Message.fromJson(Map<String, dynamic> json) => Message(
         id: json['id'] as String,
         sessionId: json['sessionId'] as String,
-        role: MessageRole.values.byName(json['role'] as String),
+        role: _parseRole(json['role'] as String?),
         content: json['content'] as String,
         status: json['status'] as String? ?? 'done',
         createdAt: DateTime.parse(json['createdAt'] as String),

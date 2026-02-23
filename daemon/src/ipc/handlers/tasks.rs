@@ -1,10 +1,14 @@
 use crate::tasks::{
+    events::{new_correlation_id, TaskEventKind},
     markdown_parser,
     queue_serializer,
+    replay::ReplayEngine,
+    schema::{Priority, RiskLevel, TaskSpec},
     storage::{ActivityQueryParams, TaskListParams, TASK_NOT_FOUND},
 };
 use crate::AppContext;
 use anyhow::Result;
+use chrono::Utc;
 use serde_json::{json, Value};
 
 fn s(v: &Value, key: &str) -> Option<String> {
@@ -48,7 +52,7 @@ pub async fn claim(params: Value, ctx: &AppContext) -> Result<Value> {
     let existing = ctx.task_storage.get_task(task_id).await?;
     let is_resume = existing.as_ref().map(|t| t.status == "interrupted").unwrap_or(false);
 
-    let task = ctx.task_storage.claim_task(task_id, agent_id).await?;
+    let task = ctx.task_storage.claim_task(task_id, agent_id, None).await?;
     let _ = ctx.task_storage.set_agent_current_task(agent_id, Some(task_id)).await;
 
     let (action, detail) = if is_resume {
@@ -339,4 +343,251 @@ pub async fn sync(params: Value, ctx: &AppContext) -> Result<Value> {
     let count = ctx.task_storage.backfill_from_tasks(parsed, repo_path).await?;
     let _ = queue_serializer::flush_queue(&ctx.task_storage, repo_path).await;
     Ok(json!({ "synced": count }))
+}
+
+// ─── Phase 43b: Task State Engine RPC handlers ───────────────────────────────
+
+/// `tasks.createSpec` — Create a new task from a full TaskSpec.
+///
+/// Params:
+/// ```json
+/// {
+///   "id": "uuid",          // Required: task ID
+///   "title": "...",        // Required
+///   "repo": "/abs/path",   // Required: absolute repo path
+///   "summary": "...",      // Optional
+///   "acceptance_criteria": [],  // Optional
+///   "test_plan": "...",    // Optional
+///   "risk_level": "low",   // Optional: low|medium|high|critical
+///   "priority": "medium",  // Optional: low|medium|high|critical
+///   "labels": [],          // Optional
+///   "owner": "agent-id"    // Optional
+/// }
+/// ```
+pub async fn create_from_spec(params: Value, ctx: &AppContext) -> Result<Value> {
+    let task_id = sv(&params, "id")
+        .map(String::from)
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let title = sv(&params, "title").ok_or_else(|| anyhow::anyhow!("missing title"))?;
+    let repo = sv(&params, "repo").ok_or_else(|| anyhow::anyhow!("missing repo"))?;
+
+    let risk_level = match sv(&params, "risk_level").unwrap_or("medium") {
+        "critical" => RiskLevel::Critical,
+        "high" => RiskLevel::High,
+        "low" => RiskLevel::Low,
+        _ => RiskLevel::Medium,
+    };
+
+    let priority = match sv(&params, "priority").unwrap_or("medium") {
+        "critical" => Priority::Critical,
+        "high" => Priority::High,
+        "low" => Priority::Low,
+        _ => Priority::Medium,
+    };
+
+    let acceptance_criteria: Vec<String> = params
+        .get("acceptance_criteria")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let labels: Vec<String> = params
+        .get("labels")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let spec = TaskSpec {
+        id: task_id.clone(),
+        title: title.to_string(),
+        repo: repo.to_string(),
+        summary: s(&params, "summary"),
+        acceptance_criteria,
+        test_plan: s(&params, "test_plan"),
+        risk_level,
+        priority,
+        labels,
+        owner: s(&params, "owner"),
+        worktree_path: s(&params, "worktree_path"),
+        worktree_branch: s(&params, "worktree_branch"),
+        created_at: Utc::now(),
+    };
+
+    // Write task.yaml into .claw/tasks/<id>/
+    let task_dir = ctx.config.data_dir.join("tasks").join(&task_id);
+    tokio::fs::create_dir_all(&task_dir).await?;
+    let yaml = serde_yaml::to_string(&spec)
+        .map_err(|e| anyhow::anyhow!("spec serialization failed: {e}"))?;
+    tokio::fs::write(task_dir.join("task.yaml"), yaml).await?;
+
+    // Append TaskCreated event to the event log
+    let engine = ReplayEngine::new(&task_id, &ctx.config.data_dir)?;
+    let correlation_id = new_correlation_id();
+    engine
+        .event_log
+        .append(
+            TaskEventKind::TaskCreated { spec },
+            "daemon",
+            &correlation_id,
+        )
+        .await?;
+
+    ctx.broadcaster
+        .broadcast("task.specCreated", json!({ "task_id": task_id }));
+
+    Ok(json!({ "task_id": task_id }))
+}
+
+/// `tasks.transition` — Transition a task to a new state via an event.
+///
+/// Params:
+/// ```json
+/// {
+///   "task_id": "uuid",         // Required
+///   "event_type": "task_active",  // Required: snake_case event name
+///   "actor": "agent-id",       // Optional (default: "user")
+///   // Additional fields depending on event_type:
+///   "reason": "...",           // For task_blocked, task_canceled, task_failed
+///   "completion_notes": "...", // For task_done
+///   "agent_id": "...",         // For task_claimed
+///   "role": "...",             // For task_claimed
+///   "approval_id": "...",      // For task_needs_approval, approval_granted, etc.
+///   "tool_name": "...",        // For task_needs_approval, approval events
+///   "risk_level": "...",       // For task_needs_approval, approval_requested
+///   "reviewer_id": "...",      // For task_code_review
+///   "qa_agent_id": "...",      // For task_qa
+///   "granted_by": "...",       // For approval_granted
+///   "denied_by": "...",        // For approval_denied
+/// }
+/// ```
+pub async fn transition(params: Value, ctx: &AppContext) -> Result<Value> {
+    let task_id = sv(&params, "task_id").ok_or_else(|| anyhow::anyhow!("missing task_id"))?;
+    let event_type = sv(&params, "event_type").ok_or_else(|| anyhow::anyhow!("missing event_type"))?;
+    let actor = sv(&params, "actor").unwrap_or("user");
+
+    let kind = match event_type {
+        "task_active" => TaskEventKind::TaskActive,
+        "task_planned" => TaskEventKind::TaskPlanned {
+            phases: params
+                .get("phases")
+                .and_then(|v| v.as_array())
+                .cloned()
+                .unwrap_or_default(),
+        },
+        "task_claimed" => TaskEventKind::TaskClaimed {
+            agent_id: sv(&params, "agent_id")
+                .ok_or_else(|| anyhow::anyhow!("task_claimed requires agent_id"))?
+                .to_string(),
+            role: sv(&params, "role").unwrap_or("implementer").to_string(),
+        },
+        "task_blocked" => TaskEventKind::TaskBlocked {
+            reason: sv(&params, "reason")
+                .ok_or_else(|| anyhow::anyhow!("task_blocked requires reason"))?
+                .to_string(),
+            retry_after: None,
+        },
+        "task_needs_approval" => TaskEventKind::TaskNeedsApproval {
+            approval_id: s(&params, "approval_id")
+                .unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+            tool_name: sv(&params, "tool_name").unwrap_or("unknown").to_string(),
+            risk_level: sv(&params, "risk_level").unwrap_or("high").to_string(),
+        },
+        "task_code_review" => TaskEventKind::TaskCodeReview {
+            reviewer_id: s(&params, "reviewer_id"),
+        },
+        "task_qa" => TaskEventKind::TaskQa {
+            qa_agent_id: s(&params, "qa_agent_id"),
+        },
+        "task_done" => TaskEventKind::TaskDone {
+            completion_notes: sv(&params, "completion_notes")
+                .ok_or_else(|| anyhow::anyhow!("task_done requires completion_notes"))?
+                .to_string(),
+        },
+        "task_canceled" => TaskEventKind::TaskCanceled {
+            reason: sv(&params, "reason").unwrap_or("user canceled").to_string(),
+        },
+        "task_failed" => TaskEventKind::TaskFailed {
+            error: sv(&params, "reason")
+                .or_else(|| sv(&params, "error"))
+                .unwrap_or("unknown error")
+                .to_string(),
+        },
+        "approval_granted" => TaskEventKind::ApprovalGranted {
+            approval_id: sv(&params, "approval_id")
+                .ok_or_else(|| anyhow::anyhow!("approval_granted requires approval_id"))?
+                .to_string(),
+            granted_by: sv(&params, "granted_by").unwrap_or("user").to_string(),
+        },
+        "approval_denied" => TaskEventKind::ApprovalDenied {
+            approval_id: sv(&params, "approval_id")
+                .ok_or_else(|| anyhow::anyhow!("approval_denied requires approval_id"))?
+                .to_string(),
+            denied_by: sv(&params, "denied_by").unwrap_or("user").to_string(),
+            reason: sv(&params, "reason").unwrap_or("denied").to_string(),
+        },
+        other => {
+            return Err(anyhow::anyhow!("unknown event_type: {}", other));
+        }
+    };
+
+    let engine = ReplayEngine::new(task_id, &ctx.config.data_dir)?;
+    let current_state = engine.replay().await?;
+    let (new_state, _seq) = engine
+        .append_and_reduce(kind, actor, current_state)
+        .await?;
+
+    ctx.broadcaster.broadcast(
+        "task.stateChanged",
+        json!({
+            "task_id": task_id,
+            "state": new_state.state,
+        }),
+    );
+
+    Ok(json!({ "state": new_state.state, "task_id": task_id }))
+}
+
+/// `tasks.listEvents` — Query the JSONL event log for a task.
+///
+/// Params:
+/// ```json
+/// {
+///   "task_id": "uuid",      // Required
+///   "from_seq": 0,          // Optional: start after this seq (inclusive)
+///   "limit": 100            // Optional: max events to return
+/// }
+/// ```
+pub async fn list_events(params: Value, ctx: &AppContext) -> Result<Value> {
+    let task_id = sv(&params, "task_id").ok_or_else(|| anyhow::anyhow!("missing task_id"))?;
+    let from_seq = params
+        .get("from_seq")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    let limit = params
+        .get("limit")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(200)
+        .min(1000);
+
+    let log = crate::tasks::event_log::TaskEventLog::new(task_id, &ctx.config.data_dir)?;
+    let total = log.event_count().await?;
+    let mut events = log.read_from(from_seq).await?;
+
+    // Apply limit
+    events.truncate(limit as usize);
+
+    Ok(json!({
+        "events": events,
+        "total": total,
+        "task_id": task_id,
+        "from_seq": from_seq,
+    }))
 }

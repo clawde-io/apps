@@ -494,41 +494,22 @@ class _AppearancePane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return const Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _Header(
+        _Header(
           title: 'Appearance',
           subtitle: 'Customize the look of ClawDE',
         ),
-        const SizedBox(height: 24),
-        const _Label('Theme'),
-        const SizedBox(height: 10),
-        SegmentedButton<String>(
-          segments: const [
-            ButtonSegment(
-              value: 'dark',
-              icon: Icon(Icons.dark_mode, size: 16),
-              label: Text('Dark'),
-            ),
-            ButtonSegment(
-              value: 'light',
-              icon: Icon(Icons.light_mode, size: 16),
-              label: Text('Light'),
-              tooltip: 'Coming soon',
-            ),
+        SizedBox(height: 24),
+        _Label('Theme'),
+        SizedBox(height: 10),
+        Row(
+          children: [
+            Icon(Icons.dark_mode, size: 16, color: ClawdTheme.claw),
+            SizedBox(width: 8),
+            Text('Dark', style: TextStyle(fontSize: 13, color: Colors.white)),
           ],
-          selected: const {'dark'},
-          onSelectionChanged: (_) {},
-          style: SegmentedButton.styleFrom(
-            selectedBackgroundColor:
-                ClawdTheme.claw.withValues(alpha: 0.2),
-          ),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Light theme coming in a future release.',
-          style: TextStyle(fontSize: 11, color: Colors.white38),
         ),
       ],
     );

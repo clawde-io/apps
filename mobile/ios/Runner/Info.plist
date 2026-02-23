@@ -8,6 +8,13 @@
 	<!-- MC-04: Camera permission for QR code scanning (host pairing) -->
 	<key>NSCameraUsageDescription</key>
 	<string>ClawDE needs camera access to scan QR codes for connecting to remote daemon hosts.</string>
+	<!-- MH-5: Local network permission for LAN discovery (mDNS) -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>ClawDE discovers clawd daemon hosts on your local network.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_clawde._tcp</string>
+	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

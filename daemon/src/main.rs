@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use clap::{Parser, Subcommand};
 use clawd::{
     account::AccountRegistry, auth, config::DaemonConfig, identity, ipc::event::EventBroadcaster,
@@ -62,6 +62,21 @@ enum Command {
         #[command(subcommand)]
         action: TasksAction,
     },
+    /// Check for updates, download, and apply
+    Update {
+        /// Only check — do not download or apply
+        #[arg(long)]
+        check: bool,
+        /// Apply a previously downloaded update without re-checking
+        #[arg(long)]
+        apply: bool,
+    },
+    /// Start the daemon via the OS service manager
+    Start,
+    /// Stop the daemon via the OS service manager
+    Stop,
+    /// Restart the daemon via the OS service manager
+    Restart,
 }
 
 #[derive(Subcommand)]
@@ -255,12 +270,22 @@ async fn main() -> Result<()> {
             ServiceAction::Status => service::status()?,
         },
         Some(Command::Init { path }) => {
-            let path = path.unwrap_or_else(|| std::env::current_dir().unwrap());
+            let path = match path {
+                Some(p) => p,
+                None => std::env::current_dir()
+                    .context("failed to determine current directory")?,
+            };
             run_init(&path).await?;
         }
         Some(Command::Tasks { action }) => {
             run_tasks(action, args.data_dir).await?;
         }
+        Some(Command::Update { check, apply }) => {
+            run_update(check, apply).await?;
+        }
+        Some(Command::Start) => service::start()?,
+        Some(Command::Stop) => service::stop()?,
+        Some(Command::Restart) => service::restart()?,
         None | Some(Command::Serve) => {
             run_server(args.port, args.data_dir, args.log, args.max_sessions).await?;
         }
@@ -391,6 +416,45 @@ async fn run_init(path: &std::path::Path) -> Result<()> {
     Ok(())
 }
 
+// ── clawd update ──────────────────────────────────────────────────────────────
+
+async fn run_update(check_only: bool, apply_only: bool) -> Result<()> {
+    let config = Arc::new(DaemonConfig::new(None, None, Some("error".to_string()), None));
+    let broadcaster = Arc::new(EventBroadcaster::new());
+    let updater = update::Updater::new(config, broadcaster);
+
+    if apply_only {
+        // Apply a previously staged update (downloaded in a prior run)
+        match updater.apply_if_ready().await? {
+            true => println!("Update applied — restarting."),
+            false => println!("No pending update to apply."),
+        }
+        return Ok(());
+    }
+
+    let (current, latest, available) = updater.check().await?;
+    if !available {
+        println!("clawd {current} is up to date (latest: {latest}).");
+        return Ok(());
+    }
+
+    println!("Update available: {current} -> {latest}");
+
+    if check_only {
+        return Ok(());
+    }
+
+    println!("Downloading...");
+    updater.check_and_download().await?;
+    println!("Download complete. Applying update...");
+    match updater.apply_if_ready().await? {
+        true => println!("Update applied — restarting."),
+        false => println!("Update downloaded but could not be applied yet."),
+    }
+
+    Ok(())
+}
+
 // ── clawd tasks ───────────────────────────────────────────────────────────────
 
 /// Open the task DB for CLI commands (no server — just storage access).
@@ -450,7 +514,7 @@ async fn run_tasks(action: TasksAction, data_dir: Option<std::path::PathBuf>) ->
 
         TasksAction::Claim { id, task, agent, .. } => {
             let task_id = resolve_task_id(id, task)?;
-            let t = ts.claim_task(&task_id, &agent).await?;
+            let t = ts.claim_task(&task_id, &agent, None).await?;
             println!("Claimed: {} — {}", t.id, t.title);
             println!("Status: {} by {}", t.status, t.claimed_by.as_deref().unwrap_or("?"));
         }
@@ -641,6 +705,24 @@ async fn run_server(
         "config loaded"
     );
 
+    // ── Provider CLI availability check ──────────────────────────────────────
+    for binary in &["claude", "codex"] {
+        let available = std::process::Command::new(binary)
+            .arg("--version")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok();
+        if available {
+            info!(binary = %binary, "provider CLI found");
+        } else {
+            warn!(
+                binary = %binary,
+                "provider CLI not found on PATH — sessions using this provider will fail"
+            );
+        }
+    }
+
     let storage = Arc::new(Storage::new(&config.data_dir).await?);
 
     let daemon_id = match identity::get_or_create(&storage).await {
@@ -747,6 +829,18 @@ async fn run_server(
     // ── Task storage (shared pool from main storage) ──────────────────────────
     let task_storage = Arc::new(TaskStorage::new(storage.pool().clone()));
 
+    // ── Phase 43c/43m: worktree manager + scheduler components ───────────────
+    let worktree_manager = std::sync::Arc::new(
+        clawd::worktree::WorktreeManager::new(&config.data_dir)
+    );
+    let account_pool = std::sync::Arc::new(clawd::scheduler::accounts::AccountPool::new());
+    let rate_limit_tracker = std::sync::Arc::new(clawd::scheduler::rate_limits::RateLimitTracker::new());
+    let fallback_engine = std::sync::Arc::new(clawd::scheduler::fallback::FallbackEngine::new(
+        std::sync::Arc::clone(&account_pool),
+        std::sync::Arc::clone(&rate_limit_tracker),
+    ));
+    let scheduler_queue = std::sync::Arc::new(clawd::scheduler::queue::SchedulerQueue::new());
+
     let ctx = Arc::new(AppContext {
         config: config.clone(),
         storage,
@@ -761,6 +855,12 @@ async fn run_server(
         auth_token,
         started_at: std::time::Instant::now(),
         task_storage: task_storage.clone(),
+        worktree_manager,
+        account_pool,
+        rate_limit_tracker,
+        fallback_engine,
+        scheduler_queue,
+        orchestrator: std::sync::Arc::new(clawd::agents::orchestrator::Orchestrator::new()),
     });
 
     // ── Spawn task background jobs ────────────────────────────────────────────
@@ -781,6 +881,19 @@ async fn run_server(
     // ── mDNS advertisement ────────────────────────────────────────────────────
     // Non-blocking: if mDNS fails (e.g. system restriction), daemon continues.
     let _mdns_guard = mdns::advertise(&daemon_id, config.port);
+
+    // ── .claw/ AFS structure validation (Phase 43i) ───────────────────────────
+    // Validate the .claw/ directory structure in the daemon's data dir.
+    // Missing items are warned but never fatal — the daemon starts regardless.
+    {
+        let missing = clawd::claw_init::validate_claw_dir(&ctx.config.data_dir).await;
+        if !missing.is_empty() {
+            warn!(
+                missing = ?missing,
+                "missing .claw/ structure — run `clawd init-claw` to fix"
+            );
+        }
+    }
 
     // Spawn relay AFTER ctx is built so it can dispatch inbound RPC frames
     // through the full IPC handler and forward push events to remote clients.

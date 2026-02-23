@@ -27,7 +27,7 @@ class AgentSwimlaneRow extends StatelessWidget {
           children: [
             AgentChip(
               agentId: agent.agentId,
-              isActive: agent.status == AgentStatus.active,
+              isActive: agent.status == AgentViewStatus.active,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -52,7 +52,7 @@ class AgentSwimlaneRow extends StatelessWidget {
                       ],
                     )
                   : Text(
-                      agent.status == AgentStatus.idle ? 'Idle' : 'Offline',
+                      agent.status == AgentViewStatus.idle ? 'Idle' : 'Offline',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),

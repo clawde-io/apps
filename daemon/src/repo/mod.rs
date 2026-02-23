@@ -94,6 +94,23 @@ impl RepoRegistry {
         Ok(status)
     }
 
+    /// Remove a repo from the registry, stopping its watcher and freeing memory.
+    /// Returns `true` if the repo was tracked and removed, `false` if not found.
+    pub async fn close(&self, repo_path: &str) -> Result<bool> {
+        let path = PathBuf::from(repo_path)
+            .canonicalize()
+            .context("path does not exist")?;
+        let key = path.to_string_lossy().to_string();
+
+        let removed = self.repos.write().await.remove(&key);
+        if removed.is_some() {
+            info!(path = %repo_path, "repo closed");
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
     /// Get current (fresh) status for any repo path.
     pub async fn status(&self, repo_path: &str) -> Result<RepoStatus> {
         let path = PathBuf::from(repo_path)

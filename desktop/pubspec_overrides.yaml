@@ -1,0 +1,10 @@
+# melos_managed_dependency_overrides: clawd_client,clawd_core,clawd_proto,clawd_ui
+dependency_overrides:
+  clawd_client:
+    path: ../packages/clawd_client
+  clawd_core:
+    path: ../packages/clawd_core
+  clawd_proto:
+    path: ../packages/clawd_proto
+  clawd_ui:
+    path: ../packages/clawd_ui

@@ -11,8 +11,27 @@ final _appVersionProvider = FutureProvider<String>((ref) async {
   return 'v${info.version}';
 });
 
+/// Aggregate count of pending tool calls across ALL running sessions.
+final _totalPendingToolCallsProvider = Provider<int>((ref) {
+  final sessions = ref.watch(sessionListProvider).valueOrNull ?? [];
+  var total = 0;
+  for (final session in sessions) {
+    if (session.status == SessionStatus.running) {
+      total += ref.watch(pendingToolCallCountProvider(session.id));
+    }
+  }
+  return total;
+});
+
+/// Count of sessions in an error state.
+final _errorSessionCountProvider = Provider<int>((ref) {
+  final sessions = ref.watch(sessionListProvider).valueOrNull ?? [];
+  return sessions.where((s) => s.status == SessionStatus.error).length;
+});
+
 /// Thin 28px status bar at the bottom of the app window.
-/// Shows daemon connection status, active session count, and app version.
+/// Shows daemon connection status, active session count, pending tool calls,
+/// error count, and app version.
 class StatusBar extends ConsumerWidget {
   const StatusBar({super.key});
 
@@ -25,6 +44,8 @@ class StatusBar extends ConsumerWidget {
     final repoAsync = ref.watch(activeRepoStatusProvider);
     final repo = repoAsync.valueOrNull;
     final version = ref.watch(_appVersionProvider).valueOrNull ?? 'v…';
+    final pendingToolCalls = ref.watch(_totalPendingToolCallsProvider);
+    final errorCount = ref.watch(_errorSessionCountProvider);
 
     return Container(
       height: 28,
@@ -47,6 +68,26 @@ class StatusBar extends ConsumerWidget {
                   : ClawdTheme.error,
             ),
           ),
+          // Pending tool calls badge
+          if (pendingToolCalls > 0) ...[
+            const SizedBox(width: 12),
+            _BadgeIndicator(
+              count: pendingToolCalls,
+              color: ClawdTheme.warning,
+              icon: Icons.hourglass_top,
+              tooltip: '$pendingToolCalls pending tool call${pendingToolCalls == 1 ? '' : 's'}',
+            ),
+          ],
+          // Error count badge
+          if (errorCount > 0) ...[
+            const SizedBox(width: 8),
+            _BadgeIndicator(
+              count: errorCount,
+              color: ClawdTheme.error,
+              icon: Icons.error_outline,
+              tooltip: '$errorCount session${errorCount == 1 ? '' : 's'} with errors',
+            ),
+          ],
           const Spacer(),
           // Branch + dirty indicator
           if (repo != null && repo.branch != null) ...[
@@ -115,6 +156,52 @@ class _StatusDot extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: connected ? ClawdTheme.success : ClawdTheme.error,
+      ),
+    );
+  }
+}
+
+/// Compact badge showing an icon and count in the status bar.
+/// Used for pending tool calls and error session indicators.
+class _BadgeIndicator extends StatelessWidget {
+  const _BadgeIndicator({
+    required this.count,
+    required this.color,
+    required this.icon,
+    required this.tooltip,
+  });
+
+  final int count;
+  final Color color;
+  final IconData icon;
+  final String tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 11, color: color),
+            const SizedBox(width: 3),
+            Text(
+              count.toString(),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

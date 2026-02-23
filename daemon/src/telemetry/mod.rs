@@ -1,8 +1,29 @@
 //! Privacy-safe telemetry — no code, no file paths, no user content.
 //!
-//! Events are queued in memory and flushed to POST /telemetry every 60 seconds
-//! or when 20 events accumulate, whichever comes first.
-//! Flush failures are logged and silently dropped — telemetry never blocks the daemon.
+//! Sub-modules:
+//!  - `schema`    — `TraceEvent` and `TraceKind` types
+//!  - `traces`    — JSONL append-only trace storage with rotation
+//!  - `emitter`   — high-level emission helpers (`TraceEmitter`)
+//!  - `spans`     — span context and timing (`SpanContext`, `Span`)
+//!  - `tokens`    — token estimation and header parsing
+//!  - `cost`      — cost estimation per model
+//!  - `redact`    — secret redaction for trace fields
+//!  - `retention` — retention policy and pruning of old trace files
+//!  - `metrics`   — daily metrics aggregation from trace data
+
+pub mod cost;
+pub mod emitter;
+pub mod metrics;
+pub mod redact;
+pub mod retention;
+pub mod schema;
+pub mod spans;
+pub mod tokens;
+pub mod traces;
+//
+// Events are queued in memory and flushed to POST /telemetry every 60 seconds
+// or when 20 events accumulate, whichever comes first.
+// Flush failures are logged and silently dropped — telemetry never blocks the daemon.
 
 use chrono::Utc;
 use serde::Serialize;

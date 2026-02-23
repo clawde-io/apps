@@ -45,7 +45,7 @@ class _AgentDashboardScreenState
   Widget build(BuildContext context) {
     final repoPath = ref.watch(activeRepoPathProvider);
     final byStatus = ref.watch(tasksByStatusProvider(repoPath));
-    final summaryAsync = ref.watch(taskSummaryProvider(repoPath));
+    final summaryAsync = ref.watch(taskDashboardStatsProvider(repoPath));
     final activityAsync = ref.watch(activityFeedProvider(repoPath));
     final agentsAsync = ref.watch(agentListProvider(repoPath));
 
@@ -79,7 +79,7 @@ class _AgentDashboardScreenState
               ref.invalidate(taskListProvider);
               ref.invalidate(activityFeedProvider);
               ref.invalidate(agentListProvider);
-              ref.invalidate(taskSummaryProvider);
+              ref.invalidate(taskDashboardStatsProvider);
             },
           ),
         ],
@@ -191,7 +191,7 @@ class _AgentTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isActive = agent.status == AgentStatus.active;
+    final isActive = agent.status == AgentViewStatus.active;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(

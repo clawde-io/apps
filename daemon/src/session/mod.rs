@@ -1,5 +1,6 @@
 pub mod claude;
 pub mod codex;
+pub mod cursor;
 pub mod events;
 pub mod runner;
 pub mod worktree;
@@ -14,6 +15,7 @@ use tracing::{error, info};
 
 use claude::ClaudeCodeRunner;
 use codex::CodexRunner;
+use cursor::CursorRunner;
 use runner::Runner;
 
 // ─── View types (matching @clawde/proto) ─────────────────────────────────────
@@ -29,6 +31,9 @@ pub struct SessionView {
     pub created_at: String,
     pub updated_at: String,
     pub message_count: i64,
+    /// Permission scopes for this session. `None` means all permissions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permissions: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -84,12 +89,16 @@ impl SessionManager {
         repo_path: &str,
         title: &str,
         max_sessions: usize,
+        permissions: Option<Vec<String>>,
     ) -> Result<SessionView> {
         // Validate provider — must match ProviderType.name values from Dart
         match provider {
             "claude" | "codex" | "cursor" => {}
-            _ => return Err(anyhow::anyhow!("unknown provider: {}", provider)),
+            _ => anyhow::bail!("PROVIDER_NOT_AVAILABLE: unknown provider: {}", provider),
         }
+
+        // Check that the provider CLI is installed and authenticated.
+        check_provider_ready(provider).await?;
 
         // Enforce session limit.  Checked here (inside the manager) rather than
         // in the handler so the check and creation are logically coupled; SQLite
@@ -101,9 +110,12 @@ impl SessionManager {
             }
         }
 
+        let permissions_json = permissions.as_ref().map(|p| serde_json::to_string(p))
+            .transpose()
+            .context("failed to serialize permissions")?;
         let row = self
             .storage
-            .create_session(provider, repo_path, title)
+            .create_session(provider, repo_path, title, permissions_json.as_deref())
             .await?;
         info!(id = %row.id, provider = %provider, "session created");
 
@@ -145,9 +157,22 @@ impl SessionManager {
         if let Some(handle) = self.handles.write().await.remove(session_id) {
             let _ = handle.runner.stop().await;
         }
-        // Clean up worktree if one was created for this session (non-fatal).
+        // Clean up worktree if one was created for this session.
+        // Errors are logged but do not prevent session deletion; the DB
+        // record is authoritative and the worktree directory is best-effort.
         let wt_path = worktree::worktree_path(&self.data_dir, session_id);
-        worktree::try_remove(std::path::Path::new(&row.repo_path), &wt_path).await;
+        if wt_path.exists() {
+            worktree::try_remove(std::path::Path::new(&row.repo_path), &wt_path).await;
+            if wt_path.exists() {
+                error!(
+                    id = %session_id,
+                    path = %wt_path.display(),
+                    "worktree cleanup failed — directory still exists after removal attempt"
+                );
+            } else {
+                info!(id = %session_id, "worktree cleaned up successfully");
+            }
+        }
 
         self.storage.delete_session(session_id).await?;
         info!(id = %session_id, "session deleted");
@@ -238,19 +263,24 @@ impl SessionManager {
         content: &str,
         ctx: &AppContext,
     ) -> Result<MessageView> {
-        // Ensure session exists
+        // Ensure session exists; fetch for repo_path and paused status check.
         let session_row = self
             .storage
             .get_session(session_id)
             .await?
             .context("SESSION_NOT_FOUND")?;
 
-        // Guard against concurrent turns — claude is one-shot per turn.
-        // Reject immediately rather than silently spawning a second subprocess.
-        match session_row.status.as_str() {
-            "running" => return Err(anyhow::anyhow!("SESSION_BUSY")),
-            "paused" => return Err(anyhow::anyhow!("SESSION_PAUSED")),
-            _ => {} // "idle" | "error" — allow
+        // Reject explicitly paused sessions before attempting the atomic claim.
+        if session_row.status == "paused" {
+            return Err(anyhow::anyhow!("SESSION_PAUSED"));
+        }
+
+        // Atomically claim the session for a new turn.  The DB UPDATE only
+        // succeeds when status is 'idle' or 'error', eliminating the TOCTOU
+        // race between reading the status and starting the runner.
+        let claimed = self.storage.claim_session_for_run(session_id).await?;
+        if !claimed {
+            return Err(anyhow::anyhow!("SESSION_BUSY"));
         }
 
         // Persist user message and increment count atomically.
@@ -291,6 +321,7 @@ impl SessionManager {
                         self.storage.clone(),
                         self.broadcaster.clone(),
                     ),
+                    "cursor" => CursorRunner::new(session_id.to_string()),
                     _ => ClaudeCodeRunner::new(
                         session_id.to_string(),
                         effective_path,
@@ -348,6 +379,49 @@ impl SessionManager {
         Ok(rows.into_iter().map(msg_row_to_view).collect())
     }
 
+    // ─── Permission scopes ─────────────────────────────────────────────────────
+
+    /// Check whether a tool call is permitted for the given session.
+    ///
+    /// Tool names are mapped to permission scopes:
+    /// - `file_read` / `file_write` / `shell_exec` / `git`
+    ///
+    /// Returns `Ok(())` if permitted, or an error with code -32002 if denied.
+    pub async fn check_tool_permission(
+        &self,
+        session_id: &str,
+        tool_name: &str,
+    ) -> Result<()> {
+        let session_row = self
+            .storage
+            .get_session(session_id)
+            .await?
+            .context("SESSION_NOT_FOUND")?;
+
+        let permissions_json = match &session_row.permissions {
+            Some(p) => p,
+            None => return Ok(()), // No restrictions
+        };
+
+        let permissions: Vec<String> = serde_json::from_str(permissions_json)
+            .unwrap_or_default();
+
+        if permissions.is_empty() {
+            return Ok(()); // Empty array also means all permissions
+        }
+
+        let required_scope = tool_name_to_scope(tool_name);
+        if permissions.iter().any(|p| p == required_scope) {
+            Ok(())
+        } else {
+            anyhow::bail!(
+                "PROVIDER_NOT_AVAILABLE: tool '{}' requires '{}' permission which is not in session scope",
+                tool_name,
+                required_scope
+            )
+        }
+    }
+
     // ─── Graceful shutdown ────────────────────────────────────────────────────
 
     /// Stop all active runners and mark their sessions idle.
@@ -375,24 +449,88 @@ impl SessionManager {
 
     // ─── Tool approval ────────────────────────────────────────────────────────
 
-    pub async fn approve_tool(&self, _session_id: &str, _tool_call_id: &str) -> Result<()> {
-        // All tool calls run under --dangerously-skip-permissions, so the
-        // approve / reject UI buttons are no-ops — tools are always auto-
-        // approved by the claude subprocess itself.  We return Ok so the
-        // Flutter UI does not see an error when the user taps Approve.
+    pub async fn approve_tool(&self, session_id: &str, tool_call_id: &str) -> Result<()> {
+        // Record user acknowledgement in DB and notify clients.
+        // Tools run under --dangerously-skip-permissions so they execute before
+        // the user taps Approve; this records the user's explicit sign-off.
+        self.storage
+            .complete_tool_call(tool_call_id, None, "approved")
+            .await?;
+        self.broadcaster.broadcast(
+            "session.toolCallUpdated",
+            serde_json::json!({
+                "sessionId": session_id,
+                "toolCallId": tool_call_id,
+                "status": "approved",
+            }),
+        );
         Ok(())
     }
 
-    pub async fn reject_tool(&self, _session_id: &str, _tool_call_id: &str) -> Result<()> {
-        // Same rationale as approve_tool.  Rejection is not meaningful in
-        // auto-approve mode, but we return Ok to avoid surfacing errors.
+    pub async fn reject_tool(&self, session_id: &str, tool_call_id: &str) -> Result<()> {
+        // Record user rejection in DB and notify clients.
+        self.storage
+            .complete_tool_call(tool_call_id, None, "rejected")
+            .await?;
+        self.broadcaster.broadcast(
+            "session.toolCallUpdated",
+            serde_json::json!({
+                "sessionId": session_id,
+                "toolCallId": tool_call_id,
+                "status": "rejected",
+            }),
+        );
         Ok(())
     }
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+/// Verify that the provider CLI is available and (for claude) authenticated.
+/// Returns PROVIDER_NOT_AVAILABLE so the IPC layer maps it to -32002.
+async fn check_provider_ready(provider: &str) -> Result<()> {
+    match provider {
+        "claude" => {
+            // `claude auth status` exits 0 when authenticated.
+            let status = tokio::process::Command::new("claude")
+                .args(["auth", "status"])
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .await;
+            match status {
+                Err(_) => anyhow::bail!(
+                    "PROVIDER_NOT_AVAILABLE: claude CLI not found — install from claude.ai/download"
+                ),
+                Ok(s) if !s.success() => anyhow::bail!(
+                    "PROVIDER_NOT_AVAILABLE: claude is not authenticated — run `claude auth login`"
+                ),
+                _ => Ok(()),
+            }
+        }
+        "codex" => {
+            let available = tokio::process::Command::new("codex")
+                .arg("--version")
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .await
+                .is_ok();
+            if !available {
+                anyhow::bail!(
+                    "PROVIDER_NOT_AVAILABLE: codex CLI not found — install via: npm install -g @openai/codex"
+                );
+            }
+            Ok(())
+        }
+        _ => Ok(()),
+    }
+}
+
 fn row_to_view(row: crate::storage::SessionRow) -> SessionView {
+    let permissions = row.permissions.as_ref().and_then(|json_str| {
+        serde_json::from_str::<Vec<String>>(json_str).ok()
+    });
     SessionView {
         id: row.id,
         provider: row.provider,
@@ -402,6 +540,33 @@ fn row_to_view(row: crate::storage::SessionRow) -> SessionView {
         created_at: row.created_at,
         updated_at: row.updated_at,
         message_count: row.message_count,
+        permissions,
+    }
+}
+
+/// Map a tool call name to the permission scope it requires.
+///
+/// Known tool patterns:
+/// - Read / Glob / Grep / WebFetch → `file_read`
+/// - Write / Edit / NotebookEdit → `file_write`
+/// - Bash / shell commands → `shell_exec`
+/// - Git operations → `git`
+///
+/// Unknown tools default to `shell_exec` (most restrictive common scope).
+fn tool_name_to_scope(tool_name: &str) -> &'static str {
+    let lower = tool_name.to_lowercase();
+    if lower.contains("read") || lower.contains("glob") || lower.contains("grep")
+        || lower.contains("fetch") || lower.contains("search")
+    {
+        "file_read"
+    } else if lower.contains("write") || lower.contains("edit") || lower.contains("notebook") {
+        "file_write"
+    } else if lower.contains("git") {
+        "git"
+    } else if lower.contains("bash") || lower.contains("shell") || lower.contains("exec") {
+        "shell_exec"
+    } else {
+        "shell_exec"
     }
 }
 

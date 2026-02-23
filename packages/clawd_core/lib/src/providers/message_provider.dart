@@ -114,12 +114,22 @@ class MessageListNotifier
     state = AsyncValue.data([...older, ...current]);
   }
 
+  // Messages are retained in Riverpod state across reconnects — no cache flush on disconnect.
+
   /// SH-03: Pending queue — messages typed while offline are sent on reconnect.
   final List<String> _pendingQueue = [];
+
+  /// Set of message contents currently being sent (in-flight). Prevents the
+  /// same message from being queued twice if reconnect fires rapidly.
+  final Set<String> _inFlight = {};
 
   Future<void> send(String content) async {
     final daemonState = ref.read(daemonProvider);
     if (!daemonState.isConnected) {
+      // Guard: skip if this content is already queued or in-flight.
+      if (_inFlight.contains(content)) return;
+      if (_pendingQueue.contains(content)) return;
+
       // Queue the message and add a pending-state placeholder to the UI.
       _pendingQueue.add(content);
       _appendMessage(Message(
@@ -144,16 +154,27 @@ class MessageListNotifier
 
   Future<void> _drainQueue() async {
     while (_pendingQueue.isNotEmpty) {
-      final content = _pendingQueue.removeAt(0);
+      final content = _pendingQueue.first;
+
+      // Skip if already in-flight (e.g. rapid reconnect fired drain twice).
+      if (_inFlight.contains(content)) {
+        _pendingQueue.removeAt(0);
+        continue;
+      }
+
+      _inFlight.add(content);
       try {
         final client = ref.read(daemonProvider.notifier).client;
         await client.call<void>('session.sendMessage', {
           'sessionId': arg,
           'content': content,
         });
+        // Success — remove from both queue and in-flight set.
+        _pendingQueue.removeAt(0);
+        _inFlight.remove(content);
       } catch (_) {
-        // Put it back at the front and stop draining — will retry next connect.
-        _pendingQueue.insert(0, content);
+        // Send failed — remove from in-flight so retry is possible, stop drain.
+        _inFlight.remove(content);
         break;
       }
     }

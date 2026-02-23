@@ -10,6 +10,7 @@ import 'package:clawde_mobile/features/hosts/hosts_screen.dart';
 import 'package:clawde_mobile/features/hosts/host_provider.dart';
 import 'package:clawde_mobile/features/settings/settings_screen.dart';
 import 'package:clawde_mobile/features/dashboard/agent_dashboard_screen.dart';
+import 'package:clawde_mobile/features/offline/offline_screen.dart';
 import 'package:clawde_mobile/services/notification_service.dart';
 
 final _router = GoRouter(
@@ -188,6 +189,7 @@ class _MobileShellState extends ConsumerState<_MobileShell> {
             _UpdateBanner(onDismiss: () {
               setState(() => _updateAvailable = false);
             }),
+          const OfflineBanner(),
           Expanded(child: widget.child),
         ],
       ),

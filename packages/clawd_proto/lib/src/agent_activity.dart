@@ -72,15 +72,15 @@ class ActivityLogEntry {
 }
 
 /// Status of a registered agent.
-enum AgentStatus {
+enum AgentViewStatus {
   active,
   idle,
   offline;
 
-  static AgentStatus fromString(String s) {
-    return AgentStatus.values.firstWhere(
+  static AgentViewStatus fromString(String s) {
+    return AgentViewStatus.values.firstWhere(
       (t) => t.name == s,
-      orElse: () => AgentStatus.offline,
+      orElse: () => AgentViewStatus.offline,
     );
   }
 
@@ -102,7 +102,7 @@ class AgentView {
   });
 
   final String agentId;
-  final AgentStatus status;
+  final AgentViewStatus status;
   final String repoPath;
   final String agentType;
   final String? sessionId;
@@ -123,7 +123,7 @@ class AgentView {
 
   factory AgentView.fromJson(Map<String, dynamic> json) => AgentView(
         agentId: json['agentId'] as String? ?? json['agent_id'] as String,
-        status: AgentStatus.fromString(json['status'] as String? ?? 'offline'),
+        status: AgentViewStatus.fromString(json['status'] as String? ?? 'offline'),
         repoPath: json['repoPath'] as String? ??
             json['repo_path'] as String? ??
             '',
@@ -155,7 +155,7 @@ class AgentView {
       };
 
   AgentView copyWith({
-    AgentStatus? status,
+    AgentViewStatus? status,
     String? currentTaskId,
     int? lastSeen,
   }) =>

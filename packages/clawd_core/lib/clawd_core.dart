@@ -9,3 +9,9 @@ export 'src/providers/tool_call_provider.dart';
 export 'src/providers/repo_provider.dart';
 export 'src/providers/settings_provider.dart';
 export 'src/providers/task_provider.dart';
+export 'src/utils/paths.dart';
+export 'src/session_export.dart';
+
+// Phase 43l — multi-agent UX providers
+export 'src/providers/agent_provider.dart';
+export 'src/providers/task_summary_provider.dart';

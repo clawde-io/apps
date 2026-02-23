@@ -13,6 +13,14 @@ struct ToolDecisionParams {
 
 pub async fn approve(params: Value, ctx: &AppContext) -> Result<Value> {
     let p: ToolDecisionParams = serde_json::from_value(params)?;
+
+    // Check session permission scopes before approving
+    if let Ok(Some(tool_call)) = ctx.storage.get_tool_call(&p.tool_call_id).await {
+        ctx.session_manager
+            .check_tool_permission(&p.session_id, &tool_call.name)
+            .await?;
+    }
+
     ctx.session_manager
         .approve_tool(&p.session_id, &p.tool_call_id)
         .await?;

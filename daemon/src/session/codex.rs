@@ -21,7 +21,7 @@ use tokio::{
     process::{Child, Command},
     sync::Mutex,
 };
-use tracing::debug;
+use tracing::{debug, trace, warn};
 
 pub struct CodexRunner {
     session_id: String,
@@ -69,11 +69,27 @@ impl CodexRunner {
         let stdout = child.stdout.take().context("no stdout")?;
         let stderr = child.stderr.take().context("no stderr")?;
 
-        // Drain stderr — log at debug level.
+        // Drain stderr — log at debug level. Detect rate-limit signals.
+        let session_id_err = self.session_id.clone();
+        let broadcaster_err = self.broadcaster.clone();
         tokio::spawn(async move {
             let mut lines = BufReader::new(stderr).lines();
             while let Ok(Some(line)) = lines.next_line().await {
                 debug!(target: "codex_stderr", "{}", line);
+                // Detect rate-limit patterns: "rate limit", "too many requests", "429".
+                let lower = line.to_lowercase();
+                if lower.contains("rate limit") || lower.contains("rate_limit")
+                    || lower.contains("too many requests") || lower.contains("429")
+                {
+                    broadcaster_err.broadcast(
+                        "session.statusChanged",
+                        json!({
+                            "sessionId": session_id_err,
+                            "status": "error",
+                            "reason": "RATE_LIMITED"
+                        }),
+                    );
+                }
             }
         });
 
@@ -83,13 +99,37 @@ impl CodexRunner {
 
         *self.current_child.lock().await = Some(child);
 
-        self.stream_output(stdout).await
+        // Apply a per-turn timeout (default 10 min) so a hung subprocess
+        // cannot hold the session in "running" forever.
+        let timeout_secs = std::env::var("CLAWD_TURN_TIMEOUT_SECS")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(600);
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(timeout_secs),
+            self.stream_output(stdout),
+        )
+        .await
+        {
+            Ok(result) => result,
+            Err(_) => {
+                if let Some(mut child) = self.current_child.lock().await.take() {
+                    let _ = child.kill().await;
+                    let _ = child.wait().await;
+                }
+                anyhow::bail!("turn timed out after {timeout_secs}s — session reset to idle")
+            }
+        }
     }
+
+    /// Maximum size for accumulated stdout (1 MB). Prevents OOM on runaway output.
+    const MAX_ACCUMULATED_BYTES: usize = 1_048_576;
 
     async fn stream_output(&self, stdout: tokio::process::ChildStdout) -> Result<()> {
         let mut lines = BufReader::new(stdout).lines();
         let mut accumulated = String::new();
         let mut message_id: Option<String> = None;
+        let mut truncated = false;
 
         self.storage
             .update_session_status(&self.session_id, "running")
@@ -100,7 +140,22 @@ impl CodexRunner {
         );
 
         while let Some(line) = lines.next_line().await? {
-            debug!(session = %self.session_id, line = %line, "codex output");
+            trace!(session = %self.session_id, line = %line, "codex output");
+
+            // Cap accumulated output at 1 MB to prevent OOM on runaway Codex output.
+            if !truncated && accumulated.len() + line.len() + 1 > Self::MAX_ACCUMULATED_BYTES {
+                warn!(
+                    session = %self.session_id,
+                    bytes = accumulated.len(),
+                    "codex output exceeded 1 MB cap — truncating"
+                );
+                accumulated.push_str("\n\n[output truncated at 1 MB]");
+                truncated = true;
+            }
+            if truncated {
+                // Keep draining stdout so the process is not blocked, but stop accumulating.
+                continue;
+            }
 
             accumulated.push_str(&line);
             accumulated.push('\n');
@@ -188,8 +243,18 @@ impl Runner for CodexRunner {
         CodexRunner::run_turn(self, content).await
     }
 
+    /// Codex does not support mid-session message injection.
+    ///
+    /// Unlike Claude Code (which accepts piped input on stdin), the `codex` CLI
+    /// takes a single query via `-q` and runs to completion. There is no way to
+    /// send additional content to a running Codex turn. Callers should start a
+    /// new turn via `run_turn()` instead.
+    ///
+    /// Returns an error so the caller knows the operation was not performed.
     async fn send(&self, _content: &str) -> Result<()> {
-        Ok(())
+        anyhow::bail!(
+            "PROVIDER_NOT_AVAILABLE: codex does not support mid-session message injection — start a new turn instead"
+        )
     }
 
     async fn pause(&self) -> Result<()> {

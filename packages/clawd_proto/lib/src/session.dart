@@ -1,6 +1,8 @@
 /// Session types for the clawd daemon.
 library;
 
+import 'dart:developer' as dev;
+
 enum SessionStatus { idle, running, paused, completed, error }
 
 enum ProviderType { claude, codex, cursor }
@@ -45,6 +47,7 @@ class Session {
     try {
       return ProviderType.values.byName(s);
     } catch (_) {
+      dev.log('unknown provider: $s', name: 'clawd_proto');
       return ProviderType.claude;
     }
   }
@@ -53,6 +56,7 @@ class Session {
     try {
       return SessionStatus.values.byName(s);
     } catch (_) {
+      dev.log('unknown status: $s', name: 'clawd_proto');
       return SessionStatus.idle;
     }
   }

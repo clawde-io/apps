@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:clawd_ui/clawd_ui.dart';
 import 'package:clawde/router.dart';
 import 'package:clawde/widgets/status_bar.dart';
+import 'package:clawde/widgets/update_banner.dart';
 
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key, required this.child});
@@ -21,6 +22,8 @@ class _AppShellState extends ConsumerState<AppShell> {
     routeFiles,
     routeGit,
     routeDashboard,
+    routeSearch,
+    routePacks,
     routeSettings,
   ];
 
@@ -84,6 +87,16 @@ class _AppShellState extends ConsumerState<AppShell> {
                 label: Text('Tasks'),
               ),
               NavigationRailDestination(
+                icon: Icon(Icons.search_outlined),
+                selectedIcon: Icon(Icons.search),
+                label: Text('Search'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.extension_outlined),
+                selectedIcon: Icon(Icons.extension),
+                label: Text('Packs'),
+              ),
+              NavigationRailDestination(
                 icon: Icon(Icons.settings_outlined),
                 selectedIcon: Icon(Icons.settings),
                 label: Text('Settings'),
@@ -100,7 +113,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             ),
           ),
           const VerticalDivider(thickness: 1, width: 1),
-          Expanded(child: widget.child),
+          Expanded(child: UpdateBanner(child: widget.child)),
         ],
       ),
       bottomNavigationBar: const StatusBar(),

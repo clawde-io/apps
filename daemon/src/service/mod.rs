@@ -47,6 +47,108 @@ pub fn uninstall() -> Result<()> {
     }
 }
 
+/// Start the daemon via the OS service manager.
+pub fn start() -> Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        let path = plist_path()?;
+        if !path.exists() {
+            anyhow::bail!("clawd is not installed — run `clawd service install` first");
+        }
+        run_cmd("launchctl", &["load", "-w", &path.to_string_lossy()])?;
+        println!("clawd started.");
+        return Ok(());
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        run_cmd("systemctl", &["--user", "start", "clawd"])?;
+        println!("clawd started.");
+        return Ok(());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        run_cmd("sc", &["start", WINDOWS_SERVICE_NAME])?;
+        println!("clawd started.");
+        return Ok(());
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        anyhow::bail!("service start not supported on this platform")
+    }
+}
+
+/// Stop the daemon via the OS service manager.
+pub fn stop() -> Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        let path = plist_path()?;
+        if !path.exists() {
+            anyhow::bail!("clawd is not installed — run `clawd service install` first");
+        }
+        run_cmd("launchctl", &["unload", &path.to_string_lossy()])?;
+        println!("clawd stopped.");
+        return Ok(());
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        run_cmd("systemctl", &["--user", "stop", "clawd"])?;
+        println!("clawd stopped.");
+        return Ok(());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        run_cmd("sc", &["stop", WINDOWS_SERVICE_NAME])?;
+        println!("clawd stopped.");
+        return Ok(());
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        anyhow::bail!("service stop not supported on this platform")
+    }
+}
+
+/// Restart the daemon via the OS service manager.
+pub fn restart() -> Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        let path = plist_path()?;
+        if !path.exists() {
+            anyhow::bail!("clawd is not installed — run `clawd service install` first");
+        }
+        // launchctl has no restart — unload then load
+        let _ = run_cmd("launchctl", &["unload", &path.to_string_lossy()]);
+        run_cmd("launchctl", &["load", "-w", &path.to_string_lossy()])?;
+        println!("clawd restarted.");
+        return Ok(());
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        run_cmd("systemctl", &["--user", "restart", "clawd"])?;
+        println!("clawd restarted.");
+        return Ok(());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let _ = run_cmd("sc", &["stop", WINDOWS_SERVICE_NAME]);
+        run_cmd("sc", &["start", WINDOWS_SERVICE_NAME])?;
+        println!("clawd restarted.");
+        return Ok(());
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        anyhow::bail!("service restart not supported on this platform")
+    }
+}
+
 /// Print daemon service status.
 pub fn status() -> Result<()> {
     #[cfg(target_os = "macos")]

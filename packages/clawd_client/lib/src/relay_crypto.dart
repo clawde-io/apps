@@ -31,8 +31,24 @@ class RelayE2eHandshake {
   final String clientPubkeyB64;
 
   /// Generate a fresh ephemeral X25519 keypair.
+  ///
+  /// Use this when forward-secrecy per connection is desired.
   static Future<RelayE2eHandshake> create() async {
     final keyPair = await X25519().newKeyPair();
+    final pubKey = await keyPair.extractPublicKey();
+    final b64 = _b64urlNopad(Uint8List.fromList(pubKey.bytes));
+    return RelayE2eHandshake._(keyPair, b64);
+  }
+
+  /// Derive a stable X25519 keypair from a 32-byte [seed].
+  ///
+  /// Use this when the same keypair must survive app restarts and
+  /// WebSocket reconnects (e.g. providing a stable device identity).
+  /// The caller is responsible for persisting [seed] in secure storage
+  /// (e.g. `flutter_secure_storage`).  [seed] must be exactly 32 bytes.
+  static Future<RelayE2eHandshake> createFromSeed(Uint8List seed) async {
+    assert(seed.length == 32, 'E2E seed must be 32 bytes');
+    final keyPair = await X25519().newKeyPairFromSeed(seed);
     final pubKey = await keyPair.extractPublicKey();
     final b64 = _b64urlNopad(Uint8List.fromList(pubKey.bytes));
     return RelayE2eHandshake._(keyPair, b64);
