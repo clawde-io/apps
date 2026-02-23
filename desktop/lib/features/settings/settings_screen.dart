@@ -8,8 +8,9 @@ import 'package:clawd_core/clawd_core.dart';
 import 'package:clawd_proto/clawd_proto.dart';
 import 'package:clawd_ui/clawd_ui.dart';
 import 'package:clawde/services/updater_service.dart';
+import 'package:clawde/features/settings/remote_access_settings.dart';
 
-enum _Section { connection, providers, appearance, about }
+enum _Section { connection, remoteAccess, providers, appearance, about }
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -65,6 +66,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             padding: const EdgeInsets.all(32),
             child: switch (_active) {
               _Section.connection => const _ConnectionPane(),
+              _Section.remoteAccess => const RemoteAccessSettings(),
               _Section.providers => const _ProvidersPane(),
               _Section.appearance => const _AppearancePane(),
               _Section.about => const _AboutPane(),
@@ -91,6 +93,7 @@ class _SectionTile extends StatelessWidget {
 
   String get _label => switch (section) {
         _Section.connection => 'Connection',
+        _Section.remoteAccess => 'Remote Access',
         _Section.providers => 'Providers',
         _Section.appearance => 'Appearance',
         _Section.about => 'About',
@@ -98,6 +101,7 @@ class _SectionTile extends StatelessWidget {
 
   IconData get _icon => switch (section) {
         _Section.connection => Icons.wifi,
+        _Section.remoteAccess => Icons.devices,
         _Section.providers => Icons.auto_awesome,
         _Section.appearance => Icons.palette_outlined,
         _Section.about => Icons.info_outline,

@@ -117,6 +117,8 @@ impl Storage {
             include_str!("migrations/003_agent_tasks.sql"),
             include_str!("migrations/004_task_events.sql"),
             include_str!("migrations/007_threads.sql"),
+            include_str!("migrations/008_projects.sql"),
+            include_str!("migrations/009_devices.sql"),
             include_str!("migrations/005_resource_governor.sql"),
             include_str!("migrations/006_task_engine.sql"),
         ] {

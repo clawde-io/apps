@@ -379,3 +379,141 @@ Expected output:
   "port": 4300
 }
 ```
+
+---
+
+## Project Methods
+
+Projects are named workspaces containing one or more git repositories.
+
+### project.create
+
+Creates a new project.
+
+**Params:** `{ name: string, root_path?: string, description?: string, org_slug?: string }`
+**Returns:** `Project`
+
+### project.list
+
+Returns all projects.
+
+**Params:** `{}`
+**Returns:** `Project[]`
+
+### project.get
+
+Returns a project with its repos.
+
+**Params:** `{ id: string }`
+**Returns:** `ProjectWithRepos`
+**Errors:** `-32023` PROJECT_NOT_FOUND
+
+### project.update
+
+**Params:** `{ id: string, name?: string, description?: string, org_slug?: string }`
+**Returns:** `Project`
+
+### project.delete
+
+Deletes a project. Repos on disk are unaffected.
+
+**Params:** `{ id: string }`
+**Returns:** `{ deleted: true }`
+
+### project.addRepo
+
+Adds a git repository to a project. Validates the path is a real git repo.
+
+**Params:** `{ project_id: string, repo_path: string }`
+**Returns:** `ProjectRepo`
+**Errors:** `-32005` REPO_NOT_FOUND (not a git repo), `-32024` REPO_ALREADY_IN_PROJECT
+
+### project.removeRepo
+
+**Params:** `{ project_id: string, repo_path: string }`
+**Returns:** `{ removed: true }`
+
+### daemon.setName
+
+Sets the human-readable name for this daemon/host (e.g. "Mac Mini").
+
+**Params:** `{ name: string }`
+**Returns:** `{ ok: true }`
+
+### daemon.pairPin
+
+Generates a 6-digit pairing PIN valid for 10 minutes. Returns all info needed to build a pairing QR code.
+
+**Params:** `{}`
+**Returns:** `{ pin: string, expires_in_seconds: number, daemon_id: string, relay_url: string, host_name: string }`
+
+---
+
+## Device Pairing Methods
+
+### device.pair
+
+Exchange a PIN for a long-lived device token. Call this once during pairing.
+
+**Params:** `{ pin: string, name: string, platform: "ios"|"android"|"macos"|"windows"|"linux"|"web" }`
+**Returns:** `{ device_id: string, device_token: string, host_name: string, daemon_id: string, relay_url: string }`
+**Errors:** `-32021` PAIR_PIN_INVALID, `-32022` PAIR_PIN_EXPIRED
+
+### device.list
+
+Returns all paired devices (device tokens are never included in the response).
+
+**Params:** `{}`
+**Returns:** `PairedDevice[]`
+
+### device.revoke
+
+Revokes a paired device. Its token becomes invalid immediately.
+
+**Params:** `{ id: string }`
+**Returns:** `{ revoked: true }`
+**Errors:** `-32020` DEVICE_NOT_FOUND
+
+### device.rename
+
+**Params:** `{ id: string, name: string }`
+**Returns:** `{ ok: true }`
+
+---
+
+## Provider Methods
+
+### daemon.checkProvider
+
+Checks whether an AI provider CLI is installed and authenticated.
+
+**Params:** `{ provider: "claude"|"codex" }`
+**Returns:** `{ installed: boolean, authenticated: boolean, version: string|null, path: string|null }`
+
+---
+
+## New Error Codes (Phase 56)
+
+| Code | Constant | Meaning |
+| --- | --- | --- |
+| -32020 | DEVICE_NOT_FOUND | Paired device ID not found |
+| -32021 | PAIR_PIN_INVALID | PIN is wrong or already used |
+| -32022 | PAIR_PIN_EXPIRED | PIN has expired (10-min TTL) |
+| -32023 | PROJECT_NOT_FOUND | Project ID not found |
+| -32024 | REPO_ALREADY_IN_PROJECT | Repo already belongs to this project |
+
+---
+
+## New Push Events (Phase 56)
+
+| Event | When | Data |
+| --- | --- | --- |
+| `project.created` | New project created | `{ project: Project }` |
+| `project.updated` | Project renamed/updated | `{ project: Project }` |
+| `project.deleted` | Project deleted | `{ project_id: string }` |
+| `project.repoAdded` | Repo added to project | `{ project_id: string, repo: ProjectRepo }` |
+| `project.repoRemoved` | Repo removed from project | `{ project_id: string, repo_path: string }` |
+| `device.paired` | New device paired | `{ device_id: string, name: string, platform: string }` |
+| `device.revoked` | Device revoked | `{ device_id: string }` |
+| `relay.connected` | Daemon connected to relay | `{ relay_url: string }` |
+| `relay.disconnected` | Daemon disconnected from relay | `{ reason: string }` |

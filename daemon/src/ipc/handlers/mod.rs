@@ -2,6 +2,7 @@ pub mod afs;
 pub mod agents;
 pub mod approval;
 pub mod daemon;
+pub mod provider;
 pub mod repo;
 pub mod scheduler;
 pub mod session;

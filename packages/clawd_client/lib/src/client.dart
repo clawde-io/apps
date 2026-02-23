@@ -17,6 +17,21 @@ const int kClawdPort = 4300;
 /// session.sendMessage) inherit this; callers can override per-call if needed.
 const Duration kDefaultCallTimeout = Duration(seconds: 30);
 
+/// How the client is currently connected to the daemon.
+///
+/// Named [ClawdConnectionMode] to avoid clashing with the richer
+/// `ConnectionMode` enum exported by `clawd_core`.
+enum ClawdConnectionMode {
+  /// Not connected.
+  offline,
+
+  /// Connected directly over the local network (LAN / localhost).
+  lan,
+
+  /// Connected via the ClawDE relay server (off-LAN / internet).
+  relay,
+}
+
 // ─── Relay connection options ─────────────────────────────────────────────────
 
 /// Options for connecting to the daemon via the ClawDE relay server.
@@ -62,6 +77,10 @@ class RelayOptions {
 /// When [relayOptions] is supplied the client performs the relay handshake
 /// and optional E2E encryption automatically.
 ///
+/// For mobile device connections, supply [relayUrl] and [daemonId] to enable
+/// automatic LAN → relay fallback: the client tries the direct [url] first
+/// (2-second timeout), then falls back to the relay if it fails.
+///
 /// Usage (local):
 /// ```dart
 /// final client = ClawdClient(authToken: token);
@@ -78,6 +97,18 @@ class RelayOptions {
 /// );
 /// await client.connect();
 /// ```
+///
+/// Usage (mobile with LAN → relay fallback):
+/// ```dart
+/// final client = ClawdClient(
+///   url: 'ws://192.168.1.5:4300',
+///   authToken: deviceToken,
+///   relayUrl: 'wss://api.clawde.io/relay/ws',
+///   daemonId: 'abc123',
+/// );
+/// await client.connect(); // tries LAN first, falls back to relay
+/// print(client.connectionMode); // ClawdConnectionMode.lan or .relay
+/// ```
 class ClawdClient {
   ClawdClient({
     this.url = 'ws://127.0.0.1:$kClawdPort',
@@ -86,6 +117,9 @@ class ClawdClient {
     this.relayOptions,
     this.relayHandshakeTimeout = const Duration(seconds: 10),
     this.onRelayProgress,
+    this.relayUrl,
+    this.daemonId,
+    this.queueWhenOffline = true,
     @visibleForTesting WebSocketChannel Function(Uri)? channelFactory,
   }) : _channelFactory = channelFactory ?? WebSocketChannel.connect;
 
@@ -109,6 +143,21 @@ class ClawdClient {
   /// connecting directly to the daemon.
   final RelayOptions? relayOptions;
 
+  /// Relay WebSocket URL for automatic LAN → relay fallback.
+  ///
+  /// When set alongside [daemonId], the client will try [url] (direct LAN)
+  /// first with a 2-second timeout.  On failure it retries via the relay.
+  /// Has no effect when [relayOptions] is also set (explicit relay mode).
+  final String? relayUrl;
+
+  /// Daemon hardware fingerprint — required for relay fallback routing.
+  /// Obtained from the `device.pair` RPC response field `daemon_id`.
+  final String? daemonId;
+
+  /// Whether to queue outbound RPC calls when the client is disconnected,
+  /// draining the queue on next successful connection.  Defaults to true.
+  final bool queueWhenOffline;
+
   final WebSocketChannel Function(Uri) _channelFactory;
 
   WebSocketChannel? _channel;
@@ -122,50 +171,129 @@ class ClawdClient {
   // E2E session (set after handshake, null for direct/unencrypted connections).
   RelayE2eSession? _e2eSession;
 
+  // ─── Connection mode tracking ────────────────────────────────────────────
+
+  ClawdConnectionMode _connectionMode = ClawdConnectionMode.offline;
+  final StreamController<ClawdConnectionMode> _connectionModeController =
+      StreamController.broadcast();
+
+  /// The current connection mode (offline / lan / relay).
+  ClawdConnectionMode get connectionMode => _connectionMode;
+
+  /// Stream that emits a new [ClawdConnectionMode] whenever the connection state
+  /// transitions (connect, fallback to relay, disconnect, etc.).
+  Stream<ClawdConnectionMode> get connectionModeStream =>
+      _connectionModeController.stream;
+
+  void _setConnectionMode(ClawdConnectionMode mode) {
+    _connectionMode = mode;
+    if (!_connectionModeController.isClosed) {
+      _connectionModeController.add(mode);
+    }
+  }
+
+  // ─── Offline message queue ───────────────────────────────────────────────
+
+  /// Pending calls enqueued while disconnected (only used when [queueWhenOffline]).
+  final List<_QueuedCall> _callQueue = [];
+
   bool get isConnected => _channel != null;
 
   /// Stream of server-push events (session updates, git status, tool calls).
   Stream<Map<String, dynamic>> get pushEvents => _pushEvents.stream;
 
   Future<void> connect() async {
-    _channel = _channelFactory(Uri.parse(url));
-    _subscription = _channel!.stream.listen(
-      (raw) => _processMessage(raw),
-      onDone: _onDisconnect,
-      onError: (_) => _onDisconnect(),
-    );
-
     final relay = relayOptions;
     if (relay != null) {
-      // 1. Send relay connect message.
-      onRelayProgress?.call('connecting to relay');
-      _sendRaw(jsonEncode({
-        'type': 'connect',
-        'daemonId': relay.daemonId,
-        'token': relay.userToken,
-      }));
-
-      // 2. Wait for relay to confirm the connection.
-      onRelayProgress?.call('waiting for relay confirmation');
-      await _waitForPushEvent(
-        'connected',
-        timeout: relayHandshakeTimeout,
-      );
-
-      // 3. E2E handshake.
-      if (relay.enableE2e) {
-        onRelayProgress?.call('performing E2E key exchange');
-        await _performE2eHandshake();
+      // Explicit relay mode: connect directly to the relay URL.
+      await _connectWebSocket(url, ClawdConnectionMode.relay);
+      await _doRelayHandshake(relay);
+    } else {
+      // LAN mode with optional fallback.
+      final bool connectedLan = await _tryConnectLan();
+      if (!connectedLan) {
+        // LAN failed — attempt relay fallback if coordinates are provided.
+        final rUrl = relayUrl;
+        final dId = daemonId;
+        if (rUrl != null && dId != null) {
+          onRelayProgress?.call('LAN unreachable — connecting via relay');
+          await _connectWebSocket(rUrl, ClawdConnectionMode.relay);
+          // Device relay: authenticate with the daemon using authToken.
+          // The relay server itself is authenticated via the daemon auth RPC.
+          final token = authToken;
+          if (token != null && token.isNotEmpty) {
+            onRelayProgress?.call('authenticating via relay');
+            await call<Map<String, dynamic>>('daemon.auth', {'token': token});
+          }
+          onRelayProgress?.call('connected via relay');
+          _drainCallQueue();
+          return;
+        }
+        // No relay fallback available — propagate the connection error.
+        throw Exception('Cannot connect to daemon at $url');
       }
     }
 
-    // 4. Authenticate with the daemon (encrypted when E2E is active).
+    // Authenticate with the daemon (encrypted when E2E is active).
     final token = authToken;
     if (token != null && token.isNotEmpty) {
       onRelayProgress?.call('authenticating');
       await call<Map<String, dynamic>>('daemon.auth', {'token': token});
     }
     onRelayProgress?.call('connected');
+    _drainCallQueue();
+  }
+
+  /// Attempt a direct WebSocket connection to [url] with a 2-second timeout.
+  /// Returns true if the connection succeeded, false on failure/timeout.
+  Future<bool> _tryConnectLan() async {
+    try {
+      await _connectWebSocket(url, ClawdConnectionMode.lan)
+          .timeout(const Duration(seconds: 2));
+      return true;
+    } catch (_) {
+      // Clean up any partial state.
+      _subscription?.cancel();
+      _subscription = null;
+      _channel?.sink.close();
+      _channel = null;
+      _e2eSession = null;
+      return false;
+    }
+  }
+
+  Future<void> _connectWebSocket(String wsUrl, ClawdConnectionMode mode) async {
+    final channel = _channelFactory(Uri.parse(wsUrl));
+    _channel = channel;
+    _subscription = channel.stream.listen(
+      (raw) => _processMessage(raw),
+      onDone: _onDisconnect,
+      onError: (_) => _onDisconnect(),
+    );
+    _setConnectionMode(mode);
+  }
+
+  Future<void> _doRelayHandshake(RelayOptions relay) async {
+    // 1. Send relay connect message.
+    onRelayProgress?.call('connecting to relay');
+    _sendRaw(jsonEncode({
+      'type': 'connect',
+      'daemonId': relay.daemonId,
+      'token': relay.userToken,
+    }));
+
+    // 2. Wait for relay to confirm the connection.
+    onRelayProgress?.call('waiting for relay confirmation');
+    await _waitForPushEvent(
+      'connected',
+      timeout: relayHandshakeTimeout,
+    );
+
+    // 3. E2E handshake.
+    if (relay.enableE2e) {
+      onRelayProgress?.call('performing E2E key exchange');
+      await _performE2eHandshake();
+    }
   }
 
   void disconnect() {
@@ -175,6 +303,31 @@ class ClawdClient {
     _channel?.sink.close();
     _channel = null;
     _e2eSession = null;
+    _setConnectionMode(ClawdConnectionMode.offline);
+    // Fail all queued calls immediately.
+    for (final queued in _callQueue) {
+      queued.completer.completeError(const ClawdDisconnectedError());
+    }
+    _callQueue.clear();
+    _connectionModeController.close();
+  }
+
+  /// Send all queued calls that accumulated while offline.
+  void _drainCallQueue() {
+    if (_callQueue.isEmpty) return;
+    final toSend = List<_QueuedCall>.from(_callQueue);
+    _callQueue.clear();
+    for (final queued in toSend) {
+      // Re-issue each queued call.  If it fails, complete with the error.
+      call<dynamic>(queued.method, queued.params).then(
+        (result) {
+          if (!queued.completer.isCompleted) queued.completer.complete(result);
+        },
+        onError: (Object e) {
+          if (!queued.completer.isCompleted) queued.completer.completeError(e);
+        },
+      );
+    }
   }
 
   /// Send a JSON-RPC 2.0 request and return the decoded result.
@@ -182,11 +335,37 @@ class ClawdClient {
   /// Throws [ClawdDisconnectedError] if not connected or connection drops.
   /// Throws [ClawdRpcError] if the daemon returns an error response.
   /// Throws [ClawdTimeoutError] if no response arrives within [callTimeout].
+  ///
+  /// When [queueWhenOffline] is true and the client is not currently connected,
+  /// the call is held in an internal queue and sent on the next successful
+  /// connection instead of throwing [ClawdDisconnectedError] immediately.
   /// Maximum safe integer for JSON (2^53 - 1). After this, reset the counter.
   static const int _maxSafeId = 9007199254740991; // Number.MAX_SAFE_INTEGER
 
   Future<T> call<T>(String method, [Map<String, dynamic>? params]) async {
-    if (_channel == null) throw const ClawdDisconnectedError();
+    if (_channel == null) {
+      if (queueWhenOffline && !_disposed) {
+        // Queue the call and return a future that resolves when drained.
+        final completer = Completer<dynamic>();
+        _callQueue.add(_QueuedCall(
+          method: method,
+          params: params,
+          completer: completer,
+        ));
+        dev.log(
+          'Queued call "$method" (offline, queue depth: ${_callQueue.length})',
+          name: 'clawd_client',
+        );
+        return (await completer.future.timeout(
+          callTimeout,
+          onTimeout: () {
+            _callQueue.removeWhere((q) => q.completer == completer);
+            throw ClawdTimeoutError(method);
+          },
+        )) as T;
+      }
+      throw const ClawdDisconnectedError();
+    }
 
     // Reset counter when it would overflow and no calls are pending.
     if (_idCounter >= _maxSafeId && _pending.isEmpty) {
@@ -546,6 +725,11 @@ class ClawdClient {
     dev.log('WebSocket disconnected ($url)', name: 'clawd_client');
     _channel = null;
     _e2eSession = null;
+    // Update mode without closing the stream controller — DaemonNotifier
+    // will reconnect and we want to be able to emit the new mode then.
+    if (!_connectionModeController.isClosed) {
+      _setConnectionMode(ClawdConnectionMode.offline);
+    }
     for (final c in _pending.values) {
       c.completeError(const ClawdDisconnectedError());
     }
@@ -600,4 +784,19 @@ class ClawdClient {
       rethrow;
     }
   }
+}
+
+// ─── Internal helper types ─────────────────────────────────────────────────────
+
+/// A single RPC call that was enqueued while the client was offline.
+class _QueuedCall {
+  _QueuedCall({
+    required this.method,
+    required this.params,
+    required this.completer,
+  });
+
+  final String method;
+  final Map<String, dynamic>? params;
+  final Completer<dynamic> completer;
 }

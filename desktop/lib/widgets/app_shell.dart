@@ -5,6 +5,7 @@ import 'package:clawd_ui/clawd_ui.dart';
 import 'package:clawde/router.dart';
 import 'package:clawde/widgets/status_bar.dart';
 import 'package:clawde/widgets/update_banner.dart';
+import 'package:clawde/features/projects/project_selector_header.dart';
 
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key, required this.child});
@@ -59,6 +60,10 @@ class _AppShellState extends ConsumerState<AppShell> {
             unselectedLabelTextStyle: TextStyle(
               color: Colors.white.withValues(alpha: 0.5),
               fontSize: 12,
+            ),
+            leading: const Padding(
+              padding: EdgeInsets.fromLTRB(4, 8, 4, 4),
+              child: ProjectSelectorHeader(),
             ),
             destinations: const [
               NavigationRailDestination(

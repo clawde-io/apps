@@ -1,35 +1,51 @@
 # Remote Access
 
-Access your development environment from any device, anywhere. Check on sessions from your phone, review code from a browser, or connect from a second machine.
+ClawDE lets you access your development machine from any device — another laptop, phone, or tablet — over your local network or the internet.
 
-## Overview
+## Connection Modes
 
-ClawDE's remote access system lets you connect to your running daemon from outside your local network. On LAN, devices discover each other automatically. For remote access, a secure relay server handles the connection so you never need to open ports on your firewall.
+| Mode | How | Requires |
+| --- | --- | --- |
+| **Local** | Desktop app on the same machine as the daemon | Nothing extra |
+| **LAN** | Phone or laptop on the same Wi-Fi network | Pairing (one-time) |
+| **Relay** | Phone or laptop anywhere with internet | Personal Remote plan ($9.99/yr) + Pairing |
 
-## Connection Methods
+## Pairing a Device (LAN or Relay)
 
-### LAN Discovery (Free)
+Before a remote device can connect, you pair it with your host machine. Pairing is a one-time setup that takes under a minute.
 
-When devices are on the same network, ClawDE uses mDNS/DNS-SD (Bonjour) for automatic discovery. Your phone finds your desktop automatically — no configuration needed.
+### Step 1: Generate a pairing PIN on the host
 
-### Secure Relay (Paid — $9.99/year)
+**Desktop app:** Settings → Remote Access → Add Device → a 6-digit PIN appears.
+**Terminal:** `clawd pair`
 
-For connections outside your local network, ClawDE routes traffic through `api.clawde.io`. The relay server never sees your code — all sessions are end-to-end encrypted.
+The PIN is valid for 10 minutes.
 
-### Direct Connection (Advanced)
+### Step 2: Enter the PIN on the remote device
 
-Power users can configure DDNS + port forwarding for direct connections without the relay. This is an advanced option for users who manage their own networking.
+**Mobile app:** Tap "+" → Scan QR code (the desktop shows a QR matching the PIN) → tap Connect.
+**Another desktop:** Settings → Connect to Host → Enter PIN.
 
-## Security
+### Step 3: Done
 
-- **End-to-end encryption** — All remote sessions encrypted between devices
-- **Device pairing** — QR code pairing establishes trust between devices
-- **mTLS** — Mutual TLS authentication for relay connections
-- **No code on server** — The relay forwards encrypted packets; it never decrypts your data
+The device receives a long-lived device token and stores it securely. Future connections happen automatically — no PIN needed again.
 
-## How It Works
+## Personal Remote ($9.99/yr)
 
-1. **Pair your device** — Scan a QR code on your desktop to pair your phone
-2. **Connect** — The mobile/web app connects to your daemon (LAN or relay)
-3. **Work** — Browse files, view sessions, apply diffs, run validators
-4. **Disconnect** — Sessions keep running on the daemon; reconnect anytime
+The Personal Remote plan enables relay access so you can reach your machine from anywhere with internet, even when not on the same Wi-Fi.
+
+After purchasing, the daemon automatically connects to `api.clawde.io/relay` using your license. Your paired devices can connect via relay with no additional setup.
+
+Purchase at [clawde.io/#pricing](https://clawde.io/#pricing).
+
+## Troubleshooting
+
+**"Connection failed" on LAN:** Make sure your firewall allows port 4300. Check `clawd doctor`.
+
+**"Relay unavailable":** Verify your Personal Remote subscription is active at `base.clawde.io`. Check internet connectivity with `clawd doctor`.
+
+**"PIN invalid":** PINs expire after 10 minutes. Generate a new one.
+
+**Device shows "Offline" unexpectedly:** Daemon may have restarted. Open the desktop app on the host to reconnect.
+
+See also: [[Troubleshooting]]

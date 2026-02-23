@@ -17,3 +17,7 @@ export 'src/task_events.dart';
 // Phase 43l — multi-agent UX types
 export 'src/agent.dart';
 export 'src/worktree_status.dart';
+
+// Device pairing and project types
+export 'src/project.dart';
+export 'src/device.dart';

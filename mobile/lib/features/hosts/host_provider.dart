@@ -14,8 +14,17 @@ class DaemonHost {
   final DateTime? lastConnected;
 
   /// Pairing token received from the daemon during QR device trust pairing.
-  /// Used for relay authentication on subsequent connections.
+  /// This is the `device_token` from the `device.pair` RPC response.
+  /// Used as the auth token in `daemon.auth` on subsequent connections.
   final String? pairingToken;
+
+  /// Relay WebSocket URL returned by the daemon in the `device.pair` response.
+  /// Used for LAN → relay fallback when the direct `url` is unreachable.
+  final String? relayUrl;
+
+  /// Stable hardware fingerprint of the daemon instance (from `device.pair`).
+  /// Required to connect via the relay server.
+  final String? daemonId;
 
   /// Whether this host was paired via QR code (device trust established).
   bool get isPaired => pairingToken != null && pairingToken!.isNotEmpty;
@@ -26,6 +35,8 @@ class DaemonHost {
     required this.url,
     this.lastConnected,
     this.pairingToken,
+    this.relayUrl,
+    this.daemonId,
   });
 
   DaemonHost copyWith({
@@ -34,6 +45,8 @@ class DaemonHost {
     String? url,
     DateTime? lastConnected,
     String? pairingToken,
+    String? relayUrl,
+    String? daemonId,
   }) =>
       DaemonHost(
         id: id ?? this.id,
@@ -41,6 +54,8 @@ class DaemonHost {
         url: url ?? this.url,
         lastConnected: lastConnected ?? this.lastConnected,
         pairingToken: pairingToken ?? this.pairingToken,
+        relayUrl: relayUrl ?? this.relayUrl,
+        daemonId: daemonId ?? this.daemonId,
       );
 
   Map<String, dynamic> toJson() => {
@@ -49,6 +64,8 @@ class DaemonHost {
         'url': url,
         'lastConnected': lastConnected?.toIso8601String(),
         if (pairingToken != null) 'pairingToken': pairingToken,
+        if (relayUrl != null) 'relayUrl': relayUrl,
+        if (daemonId != null) 'daemonId': daemonId,
       };
 
   factory DaemonHost.fromJson(Map<String, dynamic> json) => DaemonHost(
@@ -59,6 +76,8 @@ class DaemonHost {
             ? DateTime.tryParse(json['lastConnected'] as String)
             : null,
         pairingToken: json['pairingToken'] as String?,
+        relayUrl: json['relayUrl'] as String?,
+        daemonId: json['daemonId'] as String?,
       );
 }
 
@@ -130,11 +149,23 @@ final persistedActiveHostProvider = FutureProvider<String?>((ref) async {
   return prefs.getString(_kActiveHostKey);
 });
 
-/// Switches the active host: updates settings daemon URL and reconnects.
+/// Switches the active host: updates settings, passes auth token, and reconnects.
+///
+/// Calls [DaemonNotifier.switchToHost] so the pairing token (device_token)
+/// is used for `daemon.auth` on this connection and all subsequent reconnects.
+/// Also persists the daemon URL in settings for the URL field in the UI.
 Future<void> switchHost(WidgetRef ref, DaemonHost host) async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.setString(_kActiveHostKey, host.id);
   ref.read(activeHostIdProvider.notifier).state = host.id;
+  // Persist the URL so the settings UI shows the correct value.
   await ref.read(settingsProvider.notifier).setDaemonUrl(host.url);
   await ref.read(hostListProvider.notifier).markConnected(host.id);
+  // Connect with the pairing token and relay coordinates.
+  await ref.read(daemonProvider.notifier).switchToHost(
+        url: host.url,
+        authToken: host.pairingToken,
+        relayUrl: host.relayUrl,
+        daemonId: host.daemonId,
+      );
 }

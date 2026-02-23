@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:clawd_client/clawd_client.dart';
 import '../utils/paths.dart';
 import 'settings_provider.dart';
+import 'connection_state_provider.dart';
 
 /// The connection state of the local clawd daemon.
 enum DaemonStatus { disconnected, connecting, connected, error }
@@ -120,6 +121,35 @@ class DaemonNotifier extends Notifier<DaemonState> {
     await _connect();
   }
 
+  /// Switch to a new host, updating both the URL and the auth token.
+  ///
+  /// Called by the mobile app when the user activates a paired host so that
+  /// subsequent reconnects use the stored device_token for `daemon.auth`.
+  Future<void> switchToHost({
+    required String url,
+    String? authToken,
+    String? relayUrl,
+    String? daemonId,
+  }) async {
+    if (_disposed) return;
+    _reconnectTimer?.cancel();
+    _reconnectAttempt = 0;
+    _pushSubscription?.cancel();
+    _pushSubscription = null;
+    _client.disconnect();
+
+    // Update stored token so reconnect attempts also use it.
+    _authToken = authToken;
+
+    _client = ClawdClient(
+      url: url,
+      authToken: authToken,
+      relayUrl: relayUrl,
+      daemonId: daemonId,
+    );
+    await _connect();
+  }
+
   /// Read the daemon auth token from the platform-appropriate data directory.
   ///
   /// Only meaningful on desktop (macOS/Linux/Windows) where the daemon runs
@@ -147,6 +177,7 @@ class DaemonNotifier extends Notifier<DaemonState> {
       if (_disposed) return;
       _reconnectAttempt = 0;
       state = const DaemonState(status: DaemonStatus.connected);
+      _syncConnectionMode();
       _listenForPushEvents();
       // Best-effort: fetch daemon info after connecting.
       await refreshStatus();
@@ -155,13 +186,34 @@ class DaemonNotifier extends Notifier<DaemonState> {
       dev.log('Connect failed (disconnected): $e', name: 'clawd_core');
       state = DaemonState(
           status: DaemonStatus.error, errorMessage: e.toString());
+      _updateConnectionMode(ConnectionMode.offline);
       _scheduleReconnect();
     } catch (e) {
       if (_disposed) return;
       dev.log('Connect failed: $e', name: 'clawd_core');
       state = DaemonState(
           status: DaemonStatus.error, errorMessage: e.toString());
+      _updateConnectionMode(ConnectionMode.offline);
       _scheduleReconnect();
+    }
+  }
+
+  /// Map the client's [ClawdConnectionMode] to [ConnectionMode] and push it
+  /// to [connectionModeProvider] so the UI reflects the active transport.
+  void _syncConnectionMode() {
+    final mode = switch (_client.connectionMode) {
+      ClawdConnectionMode.lan => ConnectionMode.lan,
+      ClawdConnectionMode.relay => ConnectionMode.relay,
+      ClawdConnectionMode.offline => ConnectionMode.offline,
+    };
+    _updateConnectionMode(mode);
+  }
+
+  void _updateConnectionMode(ConnectionMode mode) {
+    try {
+      ref.read(connectionModeProvider.notifier).update(mode);
+    } catch (_) {
+      // Provider may have been disposed; ignore.
     }
   }
 

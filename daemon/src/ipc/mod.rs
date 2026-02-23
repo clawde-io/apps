@@ -452,15 +452,24 @@ pub(crate) async fn dispatch_text(text: &str, ctx: &AppContext, client_token: &s
     };
 
     // Re-validate bearer token on every RPC dispatch.
-    // If daemon auth is configured, every connection must present the correct token.
+    // Accepts either the static daemon auth_token OR a valid (non-revoked) paired device token.
     // An empty client_token is no longer exempt: relay-proxied connections must
     // include the daemon bearer token in their JSON-RPC frames, just like local clients.
-    if !ctx.auth_token.is_empty() && !tokens_equal(client_token, &ctx.auth_token) {
-        return error_response(
-            req.id.unwrap_or(Value::Null),
-            UNAUTHORIZED,
-            "Unauthorized — invalid or missing token",
-        );
+    if !ctx.auth_token.is_empty() {
+        let is_daemon_token = tokens_equal(client_token, &ctx.auth_token);
+        let is_device_token = if !is_daemon_token && !client_token.is_empty() {
+            let pairing_storage = crate::pairing::storage::PairingStorage::new(ctx.storage.pool());
+            pairing_storage.get_by_token(client_token).await.unwrap_or(None).is_some()
+        } else {
+            false
+        };
+        if !is_daemon_token && !is_device_token {
+            return error_response(
+                req.id.unwrap_or(Value::Null),
+                UNAUTHORIZED,
+                "Unauthorized — invalid or missing token",
+            );
+        }
     }
 
     // Validate jsonrpc field
@@ -503,6 +512,7 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
         "daemon.status" => handlers::daemon::status(params, ctx).await,
         "daemon.checkUpdate" => handlers::daemon::check_update(params, ctx).await,
         "daemon.applyUpdate" => handlers::daemon::apply_update(params, ctx).await,
+        "daemon.checkProvider" => handlers::provider::check_provider(params, ctx).await,
         "repo.open" => handlers::repo::open(params, ctx).await,
         "repo.close" => handlers::repo::close(params, ctx).await,
         "repo.status" => handlers::repo::status(params, ctx).await,
@@ -593,6 +603,21 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
         "te.checkpoint.write" => handlers::task_engine::checkpoint_write(params, ctx).await,
         "te.note.add" => handlers::task_engine::note_add(params, ctx).await,
         "te.note.list" => handlers::task_engine::note_list(params, ctx).await,
+        // ─── Phase 56: Projects ──────────────────────────────────────────────
+        "project.create"     => crate::project::handlers::project_create(params, ctx).await,
+        "project.list"       => crate::project::handlers::project_list(params, ctx).await,
+        "project.get"        => crate::project::handlers::project_get(params, ctx).await,
+        "project.update"     => crate::project::handlers::project_update(params, ctx).await,
+        "project.delete"     => crate::project::handlers::project_delete(params, ctx).await,
+        "project.addRepo"    => crate::project::handlers::project_add_repo(params, ctx).await,
+        "project.removeRepo" => crate::project::handlers::project_remove_repo(params, ctx).await,
+        "daemon.setName"     => crate::project::handlers::daemon_set_name(params, ctx).await,
+        // ─── Phase 56: Device Pairing ─────────────────────────────────────────
+        "daemon.pairPin"     => crate::pairing::handlers::pairing_generate_pin(params, ctx).await,
+        "device.pair"        => crate::pairing::handlers::device_pair(params, ctx).await,
+        "device.list"        => crate::pairing::handlers::device_list(params, ctx).await,
+        "device.revoke"      => crate::pairing::handlers::device_revoke(params, ctx).await,
+        "device.rename"      => crate::pairing::handlers::device_rename(params, ctx).await,
         _ => Err(anyhow::anyhow!("METHOD_NOT_FOUND:{}", method)),
     }
 }

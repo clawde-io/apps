@@ -15,3 +15,8 @@ export 'src/session_export.dart';
 // Phase 43l — multi-agent UX providers
 export 'src/providers/agent_provider.dart';
 export 'src/providers/task_summary_provider.dart';
+
+// Device pairing, project management, and connection state providers
+export 'src/providers/project_provider.dart';
+export 'src/providers/device_provider.dart';
+export 'src/providers/connection_state_provider.dart';

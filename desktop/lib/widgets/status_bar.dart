@@ -46,6 +46,7 @@ class StatusBar extends ConsumerWidget {
     final version = ref.watch(_appVersionProvider).valueOrNull ?? 'v…';
     final pendingToolCalls = ref.watch(_totalPendingToolCallsProvider);
     final errorCount = ref.watch(_errorSessionCountProvider);
+    final connectionMode = ref.watch(connectionModeProvider);
 
     return Container(
       height: 28,
@@ -120,6 +121,9 @@ class StatusBar extends ConsumerWidget {
             ],
           ],
           const Spacer(),
+          // Connection mode chip
+          _ConnectionModeChip(mode: connectionMode),
+          const SizedBox(width: 12),
           // Session count
           Text(
             '$activeSessions active session${activeSessions == 1 ? '' : 's'}',
@@ -157,6 +161,41 @@ class _StatusDot extends StatelessWidget {
         shape: BoxShape.circle,
         color: connected ? ClawdTheme.success : ClawdTheme.error,
       ),
+    );
+  }
+}
+
+/// Compact connection-mode pill in the status bar.
+/// Shows the current transport mode (Local / LAN / Relay / Reconnecting / Offline).
+class _ConnectionModeChip extends StatelessWidget {
+  const _ConnectionModeChip({required this.mode});
+  final ConnectionMode mode;
+
+  Color get _color => switch (mode) {
+        ConnectionMode.local => ClawdTheme.success,
+        ConnectionMode.lan => ClawdTheme.info,
+        ConnectionMode.relay => ClawdTheme.warning,
+        ConnectionMode.reconnecting => Colors.orange,
+        ConnectionMode.offline => ClawdTheme.error,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _color;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          mode.displayLabel,
+          style: TextStyle(fontSize: 11, color: color),
+        ),
+      ],
     );
   }
 }

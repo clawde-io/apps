@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -35,85 +36,111 @@ class _QrScannerSheetState extends ConsumerState<QrScannerSheet> {
     final raw = capture.barcodes.firstOrNull?.rawValue;
     if (raw == null) return;
 
-    if (!raw.startsWith('ws://') && !raw.startsWith('wss://')) {
-      setState(() => _errorMsg = 'Not a ClawDE URL: $raw');
+    // Accept either the new JSON payload format or a bare ws:// URL (legacy).
+    _QrPayload? payload;
+    if (raw.startsWith('{')) {
+      try {
+        final map = jsonDecode(raw) as Map<String, dynamic>;
+        payload = _QrPayload.fromJson(map);
+      } catch (_) {
+        setState(() => _errorMsg = 'Unrecognised QR code format.');
+        return;
+      }
+    } else if (raw.startsWith('ws://') || raw.startsWith('wss://')) {
+      // Legacy bare URL — no PIN, no relay info.
+      payload = _QrPayload(url: raw);
+    } else {
+      setState(() => _errorMsg = 'Not a ClawDE QR code.');
       return;
     }
 
     _handled = true;
-    _performPairing(raw);
+    _performPairing(payload);
   }
 
-  /// Perform device pairing with the daemon at the scanned URL.
+  /// Perform device pairing with the daemon described by [payload].
   ///
-  /// 1. Connect to daemon via WebSocket
-  /// 2. POST device info via `device.pair` RPC
-  /// 3. Receive pairing token
-  /// 4. Save host with pairing token
-  Future<void> _performPairing(String daemonUrl) async {
+  /// Flow:
+  /// 1. Connect to the daemon WebSocket at [_QrPayload.url].
+  /// 2. Call `device.pair` with the PIN, device name, and platform.
+  /// 3. Extract `device_token`, `host_name`, `daemon_id`, and `relay_url`
+  ///    from the response — these are the canonical field names from
+  ///    the Rust `PairResponse` struct in `daemon/src/pairing/model.rs`.
+  /// 4. Save the host with all relay coordinates.
+  /// 5. Switch to the new host (sets the device_token as the auth token).
+  Future<void> _performPairing(_QrPayload payload) async {
     setState(() {
       _pairing = true;
       _pairingStatus = 'Connecting to daemon...';
       _errorMsg = null;
     });
 
+    // Connect without auth — device.pair is the first (and only pre-auth) call.
+    // The client is intentionally constructed with no authToken so it skips
+    // the daemon.auth step; device.pair is accepted before auth on the daemon.
     ClawdClient? client;
     try {
-      // 1. Connect to the daemon.
-      client = ClawdClient(url: daemonUrl);
+      client = ClawdClient(url: payload.url, queueWhenOffline: false);
       await client.connect();
 
       if (!mounted) return;
       setState(() => _pairingStatus = 'Pairing device...');
 
-      // 2. Send device pairing request with device info.
       final deviceName = _getDeviceName();
       final platformInfo = _getPlatformInfo();
 
+      final params = <String, dynamic>{
+        'name': deviceName,
+        'platform': platformInfo,
+        if (payload.pin != null) 'pin': payload.pin,
+      };
+
       final result = await client.call<Map<String, dynamic>>(
         'device.pair',
-        {
-          'deviceName': deviceName,
-          'platform': platformInfo,
-          'deviceType': 'mobile',
-        },
+        params,
       );
 
-      final pairingToken = result['token'] as String?;
-      final daemonName = result['daemonName'] as String? ?? 'ClawDE Daemon';
+      // Field names match the Rust PairResponse struct exactly.
+      final deviceToken = result['device_token'] as String?;
+      final hostName =
+          result['host_name'] as String? ?? payload.hostName ?? 'ClawDE Host';
+      final daemonId =
+          result['daemon_id'] as String? ?? payload.daemonId;
+      final relayUrl =
+          result['relay_url'] as String? ?? payload.relayUrl;
 
-      if (pairingToken == null || pairingToken.isEmpty) {
-        throw Exception('Daemon returned no pairing token');
+      if (deviceToken == null || deviceToken.isEmpty) {
+        throw Exception('Daemon returned no device_token');
       }
 
       if (!mounted) return;
       setState(() => _pairingStatus = 'Saving host...');
 
-      // 3. Save the host with pairing token.
+      // Build and persist the host with all pairing data.
       final host = DaemonHost(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        name: daemonName,
-        url: daemonUrl,
-        pairingToken: pairingToken,
+        name: hostName,
+        url: payload.url,
+        pairingToken: deviceToken,
+        relayUrl: relayUrl,
+        daemonId: daemonId,
         lastConnected: DateTime.now(),
       );
       await ref.read(hostListProvider.notifier).add(host);
 
-      // 4. Switch to this host.
+      // Switch — this calls DaemonNotifier.switchToHost which uses the
+      // device_token for daemon.auth on all current and future connections.
       await switchHost(ref, host);
 
       if (!mounted) return;
-
-      // 5. Show success and close.
       setState(() => _pairingStatus = 'Paired successfully.');
 
-      // Brief delay to show success state, then pop.
       await Future<void>.delayed(const Duration(milliseconds: 600));
       if (mounted) {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Paired with $daemonName'),
+            content: Text('Paired with $hostName'),
             backgroundColor: ClawdTheme.success,
           ),
         );
@@ -332,4 +359,59 @@ class _CornerPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// ─── QR payload model ─────────────────────────────────────────────────────────
+
+/// Parsed contents of a ClawDE pairing QR code.
+///
+/// The daemon encodes a JSON object into the QR code:
+/// ```json
+/// {
+///   "host": "Mac Mini",
+///   "url": "ws://192.168.1.5:4300",
+///   "relay": "wss://api.clawde.io/relay/ws",
+///   "daemonId": "abc123",
+///   "pin": "123456"
+/// }
+/// ```
+///
+/// Legacy QR codes are bare `ws://` or `wss://` URLs with no extra fields.
+class _QrPayload {
+  const _QrPayload({
+    required this.url,
+    this.hostName,
+    this.relayUrl,
+    this.daemonId,
+    this.pin,
+  });
+
+  /// Direct WebSocket URL of the daemon (LAN address).
+  final String url;
+
+  /// Human-readable name of the host machine.
+  final String? hostName;
+
+  /// Relay WebSocket URL for off-LAN fallback.
+  final String? relayUrl;
+
+  /// Stable hardware fingerprint of the daemon instance.
+  final String? daemonId;
+
+  /// Short-lived 6-digit PIN displayed on the desktop host.
+  final String? pin;
+
+  factory _QrPayload.fromJson(Map<String, dynamic> map) {
+    final url = map['url'] as String?;
+    if (url == null || url.isEmpty) {
+      throw const FormatException('QR payload missing "url" field');
+    }
+    return _QrPayload(
+      url: url,
+      hostName: map['host'] as String?,
+      relayUrl: map['relay'] as String?,
+      daemonId: map['daemonId'] as String?,
+      pin: map['pin'] as String?,
+    );
+  }
 }
