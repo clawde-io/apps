@@ -5,7 +5,7 @@ import 'package:clawd_core/clawd_core.dart';
 import '../theme/clawd_theme.dart';
 
 /// A real-time feed of agent actions: tool calls, file changes,
-/// test results, and approval requests. Filterable by agent role.
+/// test results, and approval requests. Filterable by agent type.
 class AgentFeed extends ConsumerStatefulWidget {
   const AgentFeed({super.key});
 
@@ -14,7 +14,7 @@ class AgentFeed extends ConsumerStatefulWidget {
 }
 
 class _AgentFeedState extends ConsumerState<AgentFeed> {
-  AgentRole? _roleFilter;
+  String? _typeFilter;
 
   @override
   Widget build(BuildContext context) {
@@ -24,10 +24,18 @@ class _AgentFeedState extends ConsumerState<AgentFeed> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Role filter chips ──────────────────────────────────────────────
-        _RoleFilterBar(
-          selected: _roleFilter,
-          onChanged: (r) => setState(() => _roleFilter = r),
+        // ── Type filter chips ──────────────────────────────────────────────
+        agentsAsync.when(
+          data: (agents) {
+            final types = agents.map((a) => a.agentType).toSet().toList()..sort();
+            return _TypeFilterBar(
+              types: types,
+              selected: _typeFilter,
+              onChanged: (t) => setState(() => _typeFilter = t),
+            );
+          },
+          loading: () => const SizedBox(height: 40),
+          error: (_, __) => const SizedBox(height: 40),
         ),
 
         // ── Feed ──────────────────────────────────────────────────────────
@@ -43,16 +51,16 @@ class _AgentFeedState extends ConsumerState<AgentFeed> {
               ),
             ),
             data: (agents) {
-              final filtered = _roleFilter == null
+              final filtered = _typeFilter == null
                   ? agents
-                  : agents.where((a) => a.role == _roleFilter).toList();
+                  : agents.where((a) => a.agentType == _typeFilter).toList();
 
               if (filtered.isEmpty) {
                 return Center(
                   child: Text(
-                    _roleFilter == null
+                    _typeFilter == null
                         ? 'No active agents'
-                        : 'No ${_roleFilter!.displayName} agents',
+                        : 'No $_typeFilter agents',
                     style: TextStyle(
                       fontSize: 13,
                       color: Colors.white.withValues(alpha: 0.35),
@@ -85,29 +93,34 @@ class _AgentFeedState extends ConsumerState<AgentFeed> {
   }
 }
 
-// ── Role filter bar ────────────────────────────────────────────────────────────
+// ── Type filter bar ─────────────────────────────────────────────────────────────
 
-class _RoleFilterBar extends StatelessWidget {
-  const _RoleFilterBar({required this.selected, required this.onChanged});
-  final AgentRole? selected;
-  final ValueChanged<AgentRole?> onChanged;
+class _TypeFilterBar extends StatelessWidget {
+  const _TypeFilterBar({
+    required this.types,
+    required this.selected,
+    required this.onChanged,
+  });
+  final List<String> types;
+  final String? selected;
+  final ValueChanged<String?> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final roles = [null, ...AgentRole.values];
+    final options = [null, ...types];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
       child: Row(
-        children: roles.map((role) {
-          final label = role == null ? 'All' : role.displayName;
-          final isSelected = selected == role;
+        children: options.map((type) {
+          final label = type ?? 'All';
+          final isSelected = selected == type;
           return Padding(
             padding: const EdgeInsets.only(right: 6),
             child: FilterChip(
               label: Text(label),
               selected: isSelected,
-              onSelected: (_) => onChanged(role),
+              onSelected: (_) => onChanged(type),
               selectedColor: ClawdTheme.claw.withValues(alpha: 0.25),
               checkmarkColor: ClawdTheme.clawLight,
               labelStyle: TextStyle(
@@ -133,27 +146,18 @@ class _AgentFeedItem extends StatelessWidget {
     required this.agent,
     required this.pendingApprovals,
   });
-  final AgentRecord agent;
+  final AgentView agent;
   final List<ApprovalRequest> pendingApprovals;
 
-  IconData _iconForRole(AgentRole role) => switch (role) {
-        AgentRole.router => Icons.alt_route,
-        AgentRole.planner => Icons.account_tree_outlined,
-        AgentRole.implementer => Icons.code,
-        AgentRole.reviewer => Icons.rate_review_outlined,
-        AgentRole.qaExecutor => Icons.science_outlined,
+  Color _colorForStatus(AgentViewStatus status) => switch (status) {
+        AgentViewStatus.active => Colors.green,
+        AgentViewStatus.idle => Colors.amber,
+        AgentViewStatus.offline => Colors.white38,
       };
 
-  Color _colorForStatus(AgentStatus status) => switch (status) {
-        AgentStatus.pending => Colors.white38,
-        AgentStatus.running => Colors.green,
-        AgentStatus.paused => Colors.amber,
-        AgentStatus.completed => Colors.teal,
-        AgentStatus.failed => Colors.red,
-        AgentStatus.crashed => Colors.deepOrange,
-      };
-
-  String _timeSince(DateTime dt) {
+  String _timeSince(int? unixSec) {
+    if (unixSec == null) return '—';
+    final dt = DateTime.fromMillisecondsSinceEpoch(unixSec * 1000);
     final diff = DateTime.now().difference(dt);
     if (diff.inSeconds < 60) return '${diff.inSeconds}s ago';
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
@@ -182,25 +186,22 @@ class _AgentFeedItem extends StatelessWidget {
           // Header row
           Row(
             children: [
-              Icon(_iconForRole(agent.role), size: 14, color: ClawdTheme.clawLight),
+              const Icon(Icons.smart_toy_outlined,
+                  size: 14, color: ClawdTheme.clawLight),
               const SizedBox(width: 6),
               Text(
-                agent.role.displayName,
+                agent.agentType,
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: Colors.white,
                 ),
               ),
-              const SizedBox(width: 8),
-              Text(
-                agent.provider,
-                style: const TextStyle(fontSize: 11, color: Colors.white54),
-              ),
               const Spacer(),
               // Status badge
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(4),
@@ -232,38 +233,21 @@ class _AgentFeedItem extends StatelessWidget {
           ),
           const SizedBox(height: 6),
 
-          // Task ID + heartbeat
+          // Task ID + last seen
           Row(
             children: [
               const Icon(Icons.task_alt, size: 11, color: Colors.white38),
               const SizedBox(width: 4),
               Text(
-                'Task ${agent.taskId}',
+                'Task ${agent.currentTaskId ?? '—'}',
                 style: const TextStyle(fontSize: 11, color: Colors.white54),
               ),
               const SizedBox(width: 12),
-              const Icon(Icons.favorite_border, size: 11, color: Colors.white38),
+              const Icon(Icons.favorite_border,
+                  size: 11, color: Colors.white38),
               const SizedBox(width: 4),
               Text(
-                _timeSince(agent.lastHeartbeat),
-                style: const TextStyle(fontSize: 11, color: Colors.white38),
-              ),
-            ],
-          ),
-
-          // Cost + tokens
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              const Icon(Icons.toll, size: 11, color: Colors.white38),
-              const SizedBox(width: 4),
-              Text(
-                '${agent.tokensUsed} tokens',
-                style: const TextStyle(fontSize: 11, color: Colors.white38),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                '\$${agent.costUsdEst.toStringAsFixed(4)}',
+                _timeSince(agent.lastSeen),
                 style: const TextStyle(fontSize: 11, color: Colors.white38),
               ),
             ],
@@ -274,7 +258,8 @@ class _AgentFeedItem extends StatelessWidget {
             const SizedBox(height: 8),
             Row(
               children: [
-                const Icon(Icons.warning_amber_rounded, size: 13, color: Colors.amber),
+                const Icon(Icons.warning_amber_rounded,
+                    size: 13, color: Colors.amber),
                 const SizedBox(width: 6),
                 Text(
                   '${pendingApprovals.length} pending approval${pendingApprovals.length == 1 ? '' : 's'}',
@@ -282,26 +267,6 @@ class _AgentFeedItem extends StatelessWidget {
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                     color: Colors.amber,
-                  ),
-                ),
-              ],
-            ),
-          ],
-
-          // Error message
-          if (agent.error != null) ...[
-            const SizedBox(height: 6),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.error_outline, size: 13, color: Colors.red),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    agent.error!,
-                    style: const TextStyle(fontSize: 11, color: Colors.red),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],

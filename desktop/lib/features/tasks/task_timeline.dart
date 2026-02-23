@@ -68,14 +68,14 @@ class TaskTimelineScreen extends ConsumerWidget {
                   final bTime = b.createdAt ?? '';
                   return bTime.compareTo(aTime);
                 });
-              final agents = agentsAsync.valueOrNull ?? [];
+              final agents = agentsAsync.valueOrNull ?? <AgentView>[];
               return ListView.builder(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 itemCount: sorted.length,
                 itemBuilder: (context, i) {
                   final task = sorted[i];
                   final taskAgents = agents
-                      .where((a) => a.taskId == task.id)
+                      .where((a) => a.currentTaskId == task.id)
                       .toList();
                   return _TimelineRow(task: task, agents: taskAgents);
                 },
@@ -93,7 +93,7 @@ class TaskTimelineScreen extends ConsumerWidget {
 class _TimelineRow extends StatelessWidget {
   const _TimelineRow({required this.task, required this.agents});
   final AgentTask task;
-  final List<AgentRecord> agents;
+  final List<AgentView> agents;
 
   String _formatTime(String? iso) {
     if (iso == null) return '—';
@@ -241,7 +241,7 @@ class _TimelineRow extends StatelessWidget {
 
 class _AgentBadge extends StatelessWidget {
   const _AgentBadge({required this.agent});
-  final AgentRecord agent;
+  final AgentView agent;
 
   @override
   Widget build(BuildContext context) {
@@ -252,7 +252,7 @@ class _AgentBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
-        agent.role.displayName,
+        agent.agentType,
         style: const TextStyle(
           fontSize: 10,
           color: ClawdTheme.clawLight,

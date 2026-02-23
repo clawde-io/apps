@@ -147,7 +147,7 @@ class _TaskGroup extends StatelessWidget {
   });
   final TaskStatus status;
   final List<AgentTask> tasks;
-  final List<AgentRecord> agents;
+  final List<AgentView> agents;
 
   @override
   Widget build(BuildContext context) {
@@ -171,7 +171,7 @@ class _TaskGroup extends StatelessWidget {
         // Tasks
         ...tasks.map((task) {
           final assignedAgent = agents
-              .where((a) => a.taskId == task.id)
+              .where((a) => a.currentTaskId == task.id)
               .firstOrNull;
           return _TaskGraphRow(task: task, assignedAgent: assignedAgent);
         }),
@@ -185,9 +185,17 @@ class _TaskGroup extends StatelessWidget {
 class _TaskGraphRow extends StatelessWidget {
   const _TaskGraphRow({required this.task, this.assignedAgent});
   final AgentTask task;
-  final AgentRecord? assignedAgent;
+  final AgentView? assignedAgent;
 
-  bool get _hasWorktree => task.repoPath != null;
+  bool get _hasWorktree => const {
+        TaskStatus.claimed,
+        TaskStatus.active,
+        TaskStatus.inProgress,
+        TaskStatus.needsApproval,
+        TaskStatus.codeReview,
+        TaskStatus.blocked,
+        TaskStatus.inQa,
+      }.contains(task.status);
 
   @override
   Widget build(BuildContext context) {
@@ -243,7 +251,7 @@ class _TaskGraphRow extends StatelessWidget {
 
           // Assigned agent chip
           if (assignedAgent != null) ...[
-            _AgentRoleChip(role: assignedAgent!.role),
+            _AgentRoleChip(agentType: assignedAgent!.agentType),
             const SizedBox(width: 8),
           ],
 
@@ -256,8 +264,8 @@ class _TaskGraphRow extends StatelessWidget {
 }
 
 class _AgentRoleChip extends StatelessWidget {
-  const _AgentRoleChip({required this.role});
-  final AgentRole role;
+  const _AgentRoleChip({required this.agentType});
+  final String agentType;
 
   @override
   Widget build(BuildContext context) {
@@ -268,7 +276,7 @@ class _AgentRoleChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
-        role.displayName,
+        agentType,
         style: const TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w600,

@@ -94,18 +94,17 @@ class AgentsPanel extends ConsumerWidget {
 
 class _AgentRow extends StatelessWidget {
   const _AgentRow({required this.agent});
-  final AgentRecord agent;
+  final AgentView agent;
 
-  Color _statusColor(AgentStatus s) => switch (s) {
-        AgentStatus.pending => Colors.white38,
-        AgentStatus.running => Colors.green,
-        AgentStatus.paused => Colors.amber,
-        AgentStatus.completed => Colors.teal,
-        AgentStatus.failed => Colors.red,
-        AgentStatus.crashed => Colors.deepOrange,
+  Color _statusColor(AgentViewStatus s) => switch (s) {
+        AgentViewStatus.active => Colors.green,
+        AgentViewStatus.idle => Colors.amber,
+        AgentViewStatus.offline => Colors.white38,
       };
 
-  String _timeSince(DateTime dt) {
+  String _timeSince(int? unixSec) {
+    if (unixSec == null) return '—';
+    final dt = DateTime.fromMillisecondsSinceEpoch(unixSec * 1000);
     final diff = DateTime.now().difference(dt);
     if (diff.inSeconds < 60) return '${diff.inSeconds}s';
     if (diff.inMinutes < 60) return '${diff.inMinutes}m';
@@ -127,10 +126,10 @@ class _AgentRow extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Role + status
+          // Type + status
           Row(
             children: [
-              _RoleBadge(role: agent.role),
+              _TypeBadge(agentType: agent.agentType),
               const Spacer(),
               Container(
                 width: 7,
@@ -157,36 +156,26 @@ class _AgentRow extends StatelessWidget {
           Row(
             children: [
               Text(
-                'Task ${agent.taskId}',
+                'Task ${agent.currentTaskId ?? '—'}',
                 style: const TextStyle(fontSize: 10, color: Colors.white54),
               ),
               const SizedBox(width: 8),
-              ProviderBadge(provider: agent.provider == 'claude'
-                  ? ProviderType.claude
-                  : ProviderType.codex),
+              ProviderBadge(
+                provider: agent.agentType == 'claude'
+                    ? ProviderType.claude
+                    : ProviderType.codex,
+              ),
             ],
           ),
           const SizedBox(height: 4),
 
-          // Tokens + cost + heartbeat
+          // Last seen
           Row(
             children: [
-              const Icon(Icons.toll, size: 10, color: Colors.white38),
-              const SizedBox(width: 3),
-              Text(
-                '${agent.tokensUsed}',
-                style: const TextStyle(fontSize: 10, color: Colors.white38),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '\$${agent.costUsdEst.toStringAsFixed(4)}',
-                style: const TextStyle(fontSize: 10, color: Colors.white38),
-              ),
-              const Spacer(),
               const Icon(Icons.favorite_border, size: 10, color: Colors.white38),
               const SizedBox(width: 3),
               Text(
-                _timeSince(agent.lastHeartbeat),
+                _timeSince(agent.lastSeen),
                 style: const TextStyle(fontSize: 10, color: Colors.white38),
               ),
             ],
@@ -199,9 +188,9 @@ class _AgentRow extends StatelessWidget {
 
 // ── Sub-widgets ────────────────────────────────────────────────────────────────
 
-class _RoleBadge extends StatelessWidget {
-  const _RoleBadge({required this.role});
-  final AgentRole role;
+class _TypeBadge extends StatelessWidget {
+  const _TypeBadge({required this.agentType});
+  final String agentType;
 
   @override
   Widget build(BuildContext context) {
@@ -212,7 +201,7 @@ class _RoleBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
-        role.displayName,
+        agentType,
         style: const TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w700,

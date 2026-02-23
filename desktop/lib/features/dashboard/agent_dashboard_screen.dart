@@ -77,6 +77,10 @@ class _AgentDashboardScreenState
                       Expanded(
                         child: TaskDetailPanel(
                           task: selectedTask,
+                          activityLog: activityAsync.valueOrNull
+                                  ?.where((e) => e.taskId == selectedTask.id)
+                                  .toList() ??
+                              const [],
                           onClose: () {
                             ref
                                 .read(selectedTaskIdProvider.notifier)

@@ -4,11 +4,12 @@ import 'daemon_provider.dart';
 
 // ─── Agent list ───────────────────────────────────────────────────────────────
 
-/// Provides the live list of agent records from the daemon.
+/// Provides the live list of registered agents from the daemon.
+/// Parses as [AgentView] (matching `tasks.agents.list` response shape).
 /// Re-fetches on connect and on `agent.statusChanged` push events.
-class AgentListNotifier extends AsyncNotifier<List<AgentRecord>> {
+class AgentListNotifier extends AsyncNotifier<List<AgentView>> {
   @override
-  Future<List<AgentRecord>> build() async {
+  Future<List<AgentView>> build() async {
     // Re-fetch whenever the daemon reconnects.
     ref.listen(daemonProvider, (prev, next) {
       if (next.isConnected) refresh();
@@ -25,11 +26,11 @@ class AgentListNotifier extends AsyncNotifier<List<AgentRecord>> {
           final agentId = params?['agent_id'] as String? ?? params?['agentId'] as String?;
           final rawStatus = params?['status'] as String?;
           if (agentId != null && rawStatus != null) {
-            final newStatus = AgentStatus.fromString(rawStatus);
+            final newStatus = AgentViewStatus.fromString(rawStatus);
             final current = state.valueOrNull;
             if (current != null) {
               state = AsyncValue.data(current
-                  .map((a) => a.agentId == agentId ? _patchStatus(a, newStatus) : a)
+                  .map((a) => a.agentId == agentId ? a.copyWith(status: newStatus) : a)
                   .toList());
             }
           }
@@ -43,12 +44,12 @@ class AgentListNotifier extends AsyncNotifier<List<AgentRecord>> {
     return _fetch();
   }
 
-  Future<List<AgentRecord>> _fetch() async {
+  Future<List<AgentView>> _fetch() async {
     final client = ref.read(daemonProvider.notifier).client;
     final result = await client.call<Map<String, dynamic>>('tasks.agents.list');
     final agents = result['agents'] as List<dynamic>? ?? [];
     return agents
-        .map((j) => AgentRecord.fromJson(j as Map<String, dynamic>))
+        .map((j) => AgentView.fromJson(j as Map<String, dynamic>))
         .toList();
   }
 
@@ -56,26 +57,10 @@ class AgentListNotifier extends AsyncNotifier<List<AgentRecord>> {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(_fetch);
   }
-
-  AgentRecord _patchStatus(AgentRecord a, AgentStatus newStatus) => AgentRecord(
-        agentId: a.agentId,
-        role: a.role,
-        taskId: a.taskId,
-        provider: a.provider,
-        model: a.model,
-        worktreePath: a.worktreePath,
-        status: newStatus,
-        createdAt: a.createdAt,
-        lastHeartbeat: a.lastHeartbeat,
-        tokensUsed: a.tokensUsed,
-        costUsdEst: a.costUsdEst,
-        result: a.result,
-        error: a.error,
-      );
 }
 
 final agentsProvider =
-    AsyncNotifierProvider<AgentListNotifier, List<AgentRecord>>(
+    AsyncNotifierProvider<AgentListNotifier, List<AgentView>>(
   AgentListNotifier.new,
 );
 

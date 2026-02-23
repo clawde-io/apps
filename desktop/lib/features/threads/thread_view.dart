@@ -184,14 +184,14 @@ class _TaskThreadsTab extends ConsumerWidget {
           );
         }
 
-        final agents = agentsAsync.valueOrNull ?? [];
+        final agents = agentsAsync.valueOrNull ?? <AgentView>[];
 
         return ListView.builder(
           padding: const EdgeInsets.symmetric(vertical: 8),
           itemCount: active.length,
           itemBuilder: (context, i) {
             final task = active[i];
-            final taskAgents = agents.where((a) => a.taskId == task.id).toList();
+            final taskAgents = agents.where((a) => a.currentTaskId == task.id).toList();
             return _TaskThreadRow(task: task, agents: taskAgents);
           },
         );
@@ -203,7 +203,7 @@ class _TaskThreadsTab extends ConsumerWidget {
 class _TaskThreadRow extends StatelessWidget {
   const _TaskThreadRow({required this.task, required this.agents});
   final AgentTask task;
-  final List<AgentRecord> agents;
+  final List<AgentView> agents;
 
   @override
   Widget build(BuildContext context) {
@@ -246,7 +246,7 @@ class _TaskThreadRow extends StatelessWidget {
                               borderRadius: BorderRadius.circular(3),
                             ),
                             child: Text(
-                              a.role.displayName,
+                              a.agentType,
                               style: const TextStyle(
                                 fontSize: 9,
                                 color: ClawdTheme.clawLight,
