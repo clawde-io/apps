@@ -1,5 +1,4 @@
 /// Message types for session chat history.
-library;
 
 import 'dart:developer' as dev;
 

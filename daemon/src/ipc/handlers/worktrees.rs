@@ -4,6 +4,7 @@
 //!   `worktrees.list`    — list all tracked task worktrees
 //!   `worktrees.merge`   — merge a Done task's worktree into main
 //!   `worktrees.cleanup` — remove empty/stale Done worktrees
+//!   `worktrees.diff`    — get the unified diff of uncommitted changes in a task worktree
 
 use crate::AppContext;
 use anyhow::Result;
@@ -61,4 +62,82 @@ pub async fn cleanup(_params: Value, ctx: &AppContext) -> Result<Value> {
         crate::worktree::cleanup::cleanup_empty_worktrees(&ctx.worktree_manager).await?;
 
     Ok(json!({ "removed": removed }))
+}
+
+/// `worktrees.diff` — get the unified diff of uncommitted changes in a task worktree.
+///
+/// Params: `{ task_id: string }`
+/// Returns: `{ task_id, diff: string, stats: { files_changed, insertions, deletions } }`
+pub async fn diff(params: Value, ctx: &AppContext) -> Result<Value> {
+    let task_id = sv(&params, "task_id")
+        .ok_or_else(|| anyhow::anyhow!("missing field: task_id"))?;
+
+    let info = ctx
+        .worktree_manager
+        .get(task_id)
+        .await
+        .ok_or_else(|| anyhow::anyhow!("REPO_NOT_FOUND: no worktree for task '{}'", task_id))?;
+
+    let wt_path = info.worktree_path.clone();
+    let task_id_owned = task_id.to_string();
+
+    let (patch_text, files_changed, insertions, deletions) =
+        tokio::task::spawn_blocking(move || -> anyhow::Result<(String, usize, usize, usize)> {
+            let repo = git2::Repository::open(&wt_path)
+                .map_err(|e| anyhow::anyhow!("failed to open worktree: {}", e))?;
+
+            // Diff HEAD vs working directory + index.
+            let head_tree = repo.head().ok().and_then(|h| h.peel_to_tree().ok());
+            let git_diff = match head_tree {
+                Some(ref tree) => repo
+                    .diff_tree_to_workdir_with_index(Some(tree), None)
+                    .map_err(|e| anyhow::anyhow!("diff failed: {}", e))?,
+                None => repo
+                    .diff_index_to_workdir(None, None)
+                    .map_err(|e| anyhow::anyhow!("diff (no HEAD) failed: {}", e))?,
+            };
+
+            let stats = git_diff
+                .stats()
+                .map_err(|e| anyhow::anyhow!("diff stats failed: {}", e))?;
+
+            let mut patch_text = String::new();
+            git_diff
+                .print(git2::DiffFormat::Patch, |_delta, _hunk, line| {
+                    let origin = line.origin();
+                    if let Ok(content) = std::str::from_utf8(line.content()) {
+                        match origin {
+                            '+' | '-' | ' ' => {
+                                patch_text.push(origin);
+                                patch_text.push_str(content);
+                            }
+                            _ => {
+                                // File headers, hunk headers — include as-is
+                                patch_text.push_str(content);
+                            }
+                        }
+                    }
+                    true
+                })
+                .map_err(|e| anyhow::anyhow!("diff format failed: {}", e))?;
+
+            Ok((
+                patch_text,
+                stats.files_changed(),
+                stats.insertions(),
+                stats.deletions(),
+            ))
+        })
+        .await
+        .map_err(|e| anyhow::anyhow!("worktree diff task panicked: {}", e))??;
+
+    Ok(json!({
+        "task_id": task_id_owned,
+        "diff": patch_text,
+        "stats": {
+            "files_changed": files_changed,
+            "insertions": insertions,
+            "deletions": deletions,
+        }
+    }))
 }

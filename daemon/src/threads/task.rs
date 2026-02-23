@@ -24,7 +24,7 @@ impl TaskThread {
     pub async fn create(
         pool: &SqlitePool,
         task_id: &str,
-        parent_thread_id: &str,
+        parent_thread_id: Option<&str>,
         model_config: serde_json::Value,
     ) -> Result<Thread> {
         let thread_id = new_thread_id();

@@ -3,9 +3,16 @@ import 'dart:convert';
 /// Status of an agent task.
 enum TaskStatus {
   pending,
+  planned,
+  claimed,
+  active,
   inProgress,
+  needsApproval,
+  codeReview,
   done,
   blocked,
+  canceled,
+  failed,
   deferred,
   interrupted,
   inQa;
@@ -14,12 +21,26 @@ enum TaskStatus {
     switch (s) {
       case 'pending':
         return TaskStatus.pending;
+      case 'planned':
+        return TaskStatus.planned;
+      case 'claimed':
+        return TaskStatus.claimed;
+      case 'active':
+        return TaskStatus.active;
       case 'in_progress':
         return TaskStatus.inProgress;
+      case 'needs_approval':
+        return TaskStatus.needsApproval;
+      case 'code_review':
+        return TaskStatus.codeReview;
       case 'done':
         return TaskStatus.done;
       case 'blocked':
         return TaskStatus.blocked;
+      case 'canceled':
+        return TaskStatus.canceled;
+      case 'failed':
+        return TaskStatus.failed;
       case 'deferred':
         return TaskStatus.deferred;
       case 'interrupted':
@@ -35,12 +56,26 @@ enum TaskStatus {
     switch (this) {
       case TaskStatus.pending:
         return 'pending';
+      case TaskStatus.planned:
+        return 'planned';
+      case TaskStatus.claimed:
+        return 'claimed';
+      case TaskStatus.active:
+        return 'active';
       case TaskStatus.inProgress:
         return 'in_progress';
+      case TaskStatus.needsApproval:
+        return 'needs_approval';
+      case TaskStatus.codeReview:
+        return 'code_review';
       case TaskStatus.done:
         return 'done';
       case TaskStatus.blocked:
         return 'blocked';
+      case TaskStatus.canceled:
+        return 'canceled';
+      case TaskStatus.failed:
+        return 'failed';
       case TaskStatus.deferred:
         return 'deferred';
       case TaskStatus.interrupted:
@@ -54,12 +89,26 @@ enum TaskStatus {
     switch (this) {
       case TaskStatus.pending:
         return 'Pending';
+      case TaskStatus.planned:
+        return 'Planned';
+      case TaskStatus.claimed:
+        return 'Claimed';
+      case TaskStatus.active:
+        return 'Active';
       case TaskStatus.inProgress:
         return 'In Progress';
+      case TaskStatus.needsApproval:
+        return 'Needs Approval';
+      case TaskStatus.codeReview:
+        return 'Code Review';
       case TaskStatus.done:
         return 'Done';
       case TaskStatus.blocked:
         return 'Blocked';
+      case TaskStatus.canceled:
+        return 'Canceled';
+      case TaskStatus.failed:
+        return 'Failed';
       case TaskStatus.deferred:
         return 'Deferred';
       case TaskStatus.interrupted:

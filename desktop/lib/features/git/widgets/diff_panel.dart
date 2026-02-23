@@ -122,8 +122,8 @@ final _diffProvider =
   final path = ref.read(effectiveRepoPathProvider);
   if (path == null) return '';
   return await client.call<String>('repo.fileDiff', {
-    'path': path,
-    'file': filePath,
+    'repoPath': path,
+    'path': filePath,
     'staged': staged,
   });
 });

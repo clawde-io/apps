@@ -34,9 +34,16 @@ class TaskStatusBadge extends StatelessWidget {
 
   static (Color, String) _meta(TaskStatus s) => switch (s) {
         TaskStatus.pending => (const Color(0xFF9E9E9E), 'Pending'),
+        TaskStatus.planned => (const Color(0xFF78909C), 'Planned'),
+        TaskStatus.claimed => (const Color(0xFF26C6DA), 'Claimed'),
+        TaskStatus.active => (const Color(0xFF42A5F5), 'Active'),
         TaskStatus.inProgress => (const Color(0xFF42A5F5), 'In Progress'),
+        TaskStatus.needsApproval => (const Color(0xFFFFB300), 'Needs Approval'),
+        TaskStatus.codeReview => (const Color(0xFF7E57C2), 'Code Review'),
         TaskStatus.done => (const Color(0xFF66BB6A), 'Done'),
         TaskStatus.blocked => (const Color(0xFFEF5350), 'Blocked'),
+        TaskStatus.canceled => (const Color(0xFF757575), 'Canceled'),
+        TaskStatus.failed => (const Color(0xFFE53935), 'Failed'),
         TaskStatus.deferred => (const Color(0xFFFFCA28), 'Deferred'),
         TaskStatus.interrupted => (const Color(0xFFFF7043), 'Interrupted'),
         TaskStatus.inQa => (const Color(0xFFAB47BC), 'In QA'),

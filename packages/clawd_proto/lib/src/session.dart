@@ -1,5 +1,4 @@
 /// Session types for the clawd daemon.
-library;
 
 import 'dart:developer' as dev;
 

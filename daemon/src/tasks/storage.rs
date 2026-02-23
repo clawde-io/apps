@@ -145,19 +145,18 @@ impl TaskStorage {
     // ─── Tasks ────────────────────────────────────────────────────────────────
 
     pub async fn list_tasks(&self, params: &TaskListParams) -> Result<Vec<AgentTaskRow>> {
-        let limit = params.limit.unwrap_or(200).min(500);
-        let offset = params.offset.unwrap_or(0);
+        let limit = params.limit.unwrap_or(200).min(500) as usize;
+        let offset = params.offset.unwrap_or(0) as usize;
         let pool = self.pool.clone();
 
+        // Fetch all rows matching the ordering, then apply post-filters and
+        // LIMIT/OFFSET in Rust so filters run before the row limit is enforced.
         let mut rows: Vec<AgentTaskRow> = with_timeout(async {
             Ok(sqlx::query_as(
                 "SELECT * FROM agent_tasks ORDER BY
                  CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END,
-                 updated_at DESC
-                 LIMIT ? OFFSET ?"
+                 updated_at DESC"
             )
-            .bind(limit)
-            .bind(offset)
             .fetch_all(&pool)
             .await?)
         })
@@ -193,6 +192,12 @@ impl TaskStorage {
                     .unwrap_or(false)
             });
         }
+
+        // Apply offset and limit after all in-process filters.
+        if offset > 0 {
+            rows = rows.into_iter().skip(offset).collect();
+        }
+        rows.truncate(limit);
 
         Ok(rows)
     }
@@ -504,7 +509,17 @@ impl TaskStorage {
         for t in tasks {
             // Only insert if not already present
             let existing = self.get_task(&t.id).await?;
-            if existing.is_some() {
+            if let Some(ref ex) = existing {
+                // Task already exists — sync status if it differs.
+                if ex.status != t.status {
+                    sqlx::query(
+                        "UPDATE agent_tasks SET status = ?, updated_at = unixepoch() WHERE id = ?"
+                    )
+                    .bind(&t.status)
+                    .bind(&t.id)
+                    .execute(&self.pool)
+                    .await?;
+                }
                 continue;
             }
             self.add_task(
@@ -843,17 +858,11 @@ impl TaskStorage {
     }
 }
 
-// Unique hex ID — combines timestamp, thread ID, and a monotonic counter
-// to avoid collisions when multiple calls happen in the same second.
+// Unique hex ID — generates a proper 128-bit random value using the
+// OS CSPRNG (via rand_core/getrandom) for collision resistance.
 fn uuid_v4_hex() -> u128 {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-    use std::sync::atomic::{AtomicU64, Ordering};
-    static SEQ: AtomicU64 = AtomicU64::new(0);
-    let seq = SEQ.fetch_add(1, Ordering::Relaxed);
-    let mut h = DefaultHasher::new();
-    now_ts().hash(&mut h);
-    std::thread::current().id().hash(&mut h);
-    seq.hash(&mut h);
-    h.finish() as u128
+    use rand_core::{OsRng, RngCore};
+    let mut bytes = [0u8; 16];
+    OsRng.fill_bytes(&mut bytes);
+    u128::from_le_bytes(bytes)
 }

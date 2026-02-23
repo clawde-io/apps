@@ -9,11 +9,15 @@ final _worktreeStatusProvider =
     FutureProvider.family<WorktreeStatus?, String>((ref, taskId) async {
   final client = ref.read(daemonProvider.notifier).client;
   try {
-    final result = await client.call<Map<String, dynamic>>(
-      'worktrees.list',
-      {'task_id': taskId},
-    );
-    return WorktreeStatus.fromJson(result);
+    final result = await client.call<Map<String, dynamic>>('worktrees.list');
+    final list = result['worktrees'] as List<dynamic>? ?? [];
+    final entry = list.cast<Map<String, dynamic>>().where(
+          (w) =>
+              (w['task_id'] as String?) == taskId ||
+              (w['taskId'] as String?) == taskId,
+        ).firstOrNull;
+    if (entry == null) return null;
+    return WorktreeStatus.fromJson(entry);
   } catch (_) {
     return null;
   }

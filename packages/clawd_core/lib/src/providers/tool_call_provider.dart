@@ -51,12 +51,12 @@ class ToolCallNotifier
       state = AsyncValue.data(
         calls.map((tc) {
           if (tc.id != tcId) return tc;
-          ToolCallStatus parsedStatus;
-          try {
-            parsedStatus = ToolCallStatus.values.byName(status);
-          } catch (_) {
-            parsedStatus = ToolCallStatus.error;
-          }
+          final parsedStatus = switch (status) {
+            'done' || 'completed' => ToolCallStatus.completed,
+            'running' => ToolCallStatus.running,
+            'pending' => ToolCallStatus.pending,
+            _ => ToolCallStatus.error,
+          };
           return ToolCall(
             id: tc.id,
             sessionId: tc.sessionId,

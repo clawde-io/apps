@@ -13,7 +13,9 @@ use super::transport::{McpError, MCP_INVALID_PARAMS, MCP_PROVIDER_NOT_AVAILABLE}
 use super::tools as tool_list;
 
 /// Write tools that require the task to be Active+Claimed before proceeding.
-const WRITE_TOOLS: &[&str] = &["apply_patch", "run_tests"];
+/// `transition_task` and `claim_task` are included so agents cannot advance
+/// task state or claim tasks without going through proper ownership checks.
+const WRITE_TOOLS: &[&str] = &["apply_patch", "run_tests", "transition_task", "claim_task"];
 
 pub struct McpDispatcher {
     ctx: Arc<AppContext>,

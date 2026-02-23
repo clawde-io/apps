@@ -18,7 +18,6 @@ use tokio::sync::RwLock;
 use clawd::policy::{PolicyDecision, PolicyEngine, PolicyViolation};
 use clawd::policy::approval::ApprovalRouter;
 use clawd::policy::dod::DodChecker;
-use clawd::policy::hooks::PolicyHooks;
 use clawd::policy::mcp_trust::TrustDatabase;
 use clawd::policy::output_scan::scan_patch_output;
 use clawd::policy::rbac::{check_tool_authorized, AgentRole};

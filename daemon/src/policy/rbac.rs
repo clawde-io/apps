@@ -114,7 +114,10 @@ pub fn check_tool_authorized(role: &AgentRole, tool: &str) -> Result<(), PolicyV
         };
     }
 
-    // Role not in table (shouldn't happen, but treat as Unknown).
+    // Role not in table — treated as Unknown (no tool access).
+    // This fallback covers any future AgentRole variants that aren't yet
+    // added to ROLE_ALLOWED_TOOLS, ensuring they default to deny rather
+    // than inadvertently granting access.
     Err(PolicyViolation::UnauthorizedTool {
         tool: tool.to_string(),
         role: role.to_string(),

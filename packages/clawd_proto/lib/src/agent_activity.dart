@@ -42,10 +42,10 @@ class ActivityLogEntry {
 
   factory ActivityLogEntry.fromJson(Map<String, dynamic> json) =>
       ActivityLogEntry(
-        id: json['id'] as String,
+        id: json['id'] as String? ?? '',
         taskId: json['taskId'] as String? ?? json['task_id'] as String?,
-        agent: json['agent'] as String,
-        action: json['action'] as String,
+        agent: json['agent'] as String? ?? '',
+        action: json['action'] as String? ?? '',
         detail: json['detail'] as String?,
         entryType: ActivityEntryType.fromString(
           json['entryType'] as String? ??
@@ -122,7 +122,7 @@ class AgentView {
   }
 
   factory AgentView.fromJson(Map<String, dynamic> json) => AgentView(
-        agentId: json['agentId'] as String? ?? json['agent_id'] as String,
+        agentId: json['agentId'] as String? ?? json['agent_id'] as String? ?? '',
         status: AgentViewStatus.fromString(json['status'] as String? ?? 'offline'),
         repoPath: json['repoPath'] as String? ??
             json['repo_path'] as String? ??

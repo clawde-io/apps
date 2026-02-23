@@ -552,7 +552,9 @@ fn row_to_view(row: crate::storage::SessionRow) -> SessionView {
 /// - Bash / shell commands → `shell_exec`
 /// - Git operations → `git`
 ///
-/// Unknown tools default to `shell_exec` (most restrictive common scope).
+/// Unknown tools default to `"unknown"` (least-privilege scope) rather than
+/// `"shell_exec"`, so unrecognized tool names are denied by default instead
+/// of being granted shell execution rights.
 fn tool_name_to_scope(tool_name: &str) -> &'static str {
     let lower = tool_name.to_lowercase();
     if lower.contains("read") || lower.contains("glob") || lower.contains("grep")
@@ -563,8 +565,13 @@ fn tool_name_to_scope(tool_name: &str) -> &'static str {
         "file_write"
     } else if lower.contains("git") {
         "git"
-    } else {
+    } else if lower.contains("bash") || lower.contains("shell") || lower.contains("exec")
+        || lower.contains("run") || lower.contains("command")
+    {
         "shell_exec"
+    } else {
+        // Unrecognized tool — deny via least-privilege "unknown" scope.
+        "unknown"
     }
 }
 

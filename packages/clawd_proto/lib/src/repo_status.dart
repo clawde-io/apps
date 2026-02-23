@@ -1,5 +1,4 @@
 /// Repository status types for git integration.
-library;
 
 class RepoStatus {
   final String repoPath;

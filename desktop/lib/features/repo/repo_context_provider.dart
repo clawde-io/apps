@@ -32,6 +32,6 @@ final activeRepoStatusProvider = FutureProvider<RepoStatus?>((ref) async {
 
   final client = ref.read(daemonProvider.notifier).client;
   final result =
-      await client.call<Map<String, dynamic>>('repo.status', {'path': path});
+      await client.call<Map<String, dynamic>>('repo.status', {'repoPath': path});
   return RepoStatus.fromJson(result);
 });

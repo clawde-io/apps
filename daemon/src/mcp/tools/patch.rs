@@ -121,10 +121,22 @@ pub async fn apply_patch(ctx: &AppContext, args: Value, agent_id: Option<&str>) 
     )
     .map_err(|e| anyhow::anyhow!("patch delta enumeration failed: {}", e))?;
 
-    // Open the git repository and apply the patch.
-    let repo_path = std::path::Path::new(&task.repo_path);
+    // Open the task's isolated git worktree (NOT the project root).
+    // Each code-modifying task is bound to a dedicated worktree so that
+    // concurrent tasks cannot interfere with each other's working trees.
+    let worktree_info = ctx
+        .worktree_manager
+        .get(task_id)
+        .await
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "MCP_INVALID_PARAMS: task '{}' has no worktree — claim the task first to provision one",
+                task_id
+            )
+        })?;
+    let repo_path = &worktree_info.worktree_path;
     let repo = git2::Repository::open(repo_path)
-        .map_err(|e| anyhow::anyhow!("failed to open git repo at '{}': {}", task.repo_path, e))?;
+        .map_err(|e| anyhow::anyhow!("failed to open worktree at '{}': {}", repo_path.display(), e))?;
 
     let mut apply_opts = git2::ApplyOptions::new();
     // Apply to workdir (index=false), so the changes appear as working-tree edits.

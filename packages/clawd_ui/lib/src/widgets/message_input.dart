@@ -169,6 +169,7 @@ class _MessageInputState extends State<MessageInput> {
   }
 
   void _showOverlay() {
+    if (!mounted) return;
     _removeOverlay();
     _overlayEntry = OverlayEntry(builder: (_) => _buildCommandOverlay());
     Overlay.of(context).insert(_overlayEntry!);

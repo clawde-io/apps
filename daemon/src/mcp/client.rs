@@ -199,6 +199,25 @@ impl McpClient {
         let resp: Value = serde_json::from_str(response_line.trim())
             .context("parse MCP server response")?;
 
+        // Verify the response ID matches the request ID we sent.
+        if let Some(resp_id) = resp.get("id") {
+            let expected = Value::Number(serde_json::Number::from(id));
+            if resp_id != &expected {
+                warn!(
+                    server = %self.config.name,
+                    expected = %expected,
+                    got = %resp_id,
+                    "MCP server returned response with mismatched ID"
+                );
+                return Err(anyhow::anyhow!(
+                    "MCP server '{}' returned response ID {} but expected {}",
+                    self.config.name,
+                    resp_id,
+                    id
+                ));
+            }
+        }
+
         if let Some(error) = resp.get("error") {
             return Err(anyhow::anyhow!(
                 "MCP server returned error: {}",
@@ -228,6 +247,7 @@ impl McpClient {
         );
 
         // Send the `initialized` notification (no response expected).
+        // Prepare data outside the lock, then acquire-write-drop-release.
         let notif = json!({
             "jsonrpc": "2.0",
             "method": "initialized",
@@ -235,9 +255,13 @@ impl McpClient {
         });
         let mut line = serde_json::to_string(&notif)?;
         line.push('\n');
-        let mut stdin = self.stdin.lock().await;
-        stdin.write_all(line.as_bytes()).await?;
-        stdin.flush().await?;
+        let line_bytes = line.into_bytes();
+        {
+            // Lock scope limited to the write + flush pair; released before returning.
+            let mut stdin = self.stdin.lock().await;
+            stdin.write_all(&line_bytes).await?;
+            stdin.flush().await?;
+        } // stdin lock released here
 
         Ok(())
     }

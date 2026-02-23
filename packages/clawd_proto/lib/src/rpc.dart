@@ -1,5 +1,4 @@
 /// JSON-RPC 2.0 envelope types.
-library;
 
 /// A JSON-RPC 2.0 request.
 class RpcRequest {

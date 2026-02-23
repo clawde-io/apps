@@ -224,8 +224,9 @@ async fn handle_inbound(
                     };
 
                     trace!("relay: inbound e2e frame ({} bytes decrypted)", inner.len());
-                    // Relay connections pass "" — they have relay-layer auth, not bearer token.
-                    let response = crate::ipc::dispatch_text(&inner, ctx, "").await;
+                    // Relay connections are authenticated at the relay layer; pass the
+                    // daemon auth token so the per-RPC bearer check is satisfied.
+                    let response = crate::ipc::dispatch_text(&inner, ctx, &ctx.auth_token).await;
 
                     // Encrypt response.
                     let out = {

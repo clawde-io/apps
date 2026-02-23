@@ -8,13 +8,12 @@
 use chrono::Utc;
 use clawd::tasks::{
     checkpoint::CheckpointManager,
-    event_log::TaskEventLog,
     events::{new_correlation_id, TaskEventKind},
     reducer::{self, check_write_allowed, MaterializedTask, TaskState},
     replay::ReplayEngine,
     schema::{Priority, RiskLevel, TaskSpec},
 };
-use std::collections::HashSet;
+
 use tempfile::TempDir;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

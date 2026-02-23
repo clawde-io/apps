@@ -1,5 +1,4 @@
 /// Agent types for multi-agent UX — Phase 43l.
-library;
 
 /// The role of an agent in the multi-agent pipeline.
 enum AgentRole {
@@ -82,15 +81,15 @@ class AgentRecord {
   });
 
   factory AgentRecord.fromJson(Map<String, dynamic> json) => AgentRecord(
-        agentId: json['agent_id'] as String? ?? json['agentId'] as String,
+        agentId: json['agent_id'] as String? ?? json['agentId'] as String? ?? '',
         role: AgentRole.fromString(json['role'] as String? ?? 'implementer'),
-        taskId: json['task_id'] as String? ?? json['taskId'] as String,
-        provider: json['provider'] as String,
-        model: json['model'] as String,
+        taskId: json['task_id'] as String? ?? json['taskId'] as String? ?? '',
+        provider: json['provider'] as String? ?? '',
+        model: json['model'] as String? ?? '',
         worktreePath: json['worktree_path'] as String? ?? json['worktreePath'] as String?,
         status: AgentStatus.fromString(json['status'] as String? ?? 'pending'),
-        createdAt: DateTime.parse(json['created_at'] as String? ?? json['createdAt'] as String),
-        lastHeartbeat: DateTime.parse(json['last_heartbeat'] as String? ?? json['lastHeartbeat'] as String),
+        createdAt: DateTime.parse(json['created_at'] as String? ?? json['createdAt'] as String? ?? DateTime.now().toIso8601String()),
+        lastHeartbeat: DateTime.parse(json['last_heartbeat'] as String? ?? json['lastHeartbeat'] as String? ?? DateTime.now().toIso8601String()),
         tokensUsed: (json['tokens_used'] as num?)?.toInt() ?? (json['tokensUsed'] as num?)?.toInt() ?? 0,
         costUsdEst: (json['cost_usd_est'] as num?)?.toDouble() ?? (json['costUsdEst'] as num?)?.toDouble() ?? 0.0,
         result: json['result'] as String?,
@@ -135,14 +134,14 @@ class ApprovalRequest {
   });
 
   factory ApprovalRequest.fromJson(Map<String, dynamic> json) => ApprovalRequest(
-        approvalId: json['approval_id'] as String? ?? json['approvalId'] as String,
-        taskId: json['task_id'] as String? ?? json['taskId'] as String,
-        agentId: json['agent_id'] as String? ?? json['agentId'] as String,
-        tool: json['tool'] as String,
-        argsSummary: json['args_summary'] as String? ?? json['argsSummary'] as String,
+        approvalId: json['approval_id'] as String? ?? json['approvalId'] as String? ?? '',
+        taskId: json['task_id'] as String? ?? json['taskId'] as String? ?? '',
+        agentId: json['agent_id'] as String? ?? json['agentId'] as String? ?? '',
+        tool: json['tool'] as String? ?? '',
+        argsSummary: json['args_summary'] as String? ?? json['argsSummary'] as String? ?? '',
         risk: json['risk'] as String? ?? 'medium',
         requestedAt: DateTime.parse(
-          json['requested_at'] as String? ?? json['requestedAt'] as String,
+          json['requested_at'] as String? ?? json['requestedAt'] as String? ?? DateTime.now().toIso8601String(),
         ),
       );
 

@@ -17,9 +17,12 @@ class WorktreeStatus {
   });
 
   factory WorktreeStatus.fromJson(Map<String, dynamic> json) => WorktreeStatus(
-        taskId: json['task_id'] as String? ?? json['taskId'] as String,
-        branch: json['branch'] as String,
-        path: json['path'] as String,
+        taskId: json['task_id'] as String? ?? json['taskId'] as String? ?? '',
+        branch: json['branch'] as String? ?? '',
+        path: json['path'] as String? ??
+            json['worktree_path'] as String? ??
+            json['worktreePath'] as String? ??
+            '',
         changeCount: (json['change_count'] as num?)?.toInt() ??
             (json['changeCount'] as num?)?.toInt() ??
             0,

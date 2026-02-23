@@ -45,8 +45,9 @@ class AgentListNotifier extends AsyncNotifier<List<AgentRecord>> {
 
   Future<List<AgentRecord>> _fetch() async {
     final client = ref.read(daemonProvider.notifier).client;
-    final result = await client.call<List<dynamic>>('tasks.agents.list');
-    return result
+    final result = await client.call<Map<String, dynamic>>('tasks.agents.list');
+    final agents = result['agents'] as List<dynamic>? ?? [];
+    return agents
         .map((j) => AgentRecord.fromJson(j as Map<String, dynamic>))
         .toList();
   }
@@ -65,7 +66,7 @@ class AgentListNotifier extends AsyncNotifier<List<AgentRecord>> {
         worktreePath: a.worktreePath,
         status: newStatus,
         createdAt: a.createdAt,
-        lastHeartbeat: DateTime.now(),
+        lastHeartbeat: a.lastHeartbeat,
         tokensUsed: a.tokensUsed,
         costUsdEst: a.costUsdEst,
         result: a.result,
@@ -95,7 +96,7 @@ class ApprovalQueueNotifier extends AsyncNotifier<List<ApprovalRequest>> {
         final method = event['method'] as String?;
         if (method == null) return;
 
-        if (method == 'approval.requested') {
+        if (method == 'tool.approvalRequested') {
           final params = event['params'] as Map<String, dynamic>?;
           if (params != null) {
             final newRequest = ApprovalRequest.fromJson(params);
@@ -105,7 +106,8 @@ class ApprovalQueueNotifier extends AsyncNotifier<List<ApprovalRequest>> {
               state = AsyncValue.data([...current, newRequest]);
             }
           }
-        } else if (method == 'approval.resolved') {
+        } else if (method == 'task.approvalGranted' ||
+            method == 'task.approvalDenied') {
           // Remove resolved approval from the queue.
           final params = event['params'] as Map<String, dynamic>?;
           final approvalId = params?['approval_id'] as String? ??
@@ -128,8 +130,10 @@ class ApprovalQueueNotifier extends AsyncNotifier<List<ApprovalRequest>> {
   Future<List<ApprovalRequest>> _fetch() async {
     final client = ref.read(daemonProvider.notifier).client;
     try {
-      final result = await client.call<List<dynamic>>('approval.list');
-      return result
+      final result =
+          await client.call<Map<String, dynamic>>('approval.list');
+      final approvals = result['approvals'] as List<dynamic>? ?? [];
+      return approvals
           .map((j) => ApprovalRequest.fromJson(j as Map<String, dynamic>))
           .toList();
     } catch (_) {
@@ -148,7 +152,7 @@ class ApprovalQueueNotifier extends AsyncNotifier<List<ApprovalRequest>> {
     final client = ref.read(daemonProvider.notifier).client;
     await client.call<void>('approval.respond', {
       'approval_id': approvalId,
-      'decision': forTask ? 'approve_for_task' : 'approve_once',
+      'decision': 'grant',
     });
     _removeLocally(approvalId);
   }

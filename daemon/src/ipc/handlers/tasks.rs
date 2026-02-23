@@ -344,6 +344,21 @@ fn csv_escape(s: &str) -> String {
 
 pub async fn validate(params: Value, ctx: &AppContext) -> Result<Value> {
     let repo_path = sv(&params, "repo_path").unwrap_or("");
+
+    // Validate that the resolved active.md path stays within the declared repo root.
+    if !repo_path.is_empty() {
+        let root = std::path::Path::new(repo_path);
+        if !root.is_absolute() {
+            anyhow::bail!("repo_path must be absolute");
+        }
+        let candidate = root.join(".claude/tasks/active.md");
+        let canonical_root = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
+        let canonical_candidate = std::fs::canonicalize(&candidate).unwrap_or_else(|_| candidate.clone());
+        if !canonical_candidate.starts_with(&canonical_root) {
+            anyhow::bail!("active.md path escapes repo root");
+        }
+    }
+
     let active_md_path = format!("{}/.claude/tasks/active.md", repo_path);
     let content = tokio::fs::read_to_string(&active_md_path).await.unwrap_or_default();
     let md_tasks = markdown_parser::parse_active_md(&content);
@@ -378,6 +393,21 @@ pub async fn validate(params: Value, ctx: &AppContext) -> Result<Value> {
 
 pub async fn sync(params: Value, ctx: &AppContext) -> Result<Value> {
     let repo_path = sv(&params, "repo_path").unwrap_or("");
+
+    // Validate that the resolved active.md path stays within the declared repo root.
+    if !repo_path.is_empty() {
+        let root = std::path::Path::new(repo_path);
+        if !root.is_absolute() {
+            anyhow::bail!("repo_path must be absolute");
+        }
+        let candidate = root.join(".claude/tasks/active.md");
+        let canonical_root = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
+        let canonical_candidate = std::fs::canonicalize(&candidate).unwrap_or_else(|_| candidate.clone());
+        if !canonical_candidate.starts_with(&canonical_root) {
+            anyhow::bail!("active.md path escapes repo root");
+        }
+    }
+
     let active_md_path = format!("{}/.claude/tasks/active.md", repo_path);
     let content = tokio::fs::read_to_string(&active_md_path).await.unwrap_or_default();
     let parsed = markdown_parser::parse_active_md(&content);

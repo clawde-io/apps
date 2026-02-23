@@ -352,7 +352,7 @@ async fn handle_connection(stream: tokio::net::TcpStream, ctx: Arc<AppContext>) 
             .and_then(Value::as_str)
             .unwrap_or_default();
 
-        if provided != ctx.auth_token {
+        if !tokens_equal(provided, &ctx.auth_token) {
             let _ = sink
                 .send(Message::Text(error_response(
                     id,
@@ -560,6 +560,10 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
         "worktrees.list"        => handlers::worktrees::list(params, ctx).await,
         "worktrees.merge"       => handlers::worktrees::merge(params, ctx).await,
         "worktrees.cleanup"     => handlers::worktrees::cleanup(params, ctx).await,
+        "worktrees.diff"        => handlers::worktrees::diff(params, ctx).await,
+        // ─── Human-approval workflow ──────────────────────────────────────────
+        "approval.list"         => handlers::approval::list(params, ctx).await,
+        "approval.respond"      => handlers::approval::respond(params, ctx).await,
         // ─── Phase 43m: Account Scheduler ────────────────────────────────────
         "scheduler.status"      => handlers::scheduler::status(params, ctx).await,
         // ─── Phase 43f: Conversation Threading ───────────────────────────────────
@@ -573,10 +577,14 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
 
 fn classify_error(e: &anyhow::Error, _method: &str) -> (i32, String) {
     let msg = e.to_string();
+
+    // ── Structured prefixes (reliable, added at the error callsite) ──────────
+
     if msg.starts_with("METHOD_NOT_FOUND:") {
         return (METHOD_NOT_FOUND, "Method not found".to_string());
     }
-    // Task system error codes
+
+    // Task system uses "TASK_CODE:{numeric_code}" markers.
     if msg.contains(&format!("TASK_CODE:{}", crate::tasks::storage::TASK_NOT_FOUND)) {
         return (TASK_NOT_FOUND_CODE, "Task not found".to_string());
     }
@@ -589,16 +597,16 @@ fn classify_error(e: &anyhow::Error, _method: &str) -> (i32, String) {
     if msg.contains(&format!("TASK_CODE:{}", crate::tasks::storage::TASK_NOT_RESUMABLE)) {
         return (TASK_NOT_RESUMABLE_CODE, "Task cannot be resumed — not in interrupted or pending state".to_string());
     }
-    if msg.contains("session limit reached") {
-        return (SESSION_LIMIT_CODE, "Session limit reached".to_string());
-    }
-    if msg.contains("session not found") || msg.contains("SESSION_NOT_FOUND") {
+
+    // ── All-caps sentinel markers (set explicitly by each error site) ─────────
+
+    if msg.contains("SESSION_NOT_FOUND") {
         return (SESSION_NOT_FOUND, "Session not found".to_string());
     }
-    if msg.contains("repo not found")
-        || msg.contains("REPO_NOT_FOUND")
-        || msg.contains("not a git repository")
-    {
+    if msg.contains("SESSION_LIMIT_REACHED") {
+        return (SESSION_LIMIT_CODE, "Session limit reached".to_string());
+    }
+    if msg.contains("REPO_NOT_FOUND") {
         return (REPO_NOT_FOUND, "Repo not found".to_string());
     }
     if msg.contains("PROVIDER_NOT_AVAILABLE") {
@@ -620,12 +628,30 @@ fn classify_error(e: &anyhow::Error, _method: &str) -> (i32, String) {
             "Session is paused — resume before sending messages".to_string(),
         );
     }
-    if msg.contains("rate limit") || msg.contains("rate_limit") || msg.contains("RATE_LIMITED") {
+    if msg.contains("RATE_LIMITED") {
+        return (RATE_LIMITED, "AI provider rate limit — try again shortly".to_string());
+    }
+
+    // ── Fallback heuristics for legacy error strings not yet converted ────────
+    // These are less reliable; prefer adding a structured marker above for new errors.
+
+    if msg.contains("session limit reached") {
+        return (SESSION_LIMIT_CODE, "Session limit reached".to_string());
+    }
+    if msg.contains("session not found") {
+        return (SESSION_NOT_FOUND, "Session not found".to_string());
+    }
+    if msg.contains("repo not found") || msg.contains("not a git repository") {
+        return (REPO_NOT_FOUND, "Repo not found".to_string());
+    }
+    if msg.contains("rate limit") || msg.contains("rate_limit") {
         return (RATE_LIMITED, "AI provider rate limit — try again shortly".to_string());
     }
     if msg.contains("missing field") || msg.contains("invalid type") {
         return (INVALID_PARAMS, format!("Invalid params: {}", msg));
     }
+
+    // ── Catch-all ─────────────────────────────────────────────────────────────
     error!(err = %e, "internal error");
     (INTERNAL_ERROR, "Internal error".to_string())
 }

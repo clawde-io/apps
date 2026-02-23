@@ -43,9 +43,14 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
     final prefs = await SharedPreferences.getInstance();
     return AppSettings(
       daemonUrl: prefs.getString(_kDaemonUrl) ?? _defaultDaemonUrl,
-      defaultProvider: ProviderType.values.byName(
-        prefs.getString(_kDefaultProvider) ?? ProviderType.claude.name,
-      ),
+      defaultProvider: () {
+        final stored = prefs.getString(_kDefaultProvider) ?? ProviderType.claude.name;
+        try {
+          return ProviderType.values.byName(stored);
+        } catch (_) {
+          return ProviderType.claude;
+        }
+      }(),
       autoReconnect: prefs.getBool(_kAutoReconnect) ?? true,
       theme: prefs.getString(_kTheme) ?? _defaultTheme,
     );

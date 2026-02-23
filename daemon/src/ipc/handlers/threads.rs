@@ -81,7 +81,7 @@ pub async fn start_thread(ctx: &AppContext, params: Value) -> Result<Value> {
         "task" => {
             let task_id = sv(&params, "task_id")
                 .ok_or_else(|| anyhow::anyhow!("task thread requires task_id"))?;
-            let parent_id = sv(&params, "parent_thread_id").unwrap_or("");
+            let parent_id = sv(&params, "parent_thread_id");
             TaskThread::create(&pool, task_id, parent_id, model_config).await?
         }
         "sub" => {

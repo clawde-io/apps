@@ -1,5 +1,4 @@
 /// Tool call and result types for clawd sessions.
-library;
 
 import 'dart:convert';
 import 'dart:developer' as dev;

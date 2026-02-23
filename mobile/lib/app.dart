@@ -96,7 +96,7 @@ class _MobileShellState extends ConsumerState<_MobileShell> {
     ref.listenManual(daemonPushEventsProvider, (_, next) {
       next.whenData((event) {
         final method = event['method'] as String?;
-        final params = event['params'] as Map?;
+        final params = event['params'] as Map<String, dynamic>?;
         switch (method) {
           case 'daemon.updateAvailable':
             if (!_updateAvailable) {

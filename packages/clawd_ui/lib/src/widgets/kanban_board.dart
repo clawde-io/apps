@@ -19,12 +19,20 @@ class KanbanBoard extends StatelessWidget {
   final double columnWidth;
 
   static const List<TaskStatus> _columnOrder = [
+    TaskStatus.active,
     TaskStatus.inProgress,
     TaskStatus.pending,
+    TaskStatus.planned,
+    TaskStatus.claimed,
+    TaskStatus.needsApproval,
+    TaskStatus.codeReview,
     TaskStatus.blocked,
+    TaskStatus.inQa,
     TaskStatus.interrupted,
     TaskStatus.deferred,
     TaskStatus.done,
+    TaskStatus.canceled,
+    TaskStatus.failed,
   ];
 
   @override

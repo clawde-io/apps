@@ -16,9 +16,9 @@ class TaskClaimedEvent {
   factory TaskClaimedEvent.fromJson(Map<String, dynamic> json) =>
       TaskClaimedEvent(
         taskId:
-            json['task_id'] as String? ?? json['taskId'] as String,
+            json['task_id'] as String? ?? json['taskId'] as String? ?? '',
         agentId:
-            json['agent_id'] as String? ?? json['agentId'] as String,
+            json['agent_id'] as String? ?? json['agentId'] as String? ?? '',
         isResume: json['is_resume'] as bool? ?? false,
       );
 }
@@ -38,7 +38,7 @@ class TaskStatusChangedEvent {
   factory TaskStatusChangedEvent.fromJson(Map<String, dynamic> json) =>
       TaskStatusChangedEvent(
         taskId:
-            json['task_id'] as String? ?? json['taskId'] as String,
+            json['task_id'] as String? ?? json['taskId'] as String? ?? '',
         status: TaskStatus.fromString(
             json['status'] as String? ?? 'pending'),
         notes: json['notes'] as String?,
@@ -91,7 +91,7 @@ class AgentConnectedEvent {
   factory AgentConnectedEvent.fromJson(Map<String, dynamic> json) =>
       AgentConnectedEvent(
         agentId:
-            json['agentId'] as String? ?? json['agent_id'] as String,
+            json['agentId'] as String? ?? json['agent_id'] as String? ?? '',
         sessionId: json['sessionId'] as String? ??
             json['session_id'] as String?,
         projectPath: json['projectPath'] as String? ??
@@ -112,9 +112,9 @@ class AgentAssignedEvent {
   factory AgentAssignedEvent.fromJson(Map<String, dynamic> json) =>
       AgentAssignedEvent(
         agentId:
-            json['agentId'] as String? ?? json['agent_id'] as String,
+            json['agentId'] as String? ?? json['agent_id'] as String? ?? '',
         taskId:
-            json['taskId'] as String? ?? json['task_id'] as String,
+            json['taskId'] as String? ?? json['task_id'] as String? ?? '',
       );
 }
 
@@ -128,7 +128,7 @@ class TaskInterruptedEvent {
   factory TaskInterruptedEvent.fromJson(Map<String, dynamic> json) =>
       TaskInterruptedEvent(
         taskId:
-            json['taskId'] as String? ?? json['task_id'] as String,
+            json['taskId'] as String? ?? json['task_id'] as String? ?? '',
         agentId:
             json['agentId'] as String? ?? json['agent_id'] as String?,
       );
@@ -149,7 +149,7 @@ class AfsActiveMdSyncedEvent {
   factory AfsActiveMdSyncedEvent.fromJson(Map<String, dynamic> json) =>
       AfsActiveMdSyncedEvent(
         repoPath:
-            json['repoPath'] as String? ?? json['repo_path'] as String,
+            json['repoPath'] as String? ?? json['repo_path'] as String? ?? '',
         imported: json['imported'] as int? ?? 0,
       );
 }
@@ -169,8 +169,8 @@ class AfsPlanningUpdatedEvent {
   factory AfsPlanningUpdatedEvent.fromJson(Map<String, dynamic> json) =>
       AfsPlanningUpdatedEvent(
         repoPath:
-            json['repoPath'] as String? ?? json['repo_path'] as String,
-        file: json['file'] as String,
+            json['repoPath'] as String? ?? json['repo_path'] as String? ?? '',
+        file: json['file'] as String? ?? '',
       );
 }
 
@@ -189,9 +189,9 @@ class InboxMessageReceivedEvent {
   factory InboxMessageReceivedEvent.fromJson(Map<String, dynamic> json) =>
       InboxMessageReceivedEvent(
         repoPath:
-            json['repoPath'] as String? ?? json['repo_path'] as String,
+            json['repoPath'] as String? ?? json['repo_path'] as String? ?? '',
         filePath:
-            json['filePath'] as String? ?? json['file_path'] as String,
-        filename: json['filename'] as String,
+            json['filePath'] as String? ?? json['file_path'] as String? ?? '',
+        filename: json['filename'] as String? ?? '',
       );
 }

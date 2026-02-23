@@ -114,12 +114,15 @@ pub fn reduce(mut state: MaterializedTask, event: &TaskEvent) -> Result<Material
             TaskState::Pending
             | TaskState::Planned
             | TaskState::Blocked
-            | TaskState::NeedsApproval
             | TaskState::CodeReview
             | TaskState::Qa => {
                 state.state = TaskState::Active;
                 state.pending_approval_id = None;
             }
+            // NeedsApproval is intentionally excluded here.
+            // The only valid path from NeedsApproval → Active is via ApprovalGranted,
+            // which is handled below. Allowing TaskActive from NeedsApproval would
+            // let agents self-approve and bypass the human approval gate.
             _ => {
                 return Err(anyhow!(
                     "invalid transition: TaskActive from {:?}",

@@ -1,8 +1,19 @@
 use crate::AppContext;
 use anyhow::Result;
 use serde_json::{json, Value};
+use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::fs;
+use tokio::sync::Mutex;
+
+/// Global set of project roots that already have an AfsWatcher running.
+/// Prevents duplicate watcher threads when `register_project` is called
+/// multiple times for the same path.
+static WATCHED_PROJECTS: std::sync::OnceLock<Mutex<HashSet<String>>> = std::sync::OnceLock::new();
+
+fn watched_projects() -> &'static Mutex<HashSet<String>> {
+    WATCHED_PROJECTS.get_or_init(|| Mutex::new(HashSet::new()))
+}
 
 /// AFS init: scaffold `.claude/` directory tree for a project.
 pub async fn init(params: Value, _ctx: &AppContext) -> Result<Value> {
@@ -116,6 +127,18 @@ pub async fn sync_instructions(params: Value, _ctx: &AppContext) -> Result<Value
         return Ok(json!({ "ok": false, "error": "No .claude/CLAUDE.md found" }));
     }
 
+    // Guard against reading extremely large files (e.g. if .claude/CLAUDE.md is
+    // accidentally replaced with a binary or a multi-MB file).
+    const MAX_CLAUDE_MD_BYTES: u64 = 512 * 1024; // 512 KB
+    let meta = fs::metadata(&claude_md).await?;
+    if meta.len() > MAX_CLAUDE_MD_BYTES {
+        anyhow::bail!(
+            "CLAUDE.md is too large ({} bytes, max {} bytes) — refusing to read",
+            meta.len(),
+            MAX_CLAUDE_MD_BYTES
+        );
+    }
+
     let content = fs::read_to_string(&claude_md).await?;
 
     let agents_md = std::path::Path::new(repo_path).join(".codex/AGENTS.md");
@@ -130,6 +153,15 @@ pub async fn sync_instructions(params: Value, _ctx: &AppContext) -> Result<Value
 pub async fn register_project(params: Value, ctx: &AppContext) -> Result<Value> {
     let repo_path = params.get("repo_path").and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("missing repo_path"))?;
+
+    // Guard against duplicate watcher threads for the same project path.
+    {
+        let mut watched = watched_projects().lock().await;
+        if watched.contains(repo_path) {
+            return Ok(json!({ "ok": true, "repo_path": repo_path, "already_watching": true }));
+        }
+        watched.insert(repo_path.to_string());
+    }
 
     let watcher = crate::tasks::watcher::AfsWatcher::new(
         ctx.task_storage.clone(),

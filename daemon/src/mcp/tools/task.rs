@@ -334,6 +334,13 @@ pub async fn request_approval(
         }),
     );
 
+    // Transition task to needs_approval state so approval.list can find it.
+    // Store approval_id in notes for correlation by approval.respond.
+    let _ = ctx
+        .task_storage
+        .update_status(task_id, "needs_approval", Some(&approval_id), None)
+        .await;
+
     let _ = ctx
         .task_storage
         .log_activity(

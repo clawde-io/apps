@@ -157,14 +157,15 @@ impl Orchestrator {
             .await?;
         chain.push(impl_id);
 
-        // 3. Reviewer — cross-model: since implementer used Claude, reviewer gets Codex
+        // 3. Reviewer — cross-model: implementer used Claude, so pass Claude as
+        // previous_provider so route_agent selects Codex for the reviewer.
         let review_id = self
             .spawn(
                 AgentRole::Reviewer,
                 task_id,
                 complexity,
                 None,
-                Some(Provider::Claude),
+                Some(Provider::Claude), // previous = Claude → reviewer routes to Codex
             )
             .await?;
         chain.push(review_id);

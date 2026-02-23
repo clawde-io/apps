@@ -101,7 +101,7 @@ pub struct AfsWatcher {
     storage: Arc<TaskStorage>,
     broadcaster: Arc<EventBroadcaster>,
     // Map: project root -> last active.md hash (to avoid feedback loops)
-    active_md_hashes: Arc<Mutex<HashMap<PathBuf, u64>>>,
+    active_md_hashes: Arc<Mutex<HashMap<PathBuf, u128>>>,
 }
 
 impl AfsWatcher {
@@ -219,7 +219,7 @@ async fn handle_afs_event(
     project_root: &Path,
     storage: &TaskStorage,
     broadcaster: &EventBroadcaster,
-    hashes: &Mutex<HashMap<PathBuf, u64>>,
+    hashes: &Mutex<HashMap<PathBuf, u128>>,
 ) -> Result<()> {
     let repo_path = project_root.to_string_lossy().to_string();
 
@@ -384,10 +384,10 @@ async fn handle_afs_event(
 }
 
 /// SHA-256 based content hash for change detection.
-/// Returns the first 8 bytes as u64 for compact storage in the hash map.
-/// SHA-256 provides collision resistance that DefaultHasher does not guarantee.
-fn content_hash(s: &str) -> u64 {
+/// Returns the first 16 bytes as u128 for compact storage in the hash map
+/// while providing 128 bits of collision resistance.
+fn content_hash(s: &str) -> u128 {
     use sha2::{Digest, Sha256};
     let hash = Sha256::digest(s.as_bytes());
-    u64::from_le_bytes(hash[..8].try_into().expect("SHA-256 produces 32 bytes"))
+    u128::from_le_bytes(hash[..16].try_into().expect("SHA-256 produces 32 bytes"))
 }

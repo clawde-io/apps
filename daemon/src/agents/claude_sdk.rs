@@ -76,17 +76,19 @@ impl ClaudeSdk {
     /// ```text
     /// claude --resume <session_id> --output-format stream-json
     /// ```
+    ///
+    /// Runs to completion and parses the session_id from output, consistent
+    /// with `create_session`. The session_id is already known from input, so
+    /// this primarily verifies the CLI can reach the session.
     pub async fn resume_session(session_id: &str, project_dir: &Path) -> Result<ClaudeSession> {
-        // We spawn here but do not await the full output — callers can pipe
-        // the process stdout for streaming.  The returned ClaudeSession is a
-        // lightweight handle with the known metadata.
-        let _ = tokio::process::Command::new("claude")
+        let _output = tokio::process::Command::new("claude")
             .arg("--resume")
             .arg(session_id)
             .arg("--output-format")
             .arg("stream-json")
             .current_dir(project_dir)
-            .spawn()
+            .output()
+            .await
             .context("failed to invoke claude CLI for resume")?;
 
         Ok(ClaudeSession {
