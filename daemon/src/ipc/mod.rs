@@ -52,7 +52,7 @@ impl ConnectionRateLimiter {
     }
 }
 
-/// Per-connection RPC rate tracker using a sliding window.
+/// Per-connection RPC rate tracker using a tumbling window (resets each second).
 struct RpcRateLimiter {
     count: u32,
     window_start: Instant,
@@ -76,6 +76,21 @@ impl RpcRateLimiter {
         self.count += 1;
         self.count <= MAX_RPC_PER_SEC
     }
+}
+
+/// Constant-time token comparison to prevent timing-based token oracle attacks.
+/// Returns `true` if `a == b` without short-circuiting on mismatch.
+fn tokens_equal(a: &str, b: &str) -> bool {
+    let a = a.as_bytes();
+    let b = b.as_bytes();
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut result: u8 = 0;
+    for (x, y) in a.iter().zip(b.iter()) {
+        result |= x ^ y;
+    }
+    result == 0
 }
 
 // ─── JSON-RPC 2.0 types ──────────────────────────────────────────────────────
@@ -434,12 +449,14 @@ pub(crate) async fn dispatch_text(text: &str, ctx: &AppContext, client_token: &s
     };
 
     // Re-validate bearer token on every RPC dispatch.
-    // Relay connections pass "" and are exempt (they have relay-layer auth).
-    if !ctx.auth_token.is_empty() && !client_token.is_empty() && client_token != ctx.auth_token {
+    // If daemon auth is configured, every connection must present the correct token.
+    // An empty client_token is no longer exempt: relay-proxied connections must
+    // include the daemon bearer token in their JSON-RPC frames, just like local clients.
+    if !ctx.auth_token.is_empty() && !tokens_equal(client_token, &ctx.auth_token) {
         return error_response(
             req.id.unwrap_or(Value::Null),
             UNAUTHORIZED,
-            "Unauthorized — token has been rotated",
+            "Unauthorized — invalid or missing token",
         );
     }
 

@@ -407,6 +407,12 @@ impl TaskStorage {
     /// Returns list of task IDs that were interrupted.
     pub async fn interrupt_stale_tasks(&self, timeout_secs: i64) -> Result<Vec<String>> {
         let cutoff = now_ts() - timeout_secs;
+        let now = now_ts();
+
+        // Wrap SELECT+UPDATE in a transaction so no task can be claimed between
+        // the read and the write (prevents TOCTOU between scheduler and agent).
+        let mut tx = self.pool.begin().await?;
+
         let stale: Vec<(String,)> = sqlx::query_as(
             "SELECT id FROM agent_tasks
              WHERE status = 'in_progress'
@@ -414,25 +420,26 @@ impl TaskStorage {
                AND last_heartbeat < ?"
         )
         .bind(cutoff)
-        .fetch_all(&self.pool)
+        .fetch_all(&mut *tx)
         .await?;
 
         let ids: Vec<String> = stale.into_iter().map(|(id,)| id).collect();
         if ids.is_empty() {
+            tx.commit().await?;
             return Ok(ids);
         }
 
-        let now = now_ts();
         for id in &ids {
             sqlx::query(
                 "UPDATE agent_tasks SET status = 'interrupted', updated_at = ? WHERE id = ?"
             )
             .bind(now)
             .bind(id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
         }
 
+        tx.commit().await?;
         Ok(ids)
     }
 
@@ -447,6 +454,14 @@ impl TaskStorage {
         .await?;
 
         let count = done_old.len();
+        if count == 0 {
+            return Ok(0);
+        }
+
+        // Wrap all INSERT+DELETE pairs in one transaction so the archive is
+        // all-or-nothing — a partial failure won't leave tasks in limbo.
+        let mut tx = self.pool.begin().await?;
+
         for task in &done_old {
             sqlx::query(
                 "INSERT OR IGNORE INTO agent_tasks_archive
@@ -466,15 +481,16 @@ impl TaskStorage {
             .bind(task.completed_at)
             .bind(task.actual_minutes)
             .bind(&task.repo_path)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
 
             sqlx::query("DELETE FROM agent_tasks WHERE id = ?")
                 .bind(&task.id)
-                .execute(&self.pool)
+                .execute(&mut *tx)
                 .await?;
         }
 
+        tx.commit().await?;
         Ok(count)
     }
 
@@ -776,40 +792,43 @@ impl TaskStorage {
     // ─── Summary ──────────────────────────────────────────────────────────────
 
     pub async fn summary(&self, repo_path: Option<&str>) -> Result<serde_json::Value> {
-        let repo_filter = repo_path.unwrap_or("%");
-
         let total: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM agent_tasks WHERE repo_path LIKE ?"
+            "SELECT COUNT(*) FROM agent_tasks WHERE (? IS NULL OR repo_path = ?)"
         )
-        .bind(repo_filter)
+        .bind(repo_path)
+        .bind(repo_path)
         .fetch_one(&self.pool)
         .await?;
 
         let done: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM agent_tasks WHERE status = 'done' AND repo_path LIKE ?"
+            "SELECT COUNT(*) FROM agent_tasks WHERE status = 'done' AND (? IS NULL OR repo_path = ?)"
         )
-        .bind(repo_filter)
+        .bind(repo_path)
+        .bind(repo_path)
         .fetch_one(&self.pool)
         .await?;
 
         let in_progress: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM agent_tasks WHERE status = 'in_progress' AND repo_path LIKE ?"
+            "SELECT COUNT(*) FROM agent_tasks WHERE status = 'in_progress' AND (? IS NULL OR repo_path = ?)"
         )
-        .bind(repo_filter)
+        .bind(repo_path)
+        .bind(repo_path)
         .fetch_one(&self.pool)
         .await?;
 
         let blocked: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM agent_tasks WHERE status IN ('blocked','interrupted') AND repo_path LIKE ?"
+            "SELECT COUNT(*) FROM agent_tasks WHERE status IN ('blocked','interrupted') AND (? IS NULL OR repo_path = ?)"
         )
-        .bind(repo_filter)
+        .bind(repo_path)
+        .bind(repo_path)
         .fetch_one(&self.pool)
         .await?;
 
         let avg_mins: (Option<f64>,) = sqlx::query_as(
-            "SELECT AVG(actual_minutes) FROM agent_tasks WHERE status = 'done' AND actual_minutes IS NOT NULL AND repo_path LIKE ?"
+            "SELECT AVG(actual_minutes) FROM agent_tasks WHERE status = 'done' AND actual_minutes IS NOT NULL AND (? IS NULL OR repo_path = ?)"
         )
-        .bind(repo_filter)
+        .bind(repo_path)
+        .bind(repo_path)
         .fetch_one(&self.pool)
         .await?;
 

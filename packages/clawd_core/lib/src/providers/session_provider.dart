@@ -7,12 +7,12 @@ import 'daemon_provider.dart';
 class SessionListNotifier extends AsyncNotifier<List<Session>> {
   @override
   Future<List<Session>> build() async {
-    // Re-fetch whenever the daemon reconnects.
+    // ref.listen in AsyncNotifier.build() is safe in Riverpod 2.x —
+    // the framework disposes these subscriptions when the provider is re-created.
     ref.listen(daemonProvider, (prev, next) {
       if (next.isConnected) refresh();
     });
 
-    // Re-fetch on any session status change (covers create, close, etc.).
     ref.listen(daemonPushEventsProvider, (_, next) {
       next.whenData((event) {
         final method = event['method'] as String?;

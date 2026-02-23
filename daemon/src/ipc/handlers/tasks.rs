@@ -7,7 +7,7 @@ use crate::tasks::{
     storage::{ActivityQueryParams, TaskListParams, TASK_NOT_FOUND},
 };
 use crate::AppContext;
-use anyhow::Result;
+use anyhow::{bail, Result};
 use chrono::Utc;
 use serde_json::{json, Value};
 
@@ -19,6 +19,38 @@ fn sv<'a>(v: &'a Value, key: &str) -> Option<&'a str> {
 }
 fn n(v: &Value, key: &str) -> Option<i64> {
     v.get(key).and_then(|v| v.as_i64())
+}
+
+/// Validate a task ID: alphanumeric + hyphens + underscores only, 1-64 chars.
+/// Prevents path traversal when task_id is used in filesystem paths.
+fn validate_task_id(id: &str) -> Result<()> {
+    if id.is_empty() || id.len() > 64 {
+        bail!("invalid task_id: must be 1-64 characters");
+    }
+    if id.contains('\0') {
+        bail!("invalid task_id: null byte");
+    }
+    if !id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+        bail!("invalid task_id: only alphanumeric characters, hyphens, and underscores are allowed");
+    }
+    Ok(())
+}
+
+/// Validate a planning doc path for `tasks.fromPlanning`.
+/// The path must be absolute and must be within the repo directory.
+fn validate_planning_path(path: &str, repo_path: &str) -> Result<()> {
+    if path.contains('\0') {
+        bail!("invalid path: null byte");
+    }
+    let p = std::path::Path::new(path);
+    if !p.is_absolute() {
+        bail!("invalid path: planning doc path must be absolute");
+    }
+    // Verify the path is within the repo directory tree.
+    if !p.starts_with(repo_path) {
+        bail!("invalid path: planning doc must be within the repository directory");
+    }
+    Ok(())
 }
 
 pub async fn list(params: Value, ctx: &AppContext) -> Result<Value> {
@@ -208,7 +240,13 @@ pub async fn note(params: Value, ctx: &AppContext) -> Result<Value> {
     let agent = sv(&params, "agent_id").ok_or_else(|| anyhow::anyhow!("missing agent_id"))?;
     let note_text = sv(&params, "note").ok_or_else(|| anyhow::anyhow!("missing note"))?;
     let repo_path = sv(&params, "repo_path").ok_or_else(|| anyhow::anyhow!("missing repo_path"))?;
-    let note_text = if note_text.len() > 2000 { &note_text[..2000] } else { note_text };
+    // Truncate at char boundary — slicing by byte length panics on multi-byte chars.
+    let note_text: &str = if note_text.chars().count() > 2000 {
+        let byte_end = note_text.char_indices().nth(2000).map(|(i, _)| i).unwrap_or(note_text.len());
+        &note_text[..byte_end]
+    } else {
+        note_text
+    };
 
     let entry = ctx.task_storage.post_note(
         agent,
@@ -242,6 +280,9 @@ pub async fn activity(params: Value, ctx: &AppContext) -> Result<Value> {
 pub async fn from_planning(params: Value, ctx: &AppContext) -> Result<Value> {
     let path = sv(&params, "path").ok_or_else(|| anyhow::anyhow!("missing path"))?;
     let repo_path = sv(&params, "repo_path").ok_or_else(|| anyhow::anyhow!("missing repo_path"))?;
+
+    // Validate that the path is absolute and within the repo directory.
+    validate_planning_path(path, repo_path)?;
 
     let content = tokio::fs::read_to_string(path).await
         .map_err(|e| anyhow::anyhow!("cannot read planning doc: {e}"))?;
@@ -368,6 +409,7 @@ pub async fn create_from_spec(params: Value, ctx: &AppContext) -> Result<Value> 
     let task_id = sv(&params, "id")
         .map(String::from)
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    validate_task_id(&task_id)?;
     let title = sv(&params, "title").ok_or_else(|| anyhow::anyhow!("missing title"))?;
     let repo = sv(&params, "repo").ok_or_else(|| anyhow::anyhow!("missing repo"))?;
 
@@ -470,6 +512,7 @@ pub async fn create_from_spec(params: Value, ctx: &AppContext) -> Result<Value> 
 /// ```
 pub async fn transition(params: Value, ctx: &AppContext) -> Result<Value> {
     let task_id = sv(&params, "task_id").ok_or_else(|| anyhow::anyhow!("missing task_id"))?;
+    validate_task_id(task_id)?;
     let event_type = sv(&params, "event_type").ok_or_else(|| anyhow::anyhow!("missing event_type"))?;
     let actor = sv(&params, "actor").unwrap_or("user");
 
@@ -567,6 +610,7 @@ pub async fn transition(params: Value, ctx: &AppContext) -> Result<Value> {
 /// ```
 pub async fn list_events(params: Value, ctx: &AppContext) -> Result<Value> {
     let task_id = sv(&params, "task_id").ok_or_else(|| anyhow::anyhow!("missing task_id"))?;
+    validate_task_id(task_id)?;
     let from_seq = params
         .get("from_seq")
         .and_then(|v| v.as_u64())

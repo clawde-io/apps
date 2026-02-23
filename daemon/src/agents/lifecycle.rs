@@ -75,11 +75,12 @@ impl AgentRegistry {
         }
     }
 
-    /// Update token usage and cost estimate for an agent.
+    /// Accumulate token usage and cost estimate for an agent.
+    /// Callers pass per-heartbeat deltas; this adds to the running totals.
     pub fn update_usage(&mut self, agent_id: &str, tokens: u64, cost: f64) -> bool {
         if let Some(r) = self.agents.get_mut(agent_id) {
-            r.tokens_used = tokens;
-            r.cost_usd_est = cost;
+            r.tokens_used += tokens;
+            r.cost_usd_est += cost;
             true
         } else {
             false

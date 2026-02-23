@@ -13,10 +13,14 @@ use tokio::sync::Mutex;
 // ── Sliding window ───────────────────────────────────────────────────────────
 
 /// A sliding-window counter for rate limiting.
+///
+/// Each entry stores a (timestamp, weight) pair so that high-volume token
+/// recording can be done in O(1) with `record_weighted` instead of adding
+/// one entry per token.
 pub struct SlidingWindow {
     window_secs: u64,
     max_count: u64,
-    events: VecDeque<DateTime<Utc>>,
+    events: VecDeque<(DateTime<Utc>, u64)>,
 }
 
 impl SlidingWindow {
@@ -31,21 +35,27 @@ impl SlidingWindow {
     /// Discard events older than the window boundary.
     fn evict(&mut self, now: DateTime<Utc>) {
         let cutoff = now - Duration::seconds(self.window_secs as i64);
-        while self.events.front().is_some_and(|t| *t <= cutoff) {
+        while self.events.front().is_some_and(|(t, _)| *t <= cutoff) {
             self.events.pop_front();
         }
     }
 
-    /// Record a new event at `at`.
+    /// Record a new event with weight 1 at `at`.
     pub fn record_event(&mut self, at: DateTime<Utc>) {
-        self.evict(at);
-        self.events.push_back(at);
+        self.record_weighted(at, 1);
     }
 
-    /// Count events within the current window.
+    /// Record a single weighted event at `at`.
+    /// Prefer this over calling `record_event` in a loop — O(1) under any weight.
+    pub fn record_weighted(&mut self, at: DateTime<Utc>, weight: u64) {
+        self.evict(at);
+        self.events.push_back((at, weight));
+    }
+
+    /// Count events within the current window (sum of weights).
     pub fn count_in_window(&mut self, now: DateTime<Utc>) -> u64 {
         self.evict(now);
-        self.events.len() as u64
+        self.events.iter().map(|(_, w)| w).sum()
     }
 
     /// Returns `true` if the count in the current window has reached `max_count`.
@@ -61,7 +71,7 @@ impl SlidingWindow {
             return None;
         }
         self.events.front().map(|oldest| {
-            let expiry = *oldest + Duration::seconds(self.window_secs as i64);
+            let expiry = oldest.0 + Duration::seconds(self.window_secs as i64);
             expiry - now
         })
     }
@@ -103,13 +113,10 @@ impl RateLimitTracker {
             .entry(account_id.to_string())
             .or_insert_with(Self::make_windows);
         rpm.record_event(now);
-        // Record one TPM event per token so that SlidingWindow.count_in_window()
-        // correctly reflects cumulative token usage against DEFAULT_TPM_MAX.
-        // Capped at DEFAULT_TPM_MAX to bound memory in pathological cases.
-        let capped = tokens.min(DEFAULT_TPM_MAX);
-        for _ in 0..capped {
-            tpm.record_event(now);
-        }
+        // Record a single weighted TPM event — O(1) regardless of token count.
+        // Capped at DEFAULT_TPM_MAX to prevent a single call from immediately
+        // exhausting the TPM window in perpetuity.
+        tpm.record_weighted(now, tokens.min(DEFAULT_TPM_MAX));
     }
 
     /// Returns `true` if the account is currently rate-limited (RPM or TPM).
