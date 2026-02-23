@@ -13,6 +13,7 @@
 
 **Reference**
 - [[Architecture]]
+- [[Daemon-Reference|Daemon API Reference]]
 - [[Folder-Structure]]
 - [[Features]]
 - [[Features/Sessions|Sessions]]
