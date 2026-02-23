@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 //! Process Pool — maintains pre-warmed CLI processes for fast cold session resume.
 //!
 //! Pool workers are initialized (Node.js/CLI runtime loaded) but have no conversation

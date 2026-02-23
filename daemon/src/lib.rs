@@ -23,6 +23,9 @@ pub mod context_manager;
 pub mod process_pool;
 pub mod resource_governor;
 pub mod worktree;
+pub mod security;
+pub mod observability;
+pub mod task_engine;
 
 // Re-export auth so main.rs can use clawd::auth directly.
 pub use ipc::auth;

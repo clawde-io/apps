@@ -1,0 +1,8 @@
+ClawDE
+Copyright 2026 ClawDE Contributors
+
+This software is licensed under the MIT License.
+See LICENSE for details.
+
+Third-party licenses: see daemon/deny.toml for the allowlist.
+Run `cargo deny check licenses` to audit third-party license compliance.

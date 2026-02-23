@@ -49,28 +49,79 @@ struct Args {
     /// Write logs to this file path (rotated daily). Optional.
     #[arg(long, env = "CLAWD_LOG_FILE")]
     log_file: Option<std::path::PathBuf>,
+
+    /// Suppress progress and informational output.
+    ///
+    /// Errors are still printed to stderr. JSON output (--json flags) is
+    /// unaffected. Use this flag when piping output to other tools.
+    #[arg(long, short = 'q', global = true)]
+    quiet: bool,
 }
 
 #[derive(Subcommand)]
 enum Command {
-    /// Start the daemon server (default when no subcommand given)
+    /// Start the daemon server (default when no subcommand given).
+    ///
+    /// Runs clawd in the foreground. When invoked with no subcommand, this is the default.
+    ///
+    /// Examples:
+    ///   clawd serve
+    ///   clawd
     Serve,
-    /// Manage the daemon system service
+    /// Manage the daemon system service.
+    ///
+    /// Install, uninstall, or query the platform service (launchd on macOS,
+    /// systemd on Linux, SCM on Windows).
+    ///
+    /// Examples:
+    ///   clawd service install
+    ///   clawd service status
+    ///   clawd service uninstall
     Service {
         #[command(subcommand)]
         action: ServiceAction,
     },
-    /// Scaffold .claude/ directory structure for a project
+    /// Scaffold .claude/ directory structure for a project.
+    ///
+    /// Creates the standard AFS (.claude/) layout: rules/, memory/, tasks/,
+    /// planning/, qa/, docs/, inbox/, and archive/. Also creates CLAUDE.md,
+    /// active.md, and settings.json stubs, and updates .gitignore.
+    ///
+    /// Safe to re-run: existing files are never overwritten.
+    ///
+    /// Examples:
+    ///   clawd init
+    ///   clawd init /path/to/project
     Init {
         /// Project path to initialize (default: current directory)
         path: Option<std::path::PathBuf>,
     },
-    /// Manage agent tasks
+    /// Manage agent tasks.
+    ///
+    /// Full task lifecycle: create, claim, log activity, mark done, query.
+    /// Backed by a local SQLite database. Compatible with the .claude/tasks/
+    /// markdown format via `tasks sync` and `tasks from-planning`.
+    ///
+    /// Examples:
+    ///   clawd tasks list --status active
+    ///   clawd tasks claim SP1.T1
+    ///   clawd tasks done SP1.T1 --notes "implemented and tested"
+    ///   clawd tasks summary --json
     Tasks {
         #[command(subcommand)]
         action: TasksAction,
     },
-    /// Check for updates, download, and apply
+    /// Check for updates, download, and apply.
+    ///
+    /// Checks the GitHub Releases feed for a newer version of clawd.
+    /// Downloads and applies the update in place. The daemon restarts
+    /// automatically after applying. Runs silently on a 24h timer when
+    /// the daemon is running as a service.
+    ///
+    /// Examples:
+    ///   clawd update --check
+    ///   clawd update
+    ///   clawd update --apply
     Update {
         /// Only check — do not download or apply
         #[arg(long)]
@@ -79,17 +130,43 @@ enum Command {
         #[arg(long)]
         apply: bool,
     },
-    /// Start the daemon via the OS service manager
+    /// Start the daemon via the OS service manager.
+    ///
+    /// Equivalent to `clawd service install` then starting the service.
+    /// Use this after `clawd service install` to bring the daemon up.
+    ///
+    /// Examples:
+    ///   clawd start
     Start,
-    /// Stop the daemon via the OS service manager
+    /// Stop the daemon via the OS service manager.
+    ///
+    /// Sends a graceful shutdown request. In-progress sessions are paused
+    /// and will resume on next start. Equivalent to stopping the platform service.
+    ///
+    /// Examples:
+    ///   clawd stop
     Stop,
-    /// Restart the daemon via the OS service manager
+    /// Restart the daemon via the OS service manager.
+    ///
+    /// Equivalent to stop + start. Use after config changes or when the daemon
+    /// needs a fresh start without a full reinstall.
+    ///
+    /// Examples:
+    ///   clawd restart
     Restart,
 }
 
 #[derive(Subcommand)]
 enum TasksAction {
-    /// List tasks (optionally filter by repo, status, phase)
+    /// List tasks, optionally filtered by repo, status, or phase.
+    ///
+    /// Reads the task database and prints a formatted table. Use --json for
+    /// machine-readable output suitable for piping to other tools.
+    ///
+    /// Examples:
+    ///   clawd tasks list
+    ///   clawd tasks list --status active --limit 20
+    ///   clawd tasks list --repo /path/to/repo --json
     List {
         #[arg(long, short)]
         repo: Option<String>,
@@ -103,7 +180,14 @@ enum TasksAction {
         #[arg(long)]
         json: bool,
     },
-    /// Get full detail of a task by ID
+    /// Get the full detail of a task by ID.
+    ///
+    /// Prints all fields: title, status, severity, phase, notes, block reason,
+    /// claimed-by, file, repo path, and timestamps.
+    ///
+    /// Examples:
+    ///   clawd tasks get SP1.T3
+    ///   clawd tasks get --task SP1.T3
     Get {
         /// Task ID (positional or --task)
         id: Option<String>,
@@ -112,7 +196,14 @@ enum TasksAction {
         #[arg(long)]
         repo: Option<String>,
     },
-    /// Claim a task atomically (mark in-progress)
+    /// Claim a task atomically and mark it in-progress.
+    ///
+    /// Uses a DB-level atomic compare-and-set to prevent two agents from
+    /// claiming the same task. Fails with exit 2 if the task is already claimed.
+    ///
+    /// Examples:
+    ///   clawd tasks claim SP1.T3
+    ///   clawd tasks claim SP1.T3 --agent codex
     Claim {
         /// Task ID (positional or --task)
         id: Option<String>,
@@ -123,7 +214,13 @@ enum TasksAction {
         #[arg(long)]
         repo: Option<String>,
     },
-    /// Release a task back to pending
+    /// Release a task back to pending (unclaim it).
+    ///
+    /// Reverses a claim. Use when an agent must hand off an in-progress task
+    /// or when a claim was made by mistake.
+    ///
+    /// Examples:
+    ///   clawd tasks release SP1.T3
     Release {
         id: Option<String>,
         #[arg(long)]
@@ -131,7 +228,14 @@ enum TasksAction {
         #[arg(long, default_value = "cli")]
         agent: String,
     },
-    /// Mark a task done (notes required)
+    /// Mark a task done. Completion notes are required.
+    ///
+    /// The daemon enforces non-empty notes — a task cannot be marked done
+    /// without a brief description of what was completed. This creates an
+    /// audit trail for every finished task.
+    ///
+    /// Examples:
+    ///   clawd tasks done SP1.T3 --notes "implemented and all tests pass"
     Done {
         /// Task ID (positional or --task)
         id: Option<String>,
@@ -145,7 +249,14 @@ enum TasksAction {
         #[arg(long)]
         repo: Option<String>,
     },
-    /// Mark a task blocked
+    /// Mark a task blocked with a reason.
+    ///
+    /// Use when work cannot proceed due to an external dependency, missing
+    /// information, or a cross-project inbox message. Blocked tasks are
+    /// visible in `clawd tasks list` and highlighted in summary views.
+    ///
+    /// Examples:
+    ///   clawd tasks blocked SP1.T3 --notes "waiting on nself CLI fix"
     Blocked {
         id: Option<String>,
         #[arg(long)]
@@ -155,7 +266,15 @@ enum TasksAction {
         #[arg(long, default_value = "cli")]
         agent: String,
     },
-    /// Send a heartbeat for a running task
+    /// Send a heartbeat for a running task.
+    ///
+    /// Called periodically by agents to signal that a claimed task is still
+    /// actively being worked on. Tasks without a heartbeat for 90 seconds
+    /// are automatically released back to pending.
+    ///
+    /// Examples:
+    ///   clawd tasks heartbeat SP1.T3
+    ///   clawd tasks heartbeat SP1.T3 --agent codex
     Heartbeat {
         id: Option<String>,
         #[arg(long)]
@@ -165,7 +284,14 @@ enum TasksAction {
         #[arg(long)]
         repo: Option<String>,
     },
-    /// Add a new task
+    /// Add a new task to the database.
+    ///
+    /// Creates a task with the given title and optional metadata. The task
+    /// starts in pending status. Use `tasks claim` to start work on it.
+    ///
+    /// Examples:
+    ///   clawd tasks add --title "Fix session reconnect on network drop"
+    ///   clawd tasks add --title "Add --json to pack list" --phase SP55 --severity high
     Add {
         #[arg(long)]
         title: String,
@@ -178,7 +304,15 @@ enum TasksAction {
         #[arg(long)]
         file: Option<String>,
     },
-    /// Log an activity entry (called by PostToolUse hook)
+    /// Log an activity entry for a task (called by PostToolUse hook).
+    ///
+    /// Records a structured activity entry in the database. Called automatically
+    /// by the Claude Code PostToolUse hook. Can also be called manually to log
+    /// important decisions or discoveries against a task.
+    ///
+    /// Examples:
+    ///   clawd tasks log SP1.T3 --action "file_edit" --detail "updated session.rs"
+    ///   clawd tasks log --action "decision" --detail "chose sqlx over diesel"
     Log {
         /// Task ID (positional or --task; optional)
         id: Option<String>,
@@ -198,7 +332,15 @@ enum TasksAction {
         #[arg(long)]
         repo: Option<String>,
     },
-    /// Post a narrative note for a task or phase
+    /// Post a narrative note for a task or for an entire phase.
+    ///
+    /// Notes are free-text and appear in activity views alongside structured
+    /// log entries. Useful for recording observations, risks, or rationale
+    /// that do not fit the action/detail structure.
+    ///
+    /// Examples:
+    ///   clawd tasks note SP1.T3 "discovered that sqlx requires --offline in CI"
+    ///   clawd tasks note --phase SP1 "phase complete — all tests green"
     Note {
         /// Task ID (positional or --task; omit for phase-level note)
         id: Option<String>,
@@ -216,14 +358,31 @@ enum TasksAction {
         #[arg(long)]
         repo: Option<String>,
     },
-    /// Import tasks from a planning markdown file
+    /// Import tasks from a planning markdown file.
+    ///
+    /// Parses a .claude/planning/*.md file in active.md format and inserts
+    /// any new tasks into the database. Existing tasks (matched by ID) are
+    /// not duplicated. Use `tasks sync` to also update the queue.json file.
+    ///
+    /// Examples:
+    ///   clawd tasks from-planning .claude/planning/55-cli-ux.md
+    ///   clawd tasks from-planning .claude/planning/55-cli-ux.md --repo /path/to/repo
     FromPlanning {
         /// Path to a planning .md file (e.g. .claude/planning/41-feature.md)
         file: std::path::PathBuf,
         #[arg(long)]
         repo: Option<String>,
     },
-    /// Sync active.md → DB and regenerate queue.json
+    /// Sync active.md to the DB and regenerate queue.json.
+    ///
+    /// Reads the active.md file, upserts tasks into the database, and
+    /// regenerates the queue.json file used by agent tooling. Run this
+    /// after manually editing active.md to keep the DB in sync.
+    ///
+    /// Examples:
+    ///   clawd tasks sync
+    ///   clawd tasks sync --repo /path/to/repo
+    ///   clawd tasks sync --active-md /custom/path/active.md
     Sync {
         #[arg(long)]
         repo: Option<String>,
@@ -231,7 +390,15 @@ enum TasksAction {
         #[arg(long)]
         active_md: Option<std::path::PathBuf>,
     },
-    /// Show task counts summary for a project
+    /// Show a task counts summary for a project.
+    ///
+    /// Prints totals for done, in-progress, pending, and blocked tasks.
+    /// Includes average task duration. Use --json for machine-readable output.
+    ///
+    /// Examples:
+    ///   clawd tasks summary
+    ///   clawd tasks summary --repo /path/to/repo
+    ///   clawd tasks summary --json
     Summary {
         #[arg(long)]
         repo: Option<String>,
@@ -239,7 +406,16 @@ enum TasksAction {
         #[arg(long, default_value_t = false)]
         json: bool,
     },
-    /// Show recent activity log
+    /// Show the recent activity log.
+    ///
+    /// Displays structured activity entries (file edits, decisions, notes)
+    /// across all tasks or filtered to a specific task or phase. Use --limit
+    /// to control how many entries are returned.
+    ///
+    /// Examples:
+    ///   clawd tasks activity
+    ///   clawd tasks activity --task SP1.T3 --limit 50
+    ///   clawd tasks activity --phase SP55
     Activity {
         #[arg(long)]
         repo: Option<String>,
@@ -254,11 +430,30 @@ enum TasksAction {
 
 #[derive(Subcommand)]
 enum ServiceAction {
-    /// Install and start clawd as a platform service
+    /// Install and start clawd as a platform service.
+    ///
+    /// Registers the daemon with the OS service manager (launchd on macOS,
+    /// systemd on Linux, SCM on Windows). The service starts automatically
+    /// on login/boot.
+    ///
+    /// Examples:
+    ///   clawd service install
     Install,
-    /// Stop and remove the platform service
+    /// Stop and remove the platform service.
+    ///
+    /// Unloads and removes the service from the OS service manager. Does not
+    /// delete data or config — only removes the service registration.
+    ///
+    /// Examples:
+    ///   clawd service uninstall
     Uninstall,
-    /// Show the service status
+    /// Show the service status.
+    ///
+    /// Queries the OS service manager for the current state of the clawd service.
+    /// Reports whether the service is installed, running, stopped, or failed.
+    ///
+    /// Examples:
+    ///   clawd service status
     Status,
 }
 
@@ -271,6 +466,7 @@ async fn main() -> Result<()> {
     let log_level = args.log.as_deref().unwrap_or("info").to_owned();
     let _file_guard = setup_logging(&log_level, args.log_file.as_deref());
 
+    let quiet = args.quiet;
     match args.command {
         Some(Command::Service { action }) => match action {
             ServiceAction::Install => service::install()?,
@@ -282,13 +478,13 @@ async fn main() -> Result<()> {
                 Some(p) => p,
                 None => std::env::current_dir().context("failed to determine current directory")?,
             };
-            run_init(&path).await?;
+            run_init(&path, quiet).await?;
         }
         Some(Command::Tasks { action }) => {
-            run_tasks(action, args.data_dir).await?;
+            run_tasks(action, args.data_dir, quiet).await?;
         }
         Some(Command::Update { check, apply }) => {
-            run_update(check, apply).await?;
+            run_update(check, apply, quiet).await?;
         }
         Some(Command::Start) => service::start()?,
         Some(Command::Stop) => service::stop()?,
@@ -354,7 +550,7 @@ fn setup_logging(
 
 // ── clawd init ────────────────────────────────────────────────────────────────
 
-async fn run_init(path: &std::path::Path) -> Result<()> {
+async fn run_init(path: &std::path::Path, quiet: bool) -> Result<()> {
     use tokio::fs;
 
     let claude_dir = path.join(".claude");
@@ -412,12 +608,14 @@ async fn run_init(path: &std::path::Path) -> Result<()> {
         created.push(".gitignore".to_string());
     }
 
-    if created.is_empty() {
-        println!("Already initialized: {}", path.display());
-    } else {
-        println!("Initialized AFS at: {}", path.display());
-        for item in &created {
-            println!("  created  {item}");
+    if !quiet {
+        if created.is_empty() {
+            println!("Already initialized: {}", path.display());
+        } else {
+            println!("Initialized AFS at: {}", path.display());
+            for item in &created {
+                println!("  created  {item}");
+            }
         }
     }
     Ok(())
@@ -425,7 +623,7 @@ async fn run_init(path: &std::path::Path) -> Result<()> {
 
 // ── clawd update ──────────────────────────────────────────────────────────────
 
-async fn run_update(check_only: bool, apply_only: bool) -> Result<()> {
+async fn run_update(check_only: bool, apply_only: bool, quiet: bool) -> Result<()> {
     let config = Arc::new(DaemonConfig::new(
         None,
         None,
@@ -438,30 +636,30 @@ async fn run_update(check_only: bool, apply_only: bool) -> Result<()> {
     if apply_only {
         // Apply a previously staged update (downloaded in a prior run)
         match updater.apply_if_ready().await? {
-            true => println!("Update applied — restarting."),
-            false => println!("No pending update to apply."),
+            true => { if !quiet { println!("Update applied — restarting."); } }
+            false => { if !quiet { println!("No pending update to apply."); } }
         }
         return Ok(());
     }
 
     let (current, latest, available) = updater.check().await?;
     if !available {
-        println!("clawd {current} is up to date (latest: {latest}).");
+        if !quiet { println!("clawd {current} is up to date (latest: {latest})."); }
         return Ok(());
     }
 
-    println!("Update available: {current} -> {latest}");
+    if !quiet { println!("Update available: {current} -> {latest}"); }
 
     if check_only {
         return Ok(());
     }
 
-    println!("Downloading...");
+    if !quiet { println!("Downloading..."); }
     updater.check_and_download().await?;
-    println!("Download complete. Applying update...");
+    if !quiet { println!("Download complete. Applying update..."); }
     match updater.apply_if_ready().await? {
-        true => println!("Update applied — restarting."),
-        false => println!("Update downloaded but could not be applied yet."),
+        true => { if !quiet { println!("Update applied — restarting."); } }
+        false => { if !quiet { println!("Update downloaded but could not be applied yet."); } }
     }
 
     Ok(())
@@ -482,7 +680,7 @@ fn resolve_task_id(id: Option<String>, task: Option<String>) -> Result<String> {
         .ok_or_else(|| anyhow::anyhow!("task ID required (positional or --task)"))
 }
 
-async fn run_tasks(action: TasksAction, data_dir: Option<std::path::PathBuf>) -> Result<()> {
+async fn run_tasks(action: TasksAction, data_dir: Option<std::path::PathBuf>, quiet: bool) -> Result<()> {
     let ts = open_task_storage(data_dir).await?;
 
     match action {
@@ -538,18 +736,20 @@ async fn run_tasks(action: TasksAction, data_dir: Option<std::path::PathBuf>) ->
         } => {
             let task_id = resolve_task_id(id, task)?;
             let t = ts.claim_task(&task_id, &agent, None).await?;
-            println!("Claimed: {} — {}", t.id, t.title);
-            println!(
-                "Status: {} by {}",
-                t.status,
-                t.claimed_by.as_deref().unwrap_or("?")
-            );
+            if !quiet {
+                println!("Claimed: {} — {}", t.id, t.title);
+                println!(
+                    "Status: {} by {}",
+                    t.status,
+                    t.claimed_by.as_deref().unwrap_or("?")
+                );
+            }
         }
 
         TasksAction::Release { id, task, agent } => {
             let task_id = resolve_task_id(id, task)?;
             ts.release_task(&task_id, &agent).await?;
-            println!("Released: {task_id}");
+            if !quiet { println!("Released: {task_id}"); }
         }
 
         TasksAction::Done {
@@ -564,7 +764,7 @@ async fn run_tasks(action: TasksAction, data_dir: Option<std::path::PathBuf>) ->
             let t = ts
                 .update_status(&task_id, "done", Some(&notes_text), None)
                 .await?;
-            println!("Done: {} — {}", t.id, t.title);
+            if !quiet { println!("Done: {} — {}", t.id, t.title); }
         }
 
         TasksAction::Blocked {
@@ -574,7 +774,7 @@ async fn run_tasks(action: TasksAction, data_dir: Option<std::path::PathBuf>) ->
             let t = ts
                 .update_status(&task_id, "blocked", None, notes.as_deref())
                 .await?;
-            println!("Blocked: {} — {}", t.id, t.title);
+            if !quiet { println!("Blocked: {} — {}", t.id, t.title); }
         }
 
         TasksAction::Heartbeat {
@@ -611,7 +811,7 @@ async fn run_tasks(action: TasksAction, data_dir: Option<std::path::PathBuf>) ->
                     repo_path,
                 )
                 .await?;
-            println!("Added: {} — {}", t.id, t.title);
+            if !quiet { println!("Added: {} — {}", t.id, t.title); }
         }
 
         TasksAction::Log {
@@ -664,7 +864,7 @@ async fn run_tasks(action: TasksAction, data_dir: Option<std::path::PathBuf>) ->
                 repo_path,
             )
             .await?;
-            println!("Note posted.");
+            if !quiet { println!("Note posted."); }
         }
 
         TasksAction::FromPlanning { file, repo } => {
@@ -674,10 +874,10 @@ async fn run_tasks(action: TasksAction, data_dir: Option<std::path::PathBuf>) ->
                 .map_err(|e| anyhow::anyhow!("Cannot read file {}: {e}", file.display()))?;
             let parsed = clawd::tasks::markdown_parser::parse_active_md(&content);
             if parsed.is_empty() {
-                println!("No tasks found in {}", file.display());
+                if !quiet { println!("No tasks found in {}", file.display()); }
             } else {
                 let count = ts.backfill_from_tasks(parsed, repo_path).await?;
-                println!("Imported {count} new task(s) from {}", file.display());
+                if !quiet { println!("Imported {count} new task(s) from {}", file.display()); }
             }
         }
 
@@ -692,7 +892,7 @@ async fn run_tasks(action: TasksAction, data_dir: Option<std::path::PathBuf>) ->
             let parsed = clawd::tasks::markdown_parser::parse_active_md(&content);
             let count = ts.backfill_from_tasks(parsed, repo_path).await?;
             clawd::tasks::queue_serializer::flush_queue(&ts, repo_path).await?;
-            println!("Synced: {count} new task(s), queue.json updated.");
+            if !quiet { println!("Synced: {count} new task(s), queue.json updated."); }
         }
 
         TasksAction::Summary { repo, json } => {
@@ -796,6 +996,15 @@ async fn run_server(
     log: Option<String>,
     max_sessions: Option<usize>,
 ) -> Result<()> {
+    // Warn when a non-default port is used (dev-only scenario per F55.5.01).
+    if let Some(p) = port {
+        if p != 4300 {
+            eprintln!(
+                "warning: non-default port {p}. \n  This is for development only. \
+                \n  Two daemons in production mode are unsupported."
+            );
+        }
+    }
     info!(version = env!("CARGO_PKG_VERSION"), "clawd starting");
 
     let config = Arc::new(DaemonConfig::new(port, data_dir, log, max_sessions));

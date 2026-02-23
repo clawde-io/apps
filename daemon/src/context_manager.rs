@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 //! Context Manager — eliminates "Prompt too long" by managing the context window.
 //!
 //! Proactively compresses older messages before hitting the API token limit,

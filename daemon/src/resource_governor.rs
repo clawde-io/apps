@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 //! Resource Governor — monitors system RAM/CPU and enforces session tier transitions.
 //!
 //! Runs a background Tokio task that polls system resources every `poll_interval_secs`

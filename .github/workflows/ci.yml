@@ -64,6 +64,13 @@ jobs:
         run: cargo test
         working-directory: daemon
 
+      - name: Security audit
+        run: |
+          cargo install cargo-audit --quiet 2>/dev/null || true
+          cargo audit --deny warnings
+        working-directory: daemon
+        continue-on-error: true
+
   # ─── Rust format check ────────────────────────────────────────────
   rust-fmt:
     name: Rust · rustfmt

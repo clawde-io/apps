@@ -577,6 +577,22 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
         // ─── Phase 44: Resource Governor ─────────────────────────────────────
         "system.resources" => handlers::system::resources(params, ctx).await,
         "system.resourceHistory" => handlers::system::resource_history(params, ctx).await,
+        // ─── Phase 45: Task Engine ─────────────────────────────────────────────────────
+        "te.phase.create" => handlers::task_engine::phase_create(params, ctx).await,
+        "te.phase.list" => handlers::task_engine::phase_list(params, ctx).await,
+        "te.task.create" => handlers::task_engine::task_create(params, ctx).await,
+        "te.task.get" => handlers::task_engine::task_get(params, ctx).await,
+        "te.task.list" => handlers::task_engine::task_list(params, ctx).await,
+        "te.task.transition" => handlers::task_engine::task_transition(params, ctx).await,
+        "te.task.claim" => handlers::task_engine::task_claim(params, ctx).await,
+        "te.agent.register" => handlers::task_engine::agent_register(params, ctx).await,
+        "te.agent.heartbeat" => handlers::task_engine::agent_heartbeat(params, ctx).await,
+        "te.agent.deregister" => handlers::task_engine::agent_deregister(params, ctx).await,
+        "te.event.log" => handlers::task_engine::event_log(params, ctx).await,
+        "te.event.list" => handlers::task_engine::event_list(params, ctx).await,
+        "te.checkpoint.write" => handlers::task_engine::checkpoint_write(params, ctx).await,
+        "te.note.add" => handlers::task_engine::note_add(params, ctx).await,
+        "te.note.list" => handlers::task_engine::note_list(params, ctx).await,
         _ => Err(anyhow::anyhow!("METHOD_NOT_FOUND:{}", method)),
     }
 }

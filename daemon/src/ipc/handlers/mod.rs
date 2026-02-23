@@ -11,3 +11,4 @@ pub mod threads;
 pub mod tool;
 pub mod worktrees;
 pub mod system;
+pub mod task_engine;

@@ -58,6 +58,7 @@ clap = { version = "4", features = ["derive", "env"] }
 
 # UUIDs for session/message IDs
 uuid = { version = "1", features = ["v4"] }
+ulid = "1.1"
 
 # SHA-256 for daemon_id fingerprint and E2E HKDF
 sha2 = "0.10"
