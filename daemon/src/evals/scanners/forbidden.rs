@@ -106,11 +106,29 @@ pub fn check_tool_allowed(
 // ─── Path checking ────────────────────────────────────────────────────────────
 
 /// Returns `true` if `target` is under `worktree` (inclusive).
+///
+/// Uses component-level path comparison (not string prefix matching) to
+/// prevent traversal attacks such as `/worktree/../secret` or
+/// `/worktree_extra/file` falsely matching `/worktree`.
 fn is_within_worktree(target: &str, worktree: &str) -> bool {
-    // Normalize trailing slashes.
-    let base = worktree.trim_end_matches('/');
-    let t = target.trim_end_matches('/');
-    t.starts_with(base)
+    let base = normalize_path(std::path::Path::new(worktree));
+    let t = normalize_path(std::path::Path::new(target));
+    t.starts_with(&base)
+}
+
+/// Normalize a path by resolving `.` and `..` components without filesystem
+/// access.  Excess `..` at the root are silently dropped (same as `realpath`).
+fn normalize_path(path: &std::path::Path) -> std::path::PathBuf {
+    use std::path::Component;
+    let mut parts: Vec<std::ffi::OsString> = Vec::new();
+    for component in path.components() {
+        match component {
+            Component::ParentDir => { parts.pop(); }
+            Component::CurDir => {}
+            other => parts.push(other.as_os_str().to_os_string()),
+        }
+    }
+    parts.iter().collect()
 }
 
 #[cfg(test)]

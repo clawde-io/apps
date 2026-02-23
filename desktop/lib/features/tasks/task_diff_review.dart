@@ -21,8 +21,9 @@ final _taskDiffProvider = FutureProvider.family<String, String>((ref, taskId) as
 /// Shows a unified diff in a scrollable monospace text view.
 /// [Accept All] and [Reject All] are stubs — per-hunk review is future work.
 class TaskDiffReview extends ConsumerWidget {
-  final String taskId;
   const TaskDiffReview({required this.taskId, super.key});
+
+  final String taskId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

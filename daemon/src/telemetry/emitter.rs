@@ -121,6 +121,7 @@ impl TraceEmitter {
     ///
     /// Call once when the round-trip completes (not separately for request and
     /// response) to capture both latency and token counts in one record.
+    #[allow(clippy::too_many_arguments)]
     pub async fn provider(
         &self,
         task_id: &str,

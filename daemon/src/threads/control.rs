@@ -16,6 +16,9 @@ use sqlx::SqlitePool;
 
 use super::model::{new_thread_id, Thread, ThreadStatus, ThreadType};
 
+/// Shared row type for SQLite thread queries (avoids type-complexity lint).
+pub type ThreadRow = (String, String, Option<String>, Option<String>, String, String, String, String);
+
 /// Handle for operating on the control thread of a specific project.
 pub struct ControlThread {
     /// Absolute path to the project root.
@@ -43,10 +46,7 @@ impl ControlThread {
         // Look for an existing non-archived control thread for this project.
         // We store the project root as the task_id field (repurposed as context key)
         // since control threads have no real task_id.
-        let existing: Option<(
-            String, String, Option<String>, Option<String>,
-            String, String, String, String,
-        )> = sqlx::query_as(
+        let existing: Option<ThreadRow> = sqlx::query_as(
             "SELECT thread_id, thread_type, task_id, parent_thread_id,
                     status, model_config, created_at, updated_at
              FROM threads
@@ -61,7 +61,7 @@ impl ControlThread {
         .await?;
 
         if let Some(row) = existing {
-            return Ok(row_to_thread(row)?);
+            return row_to_thread(row);
         }
 
         // No existing thread — create one.
@@ -84,8 +84,7 @@ impl ControlThread {
         .execute(pool)
         .await?;
 
-        let row: (String, String, Option<String>, Option<String>, String, String, String, String) =
-            sqlx::query_as(
+        let row: ThreadRow = sqlx::query_as(
                 "SELECT thread_id, thread_type, task_id, parent_thread_id,
                         status, model_config, created_at, updated_at
                  FROM threads WHERE thread_id = ?",
@@ -99,9 +98,7 @@ impl ControlThread {
 }
 
 /// Convert a raw SQLite row tuple into a `Thread`.
-pub fn row_to_thread(
-    row: (String, String, Option<String>, Option<String>, String, String, String, String),
-) -> Result<Thread> {
+pub fn row_to_thread(row: ThreadRow) -> Result<Thread> {
     let (thread_id, thread_type_str, task_id, parent_thread_id, status_str, model_config_str, created_at_str, updated_at_str) =
         row;
 

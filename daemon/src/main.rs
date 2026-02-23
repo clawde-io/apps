@@ -486,7 +486,7 @@ async fn run_tasks(action: TasksAction, data_dir: Option<std::path::PathBuf>) ->
             } else if tasks.is_empty() {
                 println!("No tasks found.");
             } else {
-                println!("{:<12} {:<10} {:<10} {}", "STATUS", "SEVERITY", "PHASE", "TITLE");
+                println!("{:<12} {:<10} {:<10} TITLE", "STATUS", "SEVERITY", "PHASE");
                 println!("{}", "-".repeat(72));
                 for t in &tasks {
                     println!(
@@ -821,8 +821,10 @@ async fn run_server(
             t
         }
         Err(e) => {
-            warn!("failed to generate auth token: {e:#}; proceeding without auth");
-            String::new()
+            // Auth token is required — running without it leaves the daemon fully open.
+            // This is a startup configuration error, not a recoverable condition.
+            eprintln!("FATAL: failed to generate auth token: {e:#}");
+            std::process::exit(1);
         }
     };
 

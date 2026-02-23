@@ -9,6 +9,17 @@ pub async fn init(params: Value, _ctx: &AppContext) -> Result<Value> {
     let path = params.get("path").and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("missing path"))?;
 
+    // Reject relative paths and directory traversal components.
+    let path_obj = std::path::Path::new(path);
+    if !path_obj.is_absolute() {
+        anyhow::bail!("path must be absolute");
+    }
+    for component in path_obj.components() {
+        if matches!(component, std::path::Component::ParentDir) {
+            anyhow::bail!("path must not contain '..' components");
+        }
+    }
+
     let claude_dir = std::path::Path::new(path).join(".claude");
     let mut created: Vec<String> = Vec::new();
 
@@ -88,6 +99,17 @@ pub async fn status(params: Value, ctx: &AppContext) -> Result<Value> {
 
 pub async fn sync_instructions(params: Value, _ctx: &AppContext) -> Result<Value> {
     let repo_path = params.get("repo_path").and_then(|v| v.as_str()).unwrap_or("");
+    if !repo_path.is_empty() {
+        let rp = std::path::Path::new(repo_path);
+        if !rp.is_absolute() {
+            anyhow::bail!("repo_path must be absolute");
+        }
+        for component in rp.components() {
+            if matches!(component, std::path::Component::ParentDir) {
+                anyhow::bail!("repo_path must not contain '..' components");
+            }
+        }
+    }
     let claude_md = std::path::Path::new(repo_path).join(".claude/CLAUDE.md");
 
     if !claude_md.exists() {

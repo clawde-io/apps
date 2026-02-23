@@ -33,7 +33,7 @@ pub async fn select_account(
         if !entry.is_available {
             continue;
         }
-        if entry.blocked_until.map_or(false, |t| now < t) {
+        if entry.blocked_until.is_some_and(|t| now < t) {
             continue;
         }
         if rate_tracker.is_limited(&entry.account_id).await {

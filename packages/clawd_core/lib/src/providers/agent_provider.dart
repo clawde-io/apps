@@ -45,7 +45,7 @@ class AgentListNotifier extends AsyncNotifier<List<AgentRecord>> {
 
   Future<List<AgentRecord>> _fetch() async {
     final client = ref.read(daemonProvider.notifier).client;
-    final result = await client.call<List<dynamic>>('agents.list');
+    final result = await client.call<List<dynamic>>('tasks.agents.list');
     return result
         .map((j) => AgentRecord.fromJson(j as Map<String, dynamic>))
         .toList();

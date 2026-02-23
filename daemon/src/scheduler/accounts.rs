@@ -70,7 +70,7 @@ impl AccountPool {
             .filter(|a| {
                 a.provider == provider
                     && a.is_available
-                    && a.blocked_until.map_or(true, |t| now >= t)
+                    && a.blocked_until.is_none_or(|t| now >= t)
             })
             .collect();
 

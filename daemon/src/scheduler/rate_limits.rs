@@ -31,7 +31,7 @@ impl SlidingWindow {
     /// Discard events older than the window boundary.
     fn evict(&mut self, now: DateTime<Utc>) {
         let cutoff = now - Duration::seconds(self.window_secs as i64);
-        while self.events.front().map_or(false, |t| *t <= cutoff) {
+        while self.events.front().is_some_and(|t| *t <= cutoff) {
             self.events.pop_front();
         }
     }

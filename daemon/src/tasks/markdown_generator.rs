@@ -1,10 +1,10 @@
-/// Regenerates `active.md` from DB state.
-/// Rules:
-///   - Preserves all headings, free-text, and row order from last parsed version
-///   - Only replaces status symbols in table rows
-///   - Adds new task rows at bottom of their phase table
-///   - Updates "Recently Completed" section with tasks done in last 24h
-///   - Never removes existing rows (deferred tasks stay with 🚫)
+//! Regenerates `active.md` from DB state.
+//! Rules:
+//!   - Preserves all headings, free-text, and row order from last parsed version
+//!   - Only replaces status symbols in table rows
+//!   - Adds new task rows at bottom of their phase table
+//!   - Updates "Recently Completed" section with tasks done in last 24h
+//!   - Never removes existing rows (deferred tasks stay with 🚫)
 
 use super::storage::AgentTaskRow;
 use std::collections::HashMap;

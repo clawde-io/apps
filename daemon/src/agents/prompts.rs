@@ -36,7 +36,7 @@ impl PromptVersionStore {
         let changed = self
             .versions
             .get(name)
-            .map_or(true, |existing| existing != &hash);
+            .is_none_or(|existing| existing != &hash);
         self.versions.insert(name.to_string(), hash);
         changed
     }

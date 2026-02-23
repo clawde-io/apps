@@ -7,7 +7,7 @@
 //!   - `threads.list`   — query threads by type, status, or task_id
 
 use crate::threads::{
-    control::ControlThread,
+    control::{ControlThread, ThreadRow},
     model::{new_thread_id, Thread},
     task::TaskThread,
 };
@@ -272,7 +272,7 @@ pub async fn list_threads(ctx: &AppContext, params: Value) -> Result<Value> {
     );
 
     // Bind parameters in order.
-    let mut q = sqlx::query_as::<_, (String, String, Option<String>, Option<String>, String, String, String, String)>(&sql);
+    let mut q = sqlx::query_as::<_, ThreadRow>(&sql);
     if let Some(ref v) = thread_type_filter {
         q = q.bind(v);
     }
@@ -301,8 +301,7 @@ pub async fn list_threads(ctx: &AppContext, params: Value) -> Result<Value> {
 
 /// Fetch a single thread by ID or return an error if not found.
 async fn fetch_thread(pool: &sqlx::SqlitePool, thread_id: &str) -> Result<Thread> {
-    let row: Option<(String, String, Option<String>, Option<String>, String, String, String, String)> =
-        sqlx::query_as(
+    let row: Option<ThreadRow> = sqlx::query_as(
             "SELECT thread_id, thread_type, task_id, parent_thread_id,
                     status, model_config, created_at, updated_at
              FROM threads WHERE thread_id = ?",

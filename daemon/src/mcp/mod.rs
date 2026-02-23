@@ -1,28 +1,28 @@
-/// Model Context Protocol (MCP) implementation for `clawd`.
-///
-/// This module covers two roles:
-///
-/// 1. **MCP Server** — `clawd` exposes its task-management tools to MCP clients
-///    (e.g. Claude Code, Codex) via `tools/list` and `tools/call`.
-///
-/// 2. **MCP Client** — `clawd` can connect to upstream MCP servers (configured
-///    in `.claw/mcp-servers.json`) and proxy their tools to local agents.
-///
-/// ## Protocol version
-/// MCP 2024-11-05.
-///
-/// ## Submodules
-///
-/// | Module | Role |
-/// |--------|------|
-/// | `transport` | JSON-RPC wire types, lifecycle handlers, progress notifications |
-/// | `tools` | `tools/list` response — the 7 ClawDE tool definitions |
-/// | `dispatch` | `tools/call` dispatcher — routes to `tools::task` / `tools::patch` |
-/// | `capabilities` | Capability negotiation during `initialize` handshake |
-/// | `config` | `.claw/mcp-servers.json` loader |
-/// | `client` | Upstream MCP client (stdio subprocess) |
-/// | `tools::task` | create_task, claim_task, log_event, run_tests, request_approval, transition_task |
-/// | `tools::patch` | apply_patch with idempotency |
+//! Model Context Protocol (MCP) implementation for `clawd`.
+//!
+//! This module covers two roles:
+//!
+//! 1. **MCP Server** — `clawd` exposes its task-management tools to MCP clients
+//!    (e.g. Claude Code, Codex) via `tools/list` and `tools/call`.
+//!
+//! 2. **MCP Client** — `clawd` can connect to upstream MCP servers (configured
+//!    in `.claw/mcp-servers.json`) and proxy their tools to local agents.
+//!
+//! ## Protocol version
+//! MCP 2024-11-05.
+//!
+//! ## Submodules
+//!
+//! | Module | Role |
+//! |--------|------|
+//! | `transport` | JSON-RPC wire types, lifecycle handlers, progress notifications |
+//! | `tools` | `tools/list` response — the 7 ClawDE tool definitions |
+//! | `dispatch` | `tools/call` dispatcher — routes to `tools::task` / `tools::patch` |
+//! | `capabilities` | Capability negotiation during `initialize` handshake |
+//! | `config` | `.claw/mcp-servers.json` loader |
+//! | `client` | Upstream MCP client (stdio subprocess) |
+//! | `tools::task` | create_task, claim_task, log_event, run_tests, request_approval, transition_task |
+//! | `tools::patch` | apply_patch with idempotency |
 
 pub mod capabilities;
 pub mod client;

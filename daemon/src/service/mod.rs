@@ -57,7 +57,7 @@ pub fn start() -> Result<()> {
         }
         run_cmd("launchctl", &["load", "-w", &path.to_string_lossy()])?;
         println!("clawd started.");
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(target_os = "linux")]
@@ -90,7 +90,7 @@ pub fn stop() -> Result<()> {
         }
         run_cmd("launchctl", &["unload", &path.to_string_lossy()])?;
         println!("clawd stopped.");
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(target_os = "linux")]
@@ -125,7 +125,7 @@ pub fn restart() -> Result<()> {
         let _ = run_cmd("launchctl", &["unload", &path.to_string_lossy()]);
         run_cmd("launchctl", &["load", "-w", &path.to_string_lossy()])?;
         println!("clawd restarted.");
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(target_os = "linux")]

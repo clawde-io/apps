@@ -110,7 +110,7 @@ impl SessionManager {
             }
         }
 
-        let permissions_json = permissions.as_ref().map(|p| serde_json::to_string(p))
+        let permissions_json = permissions.as_ref().map(serde_json::to_string)
             .transpose()
             .context("failed to serialize permissions")?;
         let row = self
@@ -563,8 +563,6 @@ fn tool_name_to_scope(tool_name: &str) -> &'static str {
         "file_write"
     } else if lower.contains("git") {
         "git"
-    } else if lower.contains("bash") || lower.contains("shell") || lower.contains("exec") {
-        "shell_exec"
     } else {
         "shell_exec"
     }

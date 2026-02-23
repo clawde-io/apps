@@ -1,5 +1,5 @@
-/// Background jobs for the task system.
-/// All jobs run on tokio intervals — started from AppContext in lib.rs.
+//! Background jobs for the task system.
+//! All jobs run on tokio intervals — started from AppContext in lib.rs.
 
 use super::storage::TaskStorage;
 use crate::ipc::event::EventBroadcaster;

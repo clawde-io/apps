@@ -41,6 +41,7 @@ impl std::fmt::Display for AgentRole {
 
 impl AgentRole {
     /// Parse an agent role from a string identifier.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Self {
         match s {
             "router" => AgentRole::Router,

@@ -1,5 +1,5 @@
-/// Serializes the `agent_tasks` DB table to `tasks/queue.json`.
-/// Written atomically: tmp file → rename to prevent partial reads.
+//! Serializes the `agent_tasks` DB table to `tasks/queue.json`.
+//! Written atomically: tmp file → rename to prevent partial reads.
 
 use super::storage::{AgentTaskRow, TaskStorage};
 use anyhow::Result;

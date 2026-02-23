@@ -586,8 +586,8 @@ fn classify_error(e: &anyhow::Error, _method: &str) -> (i32, String) {
     }
     if msg.contains("PROVIDER_NOT_AVAILABLE") {
         let detail = msg
-            .splitn(2, "PROVIDER_NOT_AVAILABLE: ")
-            .nth(1)
+            .split_once("PROVIDER_NOT_AVAILABLE: ")
+            .map(|x| x.1)
             .unwrap_or("Provider not available");
         return (SESSION_BUSY, detail.to_string());
     }

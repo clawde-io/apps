@@ -202,6 +202,7 @@ impl TaskStorage {
             .await?)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn add_task(
         &self,
         id: &str,
@@ -521,6 +522,7 @@ impl TaskStorage {
 
     // ─── Activity log ─────────────────────────────────────────────────────────
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn log_activity(
         &self,
         agent: &str,

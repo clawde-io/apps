@@ -1,5 +1,5 @@
-/// AfsWatcher — watches `.claude/` directories for human edits and file system events.
-/// Uses the `notify` crate (already in Cargo.toml) with 200ms debounce.
+//! AfsWatcher — watches `.claude/` directories for human edits and file system events.
+//! Uses the `notify` crate (already in Cargo.toml) with 200ms debounce.
 
 use super::{markdown_parser, queue_serializer, storage::TaskStorage};
 use crate::ipc::event::EventBroadcaster;

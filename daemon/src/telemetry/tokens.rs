@@ -11,7 +11,7 @@ use std::collections::HashMap;
 /// response headers when available (see `parse_token_headers`).
 pub fn estimate_tokens(text: &str) -> u64 {
     let chars = text.len() as u64;
-    (chars + 3) / 4
+    chars.div_ceil(4)
 }
 
 // ─── Header parsing ───────────────────────────────────────────────────────────
