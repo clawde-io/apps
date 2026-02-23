@@ -64,14 +64,14 @@ pub fn start() -> Result<()> {
     {
         run_cmd("systemctl", &["--user", "start", "clawd"])?;
         println!("clawd started.");
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(target_os = "windows")]
     {
         run_cmd("sc", &["start", WINDOWS_SERVICE_NAME])?;
         println!("clawd started.");
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
@@ -97,14 +97,14 @@ pub fn stop() -> Result<()> {
     {
         run_cmd("systemctl", &["--user", "stop", "clawd"])?;
         println!("clawd stopped.");
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(target_os = "windows")]
     {
         run_cmd("sc", &["stop", WINDOWS_SERVICE_NAME])?;
         println!("clawd stopped.");
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
@@ -132,7 +132,7 @@ pub fn restart() -> Result<()> {
     {
         run_cmd("systemctl", &["--user", "restart", "clawd"])?;
         println!("clawd restarted.");
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(target_os = "windows")]
@@ -140,7 +140,7 @@ pub fn restart() -> Result<()> {
         let _ = run_cmd("sc", &["stop", WINDOWS_SERVICE_NAME]);
         run_cmd("sc", &["start", WINDOWS_SERVICE_NAME])?;
         println!("clawd restarted.");
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
