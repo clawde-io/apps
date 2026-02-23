@@ -7,6 +7,7 @@
 **Getting started**
 - [[Getting-Started]]
 - [[Configuration]]
+- [[Upgrading]]
 - [[FAQ]]
 - [[Troubleshooting]]
 
