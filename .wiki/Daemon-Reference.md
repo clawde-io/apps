@@ -245,6 +245,159 @@ By default, tool calls run automatically. If a session requires human approval (
 
 ---
 
+### Projects
+
+Projects group one or more repositories under a named workspace.
+
+| Method | Params | Description |
+|--------|--------|-------------|
+| `project.create` | `{ "name": "...", "repoPaths"?: [...] }` | Create a project |
+| `project.list` | `{}` | List all projects |
+| `project.get` | `{ "projectId": "..." }` | Get a single project |
+| `project.update` | `{ "projectId": "...", "name"?: "..." }` | Rename a project |
+| `project.delete` | `{ "projectId": "..." }` | Delete a project |
+| `project.addRepo` | `{ "projectId": "...", "repoPath": "..." }` | Add a repo to a project |
+| `project.removeRepo` | `{ "projectId": "...", "repoPath": "..." }` | Remove a repo from a project |
+
+**`project.create`**
+
+```json
+// Request
+{
+  "jsonrpc": "2.0",
+  "id": 10,
+  "method": "project.create",
+  "params": { "name": "MyApp", "repoPaths": ["/home/user/myapp"] }
+}
+
+// Response
+{
+  "result": {
+    "id": "prj_01abc...",
+    "name": "MyApp",
+    "repoPaths": ["/home/user/myapp"],
+    "createdAt": 1708700000
+  }
+}
+```
+
+---
+
+### Device Pairing
+
+Device pairing lets a mobile or remote client connect to the daemon using a one-time PIN
+or QR code. Paired devices receive a unique device token used for all subsequent connections.
+
+| Method | Params | Description |
+|--------|--------|-------------|
+| `daemon.pairPin` | `{}` | Generate a 6-digit pairing PIN (expires in 5 min) |
+| `device.pair` | `{ "pin": "123456" }` | Exchange PIN for a device token |
+| `device.list` | `{}` | List all paired devices |
+| `device.revoke` | `{ "deviceId": "..." }` | Revoke a device token |
+| `device.rename` | `{ "deviceId": "...", "name": "..." }` | Rename a paired device |
+
+#### Pairing flow
+
+```
+Host (daemon)          Mobile client
+─────────────          ─────────────
+daemon.pairPin()  →    Display QR code / PIN
+                  ←    device.pair { pin: "123456" }
+                  →    { deviceToken: "tok_..." }
+                       Store token; reconnect with Bearer tok_...
+```
+
+**`daemon.pairPin`**
+
+```json
+// Response
+{
+  "result": {
+    "pin": "482917",
+    "expiresAt": 1708700300,
+    "qrPayload": "clawd://connect?host=192.168.1.5&port=4300&pin=482917"
+  }
+}
+```
+
+**`device.pair`**
+
+```json
+// Request
+{ "jsonrpc":"2.0","id":11,"method":"device.pair","params":{"pin":"482917"} }
+
+// Response
+{
+  "result": {
+    "deviceToken": "tok_01xyz...",
+    "deviceId": "dev_01abc...",
+    "expiresAt": null
+  }
+}
+```
+
+Device tokens do not expire by default. Revoke with `device.revoke` when a device is lost.
+
+---
+
+### Diagnostics
+
+| Method | Params | Description |
+| --- | --- | --- |
+| `daemon.doctor` | `{}` | Run 8 health checks; returns per-check status |
+| `daemon.checkProvider` | `{ "provider": "claude" }` | Check if a provider CLI is installed and authenticated |
+| `daemon.setName` | `{ "name": "..." }` | Set a human-readable name for this daemon instance |
+
+**`daemon.doctor`**
+
+Returns one entry per check. `status` is `"ok"`, `"warn"`, or `"error"`.
+
+```json
+{
+  "result": {
+    "checks": [
+      { "name": "data_dir",       "status": "ok",    "message": "~/.local/share/clawd exists" },
+      { "name": "auth_token",     "status": "ok",    "message": "Token file readable (0600)" },
+      { "name": "sqlite",         "status": "ok",    "message": "DB healthy, 9 migrations applied" },
+      { "name": "port",           "status": "ok",    "message": "Listening on 127.0.0.1:4300" },
+      { "name": "provider_claude","status": "ok",    "message": "claude 1.x.x — authenticated" },
+      { "name": "mdns",           "status": "ok",    "message": "_clawd._tcp advertised" },
+      { "name": "disk_space",     "status": "warn",  "message": "Disk 82% full" },
+      { "name": "update",         "status": "ok",    "message": "v0.1.0 is the latest" }
+    ],
+    "overallStatus": "warn"
+  }
+}
+```
+
+**`daemon.checkProvider`**
+
+```json
+// Request
+{ "jsonrpc":"2.0","id":12,"method":"daemon.checkProvider","params":{"provider":"claude"} }
+
+// Response (healthy)
+{
+  "result": {
+    "provider": "claude",
+    "available": true,
+    "version": "1.x.x",
+    "authenticated": true
+  }
+}
+
+// Response (not installed)
+{
+  "result": {
+    "provider": "claude",
+    "available": false,
+    "error": "claude not found on PATH"
+  }
+}
+```
+
+---
+
 ## Push Events
 
 The daemon sends push events (JSON-RPC notifications without an `id`) to all connected clients over the same WebSocket connection. No subscription step is required — events start arriving immediately after authentication.
