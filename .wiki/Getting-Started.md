@@ -5,38 +5,60 @@ Get from download to your first AI session in under 5 minutes.
 ## Prerequisites
 
 - macOS 13+, Windows 10+, or Ubuntu 22.04+
-- [Claude Code](https://claude.ai/code) installed and authenticated (for Claude sessions)
+- Claude Code CLI installed and authenticated (`claude --version` should work)
 
-## Step 1: Download ClawDE
+---
 
-Download the latest release from [GitHub Releases](https://github.com/clawde-io/apps/releases).
+## Install the daemon
 
-- **macOS:** `.dmg` → drag to Applications
-- **Linux:** `.tar.gz` → extract, run `./clawd service install`
-- **Windows:** `.msi` → run installer
+### macOS — Homebrew (recommended)
 
-**macOS note:** Right-click the app → Open the first time (Gatekeeper prompt). After that, it opens normally.
+```bash
+brew tap clawde-io/clawde
+brew install clawd
+```
 
-## Step 2: First Launch
+### macOS / Linux — one-liner
 
-The app checks that your system is ready:
+```bash
+curl -fsSL https://clawde.io/install.sh | bash
+```
 
-1. **Daemon starts automatically** — `clawd` runs in the background on port 4300
-2. **Provider check** — the app detects Claude Code. If not found, follow the install guide shown
-3. **Open a project** — select a folder containing your code (must be a git repo)
-4. **Start your first session** — type a prompt and press Enter
+Installs `clawd` to `~/.local/bin/`. Verifies SHA256 checksum before installing. Then add it to your PATH if prompted.
 
-If anything fails, run `clawd doctor` in your terminal to diagnose.
+### Direct download
 
-## Step 3: Connect Remote Devices (Optional)
+Download the binary for your platform from [GitHub Releases](https://github.com/clawde-io/apps/releases):
 
-To use ClawDE from your phone or another computer:
+| Platform | Binary |
+| --- | --- |
+| macOS (Apple Silicon) | `clawd-aarch64-apple-darwin` |
+| macOS (Intel) | `clawd-x86_64-apple-darwin` |
+| Linux x86_64 | `clawd-x86_64-unknown-linux-gnu` |
+| Windows x86_64 | `clawd-x86_64-pc-windows-msvc.exe` |
 
-1. Open Settings → Remote Access → Add Device on the host machine
-2. Scan the QR code or enter the 6-digit PIN on your other device
-3. For access from anywhere (not just home network), get [Personal Remote](https://clawde.io/#pricing)
+After downloading, make it executable and move to your PATH:
 
-## Verify Everything Works
+```bash
+chmod +x clawd-aarch64-apple-darwin
+mv clawd-aarch64-apple-darwin /usr/local/bin/clawd
+```
+
+**macOS Gatekeeper:** the first time, run `xattr -d com.apple.quarantine /usr/local/bin/clawd` to remove the quarantine flag.
+
+---
+
+## Step 2: Start the daemon
+
+```bash
+clawd start
+```
+
+The daemon runs on `localhost:4300` and persists in the background.
+
+---
+
+## Step 3: Verify everything is working
 
 ```bash
 clawd doctor
@@ -45,19 +67,38 @@ clawd doctor
 Expected output:
 
 ```text
-  ✓ Port 4300 available      port 4300 is free
-  ✓ claude CLI installed     claude 1.x.x
+  ✓ Port 4300 available       port 4300 is free
+  ✓ claude CLI installed      claude 1.x.x
   ✓ claude CLI authenticated  logged in
-  ✓ SQLite DB accessible     ~/.local/share/clawd/clawd.db
-  ✓ Disk space               45GB free
-  ✓ Relay reachable          api.clawde.io reachable
+  ✓ SQLite DB accessible      ~/.local/share/clawd/clawd.db
+  ✓ Disk space                45GB free
+  ✓ Relay reachable           api.clawde.io reachable
 
 All checks passed.
 ```
+
+---
+
+## Step 4: Download the client app
+
+Download the desktop or mobile app from [clawde.io/#download](https://clawde.io/#download) and connect it to your daemon.
+
+---
+
+## Step 5: Connect remote devices (optional)
+
+To use ClawDE from your phone or another computer:
+
+1. Open **Settings → Remote Access → Add Device** on the host machine
+2. Scan the QR code or enter the 6-digit PIN on your other device
+3. For off-network access (not just your home/office LAN), subscribe to [Personal Remote](https://clawde.io/#pricing) ($9.99/yr)
+
+---
 
 ## Next Steps
 
 - [[Features/Projects]] — organize your repos into projects
 - [[Features/Remote-Access]] — connect from your phone or another machine
-- [[Configuration]] — customize the daemon
-- [[Daemon-Reference]] — JSON-RPC API for building clients
+- [[Configuration]] — customize the daemon with config.toml
+- [[Daemon-Reference]] — JSON-RPC 2.0 API for building clients
+- [[Troubleshooting]] — if something isn't working

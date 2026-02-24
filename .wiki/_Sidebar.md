@@ -16,11 +16,12 @@
 - [[Daemon-Reference|Daemon API Reference]]
 - [[Folder-Structure]]
 - [[Features]]
-- [[Features/Sessions|Sessions]]
-- [[Features/Providers|Provider support]]
-- [[Features/Drift-Detection|Drift detection]]
+- [[Features/Daemon|Daemon internals]]
+- [[Features/Session-Manager|Session manager]]
+- [[Features/Repo-Intelligence|Repo intelligence]]
 - [[Features/Projects|Projects]]
-- [[Features/Remote-Access|Remote Access]]
+- [[Features/Remote-Access|Remote access]]
+- [[Features/Desktop-App|Desktop app]]
 - [[Roadmap]]
 
 **Contributing**

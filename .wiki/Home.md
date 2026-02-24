@@ -20,6 +20,32 @@ ClawDE is an AI-first developer environment that runs on your machine. One alway
 - **Free forever** for local use — no subscription required to run on your own machine
 - **Open source** — Rust daemon + Flutter apps, MIT licensed
 
+## Get started
+
+**macOS / Linux — one-liner:**
+
+```sh
+curl -fsSL https://clawde.io/install.sh | bash
+```
+
+**macOS — Homebrew:**
+
+```sh
+brew tap clawde-io/clawde
+brew install clawd
+```
+
+**Direct downloads — v0.1.0:**
+
+| Platform | Binary |
+| --- | --- |
+| macOS (Apple Silicon) | [clawd-aarch64-apple-darwin](https://github.com/clawde-io/apps/releases/download/v0.1.0/clawd-aarch64-apple-darwin) |
+| macOS (Intel) | [clawd-x86_64-apple-darwin](https://github.com/clawde-io/apps/releases/download/v0.1.0/clawd-x86_64-apple-darwin) |
+| Linux x86_64 | [clawd-x86_64-unknown-linux-gnu](https://github.com/clawde-io/apps/releases/download/v0.1.0/clawd-x86_64-unknown-linux-gnu) |
+| Windows x86_64 | [clawd-x86_64-pc-windows-msvc.exe](https://github.com/clawde-io/apps/releases/download/v0.1.0/clawd-x86_64-pc-windows-msvc.exe) |
+
+All releases: [github.com/clawde-io/apps/releases](https://github.com/clawde-io/apps/releases)
+
 ## Quick links
 
 - [[Getting-Started]] — install and run in under 5 minutes
