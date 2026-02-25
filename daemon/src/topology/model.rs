@@ -27,19 +27,20 @@ impl DepType {
     /// Canonical string used in the database `dep_type` column.
     pub fn as_str(&self) -> &'static str {
         match self {
-            DepType::BuildsOn    => "builds_on",
-            DepType::UsesApi     => "uses_api",
+            DepType::BuildsOn => "builds_on",
+            DepType::UsesApi => "uses_api",
             DepType::SharesTypes => "shares_types",
             DepType::DeploysWith => "deploys_with",
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> DepType {
         match s {
-            "builds_on"    => DepType::BuildsOn,
+            "builds_on" => DepType::BuildsOn,
             "shares_types" => DepType::SharesTypes,
             "deploys_with" => DepType::DeploysWith,
-            _              => DepType::UsesApi,
+            _ => DepType::UsesApi,
         }
     }
 }
@@ -98,19 +99,10 @@ pub struct Dependency {
 // ─── TopologyGraph ────────────────────────────────────────────────────────────
 
 /// The full multi-repo dependency graph.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TopologyGraph {
     pub nodes: Vec<RepoNode>,
     pub edges: Vec<Dependency>,
-}
-
-impl Default for TopologyGraph {
-    fn default() -> Self {
-        TopologyGraph {
-            nodes: Vec::new(),
-            edges: Vec::new(),
-        }
-    }
 }
 
 // ─── CrossValidationResult ────────────────────────────────────────────────────

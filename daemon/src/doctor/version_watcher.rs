@@ -234,7 +234,10 @@ edition = "2021"
 
     #[test]
     fn test_parse_no_version() {
-        assert_eq!(parse_version("Cargo.toml", "[package]\nname = \"foo\""), None);
+        assert_eq!(
+            parse_version("Cargo.toml", "[package]\nname = \"foo\""),
+            None
+        );
     }
 
     #[test]

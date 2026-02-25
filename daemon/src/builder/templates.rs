@@ -737,8 +737,16 @@ mod tests {
     #[test]
     fn all_templates_have_non_empty_descriptions() {
         for tpl in all_templates() {
-            assert!(!tpl.description.is_empty(), "template '{}' has empty description", tpl.name);
-            assert!(!tpl.files.is_empty(), "template '{}' has no files", tpl.name);
+            assert!(
+                !tpl.description.is_empty(),
+                "template '{}' has empty description",
+                tpl.name
+            );
+            assert!(
+                !tpl.files.is_empty(),
+                "template '{}' has no files",
+                tpl.name
+            );
         }
     }
 }

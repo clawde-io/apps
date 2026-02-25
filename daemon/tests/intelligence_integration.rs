@@ -1,3 +1,4 @@
+use clawd::config::ModelIntelligenceConfig;
 /// Integration tests for the Model Intelligence layer (MI.T28 + MI.T29).
 ///
 /// MI.T28: Auto-upgrade on failure
@@ -19,7 +20,6 @@ use clawd::intelligence::{
     upgrade::{evaluate_response, upgrade_model, PoorReason, ResponseQuality},
     RunnerOutput,
 };
-use clawd::config::ModelIntelligenceConfig;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -75,7 +75,10 @@ fn haiku_refusal_upgrades_to_sonnet() {
     assert_eq!(quality, ResponseQuality::Poor(PoorReason::ModelRefusal));
 
     let upgraded = upgrade_model(&haiku_selection(), &default_cfg(), 0);
-    assert!(upgraded.is_some(), "upgrade should succeed for haiku on first failure");
+    assert!(
+        upgraded.is_some(),
+        "upgrade should succeed for haiku on first failure"
+    );
     let upgraded = upgraded.unwrap();
     assert!(
         upgraded.model_id.contains("sonnet"),
@@ -176,10 +179,7 @@ fn zero_budget_means_no_cap() {
     let monthly_budget = 0.0_f64;
     // When budget is 0, the enforcement check should be skipped entirely.
     // The contract: if monthly_budget_usd == 0.0, no budget check is performed.
-    assert!(
-        monthly_budget == 0.0,
-        "zero budget means cap is disabled"
-    );
+    assert!(monthly_budget == 0.0, "zero budget means cap is disabled");
     // Whatever spend we inject, 0-budget returns "no cap".
     let spend = 999.99_f64;
     let capped = monthly_budget > 0.0 && spend >= monthly_budget;

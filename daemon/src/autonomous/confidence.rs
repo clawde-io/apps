@@ -98,9 +98,7 @@ impl ConfidenceScorer {
 
         // ── Signal 3: No stub markers ─────────────────────────────────────────
         let stub_keywords = ["TODO", "FIXME", "placeholder", "stub", "unimplemented!"];
-        let has_stubs = stub_keywords
-            .iter()
-            .any(|kw| combined.contains(kw));
+        let has_stubs = stub_keywords.iter().any(|kw| combined.contains(kw));
         if !has_stubs {
             score += 0.20;
         }
@@ -206,7 +204,10 @@ mod tests {
     fn test_confidence_empty_messages_is_low() {
         let plan = make_plan("Add login button.");
         let score = ConfidenceScorer::compute_confidence(&plan, &[] as &[&str]);
-        assert!(score < 0.5, "Expected low score for empty messages, got {score}");
+        assert!(
+            score < 0.5,
+            "Expected low score for empty messages, got {score}"
+        );
     }
 
     #[test]
@@ -265,8 +266,7 @@ mod tests {
     #[test]
     fn test_build_task_confidence_returns_signals() {
         let plan = make_plan("Do something.");
-        let confidence =
-            ConfidenceScorer::build_task_confidence(&plan, &["done"] as &[&str]);
+        let confidence = ConfidenceScorer::build_task_confidence(&plan, &["done"] as &[&str]);
         assert_eq!(confidence.signals.len(), 5);
         assert_eq!(confidence.task_id, plan.id);
     }

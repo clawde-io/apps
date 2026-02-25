@@ -258,9 +258,8 @@ fn extract_dod(message: &str) -> Vec<String> {
 
 /// Recognised source file extensions for path extraction.
 const SOURCE_EXTENSIONS: &[&str] = &[
-    ".rs", ".dart", ".ts", ".tsx", ".js", ".go", ".py", ".rb", ".java",
-    ".kt", ".swift", ".c", ".cpp", ".h", ".toml", ".yaml", ".yml",
-    ".json", ".sql", ".md",
+    ".rs", ".dart", ".ts", ".tsx", ".js", ".go", ".py", ".rb", ".java", ".kt", ".swift", ".c",
+    ".cpp", ".h", ".toml", ".yaml", ".yml", ".json", ".sql", ".md",
 ];
 
 /// Extract file paths mentioned in the message.
@@ -331,9 +330,7 @@ fn looks_like_path(token: &str) -> bool {
     if token.len() < 4 {
         return false;
     }
-    SOURCE_EXTENSIONS
-        .iter()
-        .any(|ext| token.ends_with(ext))
+    SOURCE_EXTENSIONS.iter().any(|ext| token.ends_with(ext))
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -374,7 +371,8 @@ mod tests {
 
     #[test]
     fn test_extract_requirements_modal() {
-        let msg = "The endpoint must return 401 on invalid token. The handler should log the error.";
+        let msg =
+            "The endpoint must return 401 on invalid token. The handler should log the error.";
         let reqs = extract_requirements(msg);
         assert!(!reqs.is_empty());
         assert!(reqs.iter().any(|r| r.contains("must return")));

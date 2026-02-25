@@ -11,11 +11,11 @@ use crate::AppContext;
 use anyhow::Result;
 use chrono::Utc;
 use serde_json::{json, Value};
+use std::sync::OnceLock;
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
 };
-use std::sync::OnceLock;
 use tracing::{info, warn};
 use uuid::Uuid;
 
@@ -83,7 +83,9 @@ pub async fn builder_create_session(params: Value, _ctx: &AppContext) -> Result<
     // Store before spawning so callers can poll immediately.
     {
         let store = sessions();
-        let mut map = store.write().map_err(|_| anyhow::anyhow!("session store poisoned"))?;
+        let mut map = store
+            .write()
+            .map_err(|_| anyhow::anyhow!("session store poisoned"))?;
         map.insert(id.clone(), session.clone());
     }
 
@@ -179,7 +181,9 @@ pub async fn builder_get_status(params: Value, _ctx: &AppContext) -> Result<Valu
         .ok_or_else(|| anyhow::anyhow!("missing field: id"))?;
 
     let store = sessions();
-    let map = store.read().map_err(|_| anyhow::anyhow!("session store poisoned"))?;
+    let map = store
+        .read()
+        .map_err(|_| anyhow::anyhow!("session store poisoned"))?;
     let session = map
         .get(id)
         .ok_or_else(|| anyhow::anyhow!("builder session not found: {id}"))?;

@@ -87,12 +87,9 @@ pub async fn load(pool: &SqlitePool, repo_path: &str) -> Result<Option<RepoProfi
     let primary_lang = PrimaryLanguage::from_tag(&primary_lang);
     let secondary_langs: Vec<PrimaryLanguage> =
         serde_json::from_str(&secondary_langs_json).unwrap_or_default();
-    let frameworks: Vec<Framework> =
-        serde_json::from_str(&frameworks_json).unwrap_or_default();
-    let build_tools: Vec<BuildTool> =
-        serde_json::from_str(&build_tools_json).unwrap_or_default();
-    let conventions: CodeConventions =
-        serde_json::from_str(&conventions_json).unwrap_or_default();
+    let frameworks: Vec<Framework> = serde_json::from_str(&frameworks_json).unwrap_or_default();
+    let build_tools: Vec<BuildTool> = serde_json::from_str(&build_tools_json).unwrap_or_default();
+    let conventions: CodeConventions = serde_json::from_str(&conventions_json).unwrap_or_default();
 
     Ok(Some(RepoProfile {
         repo_path: repo_path.to_string(),

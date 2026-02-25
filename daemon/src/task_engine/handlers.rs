@@ -50,7 +50,10 @@ pub async fn task_create(params: Value, ctx: &AppContext) -> Result<Value> {
     let parent_task_id = params["parentTaskId"].as_str().map(str::to_string);
     let title = params["title"].as_str().unwrap_or("").to_string();
     let description = params["description"].as_str().unwrap_or("").to_string();
-    let task_type = params["taskType"].as_str().unwrap_or("implementation").to_string();
+    let task_type = params["taskType"]
+        .as_str()
+        .unwrap_or("implementation")
+        .to_string();
     let priority = params["priority"].as_str().unwrap_or("medium").to_string();
 
     let task = te_storage(ctx)
@@ -110,7 +113,14 @@ pub async fn agent_register(params: Value, ctx: &AppContext) -> Result<Value> {
     let max_ctx = params["maxContextTokens"].as_i64();
 
     let agent = te_storage(ctx)
-        .register_agent(&name, &agent_type, &role, &caps, model_id.as_deref(), max_ctx)
+        .register_agent(
+            &name,
+            &agent_type,
+            &role,
+            &caps,
+            model_id.as_deref(),
+            max_ctx,
+        )
         .await?;
 
     Ok(json!({
@@ -190,7 +200,10 @@ pub async fn task_claim(params: Value, ctx: &AppContext) -> Result<Value> {
 pub async fn event_log(params: Value, ctx: &AppContext) -> Result<Value> {
     let task_id = params["taskId"].as_str().unwrap_or("").to_string();
     let agent_id = params["agentId"].as_str().map(str::to_string);
-    let event_type = params["eventType"].as_str().unwrap_or("note.added").to_string();
+    let event_type = params["eventType"]
+        .as_str()
+        .unwrap_or("note.added")
+        .to_string();
     let payload = serde_json::to_string(&params["payload"]).unwrap_or_else(|_| "{}".into());
     let idem_key = params["idempotencyKey"].as_str().map(str::to_string);
 
@@ -221,12 +234,17 @@ pub async fn event_list(params: Value, ctx: &AppContext) -> Result<Value> {
 pub async fn checkpoint_write(params: Value, ctx: &AppContext) -> Result<Value> {
     let task_id = params["taskId"].as_str().unwrap_or("").to_string();
     let agent_id = params["agentId"].as_str().unwrap_or("").to_string();
-    let cp_type = params["checkpointType"].as_str().unwrap_or("periodic").to_string();
+    let cp_type = params["checkpointType"]
+        .as_str()
+        .unwrap_or("periodic")
+        .to_string();
     let current_action = params["currentAction"].as_str().unwrap_or("").to_string();
-    let completed = serde_json::to_string(&params["completedItems"]).unwrap_or_else(|_| "[]".into());
+    let completed =
+        serde_json::to_string(&params["completedItems"]).unwrap_or_else(|_| "[]".into());
     let files = serde_json::to_string(&params["filesModified"]).unwrap_or_else(|_| "[]".into());
     let next = serde_json::to_string(&params["nextSteps"]).unwrap_or_else(|_| "[]".into());
-    let remaining = serde_json::to_string(&params["remainingItems"]).unwrap_or_else(|_| "[]".into());
+    let remaining =
+        serde_json::to_string(&params["remainingItems"]).unwrap_or_else(|_| "[]".into());
     let context_summary = params["contextSummary"].as_str().map(str::to_string);
 
     let cp = te_storage(ctx)
@@ -252,7 +270,10 @@ pub async fn checkpoint_write(params: Value, ctx: &AppContext) -> Result<Value> 
 pub async fn note_add(params: Value, ctx: &AppContext) -> Result<Value> {
     let task_id = params["taskId"].as_str().unwrap_or("").to_string();
     let agent_id = params["agentId"].as_str().map(str::to_string);
-    let note_type = params["noteType"].as_str().unwrap_or("observation").to_string();
+    let note_type = params["noteType"]
+        .as_str()
+        .unwrap_or("observation")
+        .to_string();
     let title = params["title"].as_str().unwrap_or("").to_string();
     let content = params["content"].as_str().unwrap_or("").to_string();
     let related_file = params["relatedFile"].as_str().map(str::to_string);

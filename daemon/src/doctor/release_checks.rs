@@ -72,8 +72,7 @@ fn validate_release_plan(content: &str) -> Vec<String> {
     required_sections
         .iter()
         .filter(|&&s| {
-            !content.contains(&format!("## {s}"))
-                && !content.contains(&format!("**{s}**"))
+            !content.contains(&format!("## {s}")) && !content.contains(&format!("**{s}**"))
         })
         .map(|s| s.to_string())
         .collect()

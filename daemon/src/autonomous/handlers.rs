@@ -11,8 +11,7 @@
 //!   recipe.create       — register a new workflow recipe (AE.T19)
 
 use crate::autonomous::{
-    confidence::ConfidenceScorer, plan_generator::PlanGenerator, recipe::WorkflowRecipe,
-    AePlan,
+    confidence::ConfidenceScorer, plan_generator::PlanGenerator, recipe::WorkflowRecipe, AePlan,
 };
 use crate::AppContext;
 use anyhow::{bail, Result};
@@ -87,10 +86,8 @@ pub async fn ae_plan_create(params: Value, ctx: &AppContext) -> Result<Value> {
     persist_plan(ctx, &plan).await?;
 
     // Emit push event so Flutter plan-preview card appears.
-    ctx.broadcaster.broadcast(
-        "ae.planReady",
-        plan_to_json(&plan),
-    );
+    ctx.broadcaster
+        .broadcast("ae.planReady", plan_to_json(&plan));
 
     Ok(plan_to_json(&plan))
 }
@@ -206,13 +203,16 @@ pub async fn ae_confidence_get(params: Value, ctx: &AppContext) -> Result<Value>
     let plan_row = plan_row.ok_or_else(|| anyhow::anyhow!("ae_plan not found: {}", p.plan_id))?;
 
     use sqlx::Row;
-    let requirements: Vec<String> = serde_json::from_str(plan_row.get::<&str, _>("requirements")).unwrap_or_default();
-    let dod: Vec<String> = serde_json::from_str(plan_row.get::<&str, _>("definition_of_done")).unwrap_or_default();
-    let files: Vec<std::path::PathBuf> = serde_json::from_str::<Vec<String>>(plan_row.get::<&str, _>("files_expected"))
-        .unwrap_or_default()
-        .into_iter()
-        .map(std::path::PathBuf::from)
-        .collect();
+    let requirements: Vec<String> =
+        serde_json::from_str(plan_row.get::<&str, _>("requirements")).unwrap_or_default();
+    let dod: Vec<String> =
+        serde_json::from_str(plan_row.get::<&str, _>("definition_of_done")).unwrap_or_default();
+    let files: Vec<std::path::PathBuf> =
+        serde_json::from_str::<Vec<String>>(plan_row.get::<&str, _>("files_expected"))
+            .unwrap_or_default()
+            .into_iter()
+            .map(std::path::PathBuf::from)
+            .collect();
 
     let plan = AePlan {
         id: plan_row.get::<String, _>("id"),
@@ -221,7 +221,9 @@ pub async fn ae_confidence_get(params: Value, ctx: &AppContext) -> Result<Value>
         requirements,
         definition_of_done: dod,
         files_expected: files,
-        ai_instructions: plan_row.get::<Option<String>, _>("ai_instructions").unwrap_or_default(),
+        ai_instructions: plan_row
+            .get::<Option<String>, _>("ai_instructions")
+            .unwrap_or_default(),
         created_at: plan_row.get::<String, _>("created_at"),
         approved_at: plan_row.get::<Option<String>, _>("approved_at"),
         parent_task_id: None,

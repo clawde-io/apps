@@ -108,7 +108,10 @@ impl SessionManager {
         // The resolved provider is stored separately as `routed_provider`.
         let (effective_provider, routed_provider) = if provider == "auto" {
             let chosen = router::classify_intent(initial_message, &[]);
-            (chosen.as_str().to_string(), Some(chosen.as_str().to_string()))
+            (
+                chosen.as_str().to_string(),
+                Some(chosen.as_str().to_string()),
+            )
         } else {
             // Validate explicit provider — must match ProviderType.name values from Dart
             match provider {
@@ -138,7 +141,12 @@ impl SessionManager {
             .context("failed to serialize permissions")?;
         let row = self
             .storage
-            .create_session(&effective_provider, repo_path, title, permissions_json.as_deref())
+            .create_session(
+                &effective_provider,
+                repo_path,
+                title,
+                permissions_json.as_deref(),
+            )
             .await?;
 
         // If provider was auto-routed, persist the routing decision.
@@ -303,18 +311,11 @@ impl SessionManager {
     /// Only valid when the session is "idle" or "paused" (not "running").
     /// Replaces the in-memory runner if one exists, so the next
     /// `session.sendMessage` uses the new provider.
-    pub async fn set_provider(
-        &self,
-        session_id: &str,
-        new_provider: &str,
-    ) -> Result<()> {
+    pub async fn set_provider(&self, session_id: &str, new_provider: &str) -> Result<()> {
         // Validate the target provider (must be explicit — not "auto").
         match new_provider {
             "claude" | "codex" | "cursor" => {}
-            _ => anyhow::bail!(
-                "PROVIDER_NOT_AVAILABLE: unknown provider: {}",
-                new_provider
-            ),
+            _ => anyhow::bail!("PROVIDER_NOT_AVAILABLE: unknown provider: {}", new_provider),
         }
 
         let session = self
@@ -325,7 +326,9 @@ impl SessionManager {
 
         // Reject mid-turn provider switches.
         if session.status == "running" {
-            anyhow::bail!("PROVIDER_NOT_AVAILABLE: cannot change provider while session is running");
+            anyhow::bail!(
+                "PROVIDER_NOT_AVAILABLE: cannot change provider while session is running"
+            );
         }
 
         // Drop any existing runner so the next turn creates a fresh one.

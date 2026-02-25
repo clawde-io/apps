@@ -11,17 +11,17 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MailboxMessage {
-    pub id:         String,
-    pub from_repo:  String,
-    pub to_repo:    String,
-    pub subject:    String,
-    pub body:       String,
+    pub id: String,
+    pub from_repo: String,
+    pub to_repo: String,
+    pub subject: String,
+    pub body: String,
     /// Optional reply-to path — where the recipient should send a response.
-    pub reply_to:   Option<String>,
+    pub reply_to: Option<String>,
     /// RFC 3339 timestamp after which the message is dead-lettered.
     pub expires_at: Option<String>,
     /// True when the message has been processed and archived.
-    pub archived:   bool,
+    pub archived: bool,
     pub created_at: String,
 }
 
@@ -63,7 +63,7 @@ impl MailboxMessage {
         let after_first = &content[3..];
         let end = after_first.find("\n---")?;
         let front_matter = &after_first[..end];
-        let body_start   = end + 4; // skip "\n---"
+        let body_start = end + 4; // skip "\n---"
         let body = after_first
             .get(body_start..)
             .unwrap_or_default()
@@ -71,18 +71,20 @@ impl MailboxMessage {
             .to_string();
 
         // Parse YAML key: value lines (simple subset only).
-        let mut fields: std::collections::HashMap<&str, &str> =
-            std::collections::HashMap::new();
+        let mut fields: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
         for line in front_matter.lines() {
             if let Some((k, v)) = line.split_once(": ") {
                 fields.insert(k.trim(), v.trim());
             }
         }
 
-        let id       = fields.get("id").map(|s| s.to_string()).unwrap_or_else(|| file_id.to_string());
+        let id = fields
+            .get("id")
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| file_id.to_string());
         let from_repo = fields.get("from")?.to_string();
-        let to_repo   = fields.get("to")?.to_string();
-        let subject   = fields.get("subject")?.to_string();
+        let to_repo = fields.get("to")?.to_string();
+        let subject = fields.get("subject")?.to_string();
         let created_at = fields
             .get("created_at")
             .map(|s| s.to_string())
@@ -94,9 +96,9 @@ impl MailboxMessage {
             to_repo,
             subject,
             body,
-            reply_to:   fields.get("reply_to").map(|s| s.to_string()),
+            reply_to: fields.get("reply_to").map(|s| s.to_string()),
             expires_at: fields.get("expires_at").map(|s| s.to_string()),
-            archived:   false,
+            archived: false,
             created_at,
         })
     }
@@ -158,8 +160,7 @@ mod tests {
     fn from_markdown_roundtrip() {
         let msg = make_msg();
         let md = msg.to_markdown();
-        let parsed = MailboxMessage::from_markdown(&md, "test-id-1")
-            .expect("should parse back");
+        let parsed = MailboxMessage::from_markdown(&md, "test-id-1").expect("should parse back");
         assert_eq!(parsed.id, "test-id-1");
         assert_eq!(parsed.from_repo, "apps");
         assert_eq!(parsed.to_repo, "web");
@@ -196,7 +197,9 @@ mod tests {
     #[test]
     fn mailbox_policy_default_requires_cross_repo_write_and_deploy() {
         let policy = MailboxPolicy::default();
-        assert!(policy.require_approval.contains(&"cross-repo-write".to_string()));
+        assert!(policy
+            .require_approval
+            .contains(&"cross-repo-write".to_string()));
         assert!(policy.require_approval.contains(&"deploy".to_string()));
     }
 

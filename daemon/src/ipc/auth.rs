@@ -124,6 +124,9 @@ mod tests {
         get_or_create_token(dir.path()).unwrap();
         let meta = std::fs::metadata(dir.path().join("auth_token")).unwrap();
         let mode = meta.permissions().mode() & 0o777;
-        assert_eq!(mode, 0o600, "auth_token must have mode 0600, got {mode:04o}");
+        assert_eq!(
+            mode, 0o600,
+            "auth_token must have mode 0600, got {mode:04o}"
+        );
     }
 }

@@ -189,10 +189,8 @@ pub async fn record_vote(params: Value, ctx: &AppContext) -> Result<Value> {
     // Check if we've crossed the auto-routing threshold (AM.T04).
     let vote_count = arena_storage.get_vote_count().await?;
     if vote_count == 20 {
-        ctx.broadcaster.broadcast(
-            "arena.autoRouteEnabled",
-            json!({ "voteCount": vote_count }),
-        );
+        ctx.broadcaster
+            .broadcast("arena.autoRouteEnabled", json!({ "voteCount": vote_count }));
     }
 
     info!(
@@ -220,9 +218,8 @@ struct LeaderboardParams {
 /// restrict results to a single category.  When omitted, results include
 /// per-task-type rows plus an aggregate "all" row per provider.
 pub async fn get_leaderboard(params: Value, ctx: &AppContext) -> Result<Value> {
-    let p: LeaderboardParams = serde_json::from_value(params).unwrap_or(LeaderboardParams {
-        task_type: None,
-    });
+    let p: LeaderboardParams =
+        serde_json::from_value(params).unwrap_or(LeaderboardParams { task_type: None });
 
     if let Some(ref tt) = p.task_type {
         if !VALID_TASK_TYPES.contains(&tt.as_str()) {

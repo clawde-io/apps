@@ -95,10 +95,7 @@ impl QaExecutor {
         };
 
         let passed = outputs.iter().all(|o| o.passed);
-        let findings: Vec<String> = outputs
-            .iter()
-            .flat_map(|o| o.error_lines.clone())
-            .collect();
+        let findings: Vec<String> = outputs.iter().flat_map(|o| o.error_lines.clone()).collect();
 
         Ok(QaResult {
             passed,

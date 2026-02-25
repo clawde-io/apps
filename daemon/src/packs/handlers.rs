@@ -8,11 +8,7 @@
 //   pack.search           — query the registry (stubbed)
 //   pack.listInstalled    — return all installed packs
 
-use crate::packs::{
-    installer::PackInstaller,
-    model::PackSearchResult,
-    storage::PackStorage,
-};
+use crate::packs::{installer::PackInstaller, model::PackSearchResult, storage::PackStorage};
 use crate::AppContext;
 use anyhow::Result;
 use serde_json::Value;
@@ -51,7 +47,9 @@ pub async fn pack_install(params: Value, ctx: &AppContext) -> Result<Value> {
     let version = params.get("version").and_then(|v| v.as_str());
 
     debug!(name, version, "pack.install (registry)");
-    let pack = installer.install_from_registry(name, version, &data_dir).await?;
+    let pack = installer
+        .install_from_registry(name, version, &data_dir)
+        .await?;
     Ok(serde_json::to_value(pack)?)
 }
 
@@ -80,7 +78,9 @@ pub async fn pack_update(params: Value, ctx: &AppContext) -> Result<Value> {
     installer.remove(name, &data_dir).await?;
 
     // Re-install at latest.
-    let pack = installer.install_from_registry(name, None, &data_dir).await?;
+    let pack = installer
+        .install_from_registry(name, None, &data_dir)
+        .await?;
     Ok(serde_json::to_value(pack)?)
 }
 

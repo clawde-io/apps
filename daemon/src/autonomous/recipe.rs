@@ -187,15 +187,9 @@ fn load_recipe_file(path: &Path) -> Result<WorkflowRecipe> {
         .and_then(|s| s.to_str())
         .unwrap_or("recipe");
 
-    let name = raw["name"]
-        .as_str()
-        .unwrap_or(stem)
-        .to_owned();
+    let name = raw["name"].as_str().unwrap_or(stem).to_owned();
 
-    let trigger_pattern = raw["trigger_pattern"]
-        .as_str()
-        .unwrap_or("")
-        .to_owned();
+    let trigger_pattern = raw["trigger_pattern"].as_str().unwrap_or("").to_owned();
 
     let id = raw["id"].as_str().unwrap_or(&slug(&name)).to_owned();
 
@@ -229,12 +223,10 @@ fn load_recipe_file(path: &Path) -> Result<WorkflowRecipe> {
 /// Simple pattern matching: prefix or contains.
 fn message_matches_pattern(message: &str, pattern: &str) -> bool {
     // Regex-like anchors
-    if pattern.starts_with('^') {
-        let p = &pattern[1..];
+    if let Some(p) = pattern.strip_prefix('^') {
         return message.starts_with(p);
     }
-    if pattern.ends_with('$') {
-        let p = &pattern[..pattern.len() - 1];
+    if let Some(p) = pattern.strip_suffix('$') {
         return message.ends_with(p);
     }
     message.contains(pattern)
@@ -244,7 +236,13 @@ fn message_matches_pattern(message: &str, pattern: &str) -> bool {
 fn slug(name: &str) -> String {
     name.to_ascii_lowercase()
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' { c } else { '-' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' {
+                c
+            } else {
+                '-'
+            }
+        })
         .collect::<String>()
         .split('-')
         .filter(|s| !s.is_empty())
@@ -335,7 +333,13 @@ mod tests {
     fn test_forge_then_crunch_has_two_steps() {
         let r = forge_crunch();
         assert_eq!(r.steps.len(), 2);
-        assert_eq!(r.steps[0].params.get("mode").map(String::as_str), Some("FORGE"));
-        assert_eq!(r.steps[1].params.get("mode").map(String::as_str), Some("CRUNCH"));
+        assert_eq!(
+            r.steps[0].params.get("mode").map(String::as_str),
+            Some("FORGE")
+        );
+        assert_eq!(
+            r.steps[1].params.get("mode").map(String::as_str),
+            Some("CRUNCH")
+        );
     }
 }

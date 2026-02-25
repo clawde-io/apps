@@ -33,7 +33,8 @@ impl PackSigner {
         let key_hex = std::fs::read_to_string(private_key_path).with_context(|| {
             format!("cannot read signing key at {}", private_key_path.display())
         })?;
-        let key_bytes = decode_hex_32(key_hex.trim()).context("signing key must be 32 hex bytes")?;
+        let key_bytes =
+            decode_hex_32(key_hex.trim()).context("signing key must be 32 hex bytes")?;
         let signing_key = SigningKey::from_bytes(&key_bytes);
         let sig = signing_key.sign(&content);
         Ok(hex::encode(sig.to_bytes()))
@@ -50,8 +51,8 @@ impl PackSigner {
         use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 
         let content = read_pack_toml(pack_dir)?;
-        let pub_bytes = decode_hex_32(public_key.trim())
-            .context("public key must be 32 hex bytes")?;
+        let pub_bytes =
+            decode_hex_32(public_key.trim()).context("public key must be 32 hex bytes")?;
         let verifying_key =
             VerifyingKey::from_bytes(&pub_bytes).context("invalid ed25519 public key")?;
         let sig_bytes = decode_hex_64(signature.trim())
@@ -83,8 +84,7 @@ impl PackSigner {
 
 fn read_pack_toml(pack_dir: &Path) -> Result<Vec<u8>> {
     let path = pack_dir.join("pack.toml");
-    std::fs::read(&path)
-        .with_context(|| format!("cannot read pack.toml at {}", path.display()))
+    std::fs::read(&path).with_context(|| format!("cannot read pack.toml at {}", path.display()))
 }
 
 fn decode_hex_32(s: &str) -> Result<[u8; 32]> {
@@ -146,7 +146,11 @@ mod tests {
         let key_file = write_key_file(&dir, "signing.key", &priv_hex);
 
         let sig = PackSigner::sign_pack(dir.path(), &key_file).unwrap();
-        assert_eq!(sig.len(), 128, "ed25519 signature is 64 bytes = 128 hex chars");
+        assert_eq!(
+            sig.len(),
+            128,
+            "ed25519 signature is 64 bytes = 128 hex chars"
+        );
         assert!(PackSigner::verify_signature(dir.path(), &sig, &pub_hex).unwrap());
     }
 

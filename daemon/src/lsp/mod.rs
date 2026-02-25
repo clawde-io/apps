@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+pub mod handlers;
 /// LSP (Language Server Protocol) proxy — Sprint S, LS.T01–LS.T04.
 ///
 /// Manages per-language LSP server processes, proxies LSP requests from the
@@ -12,7 +13,6 @@
 /// - `handlers` — RPC handler functions wired into the dispatch table
 pub mod model;
 pub mod proxy;
-pub mod handlers;
 
-pub use model::{CompletionItem, DiagnosticItem, DiagSeverity, LspConfig, LspProcess};
+pub use model::{CompletionItem, DiagSeverity, DiagnosticItem, LspConfig, LspProcess};
 pub use proxy::LspProxy;

@@ -179,13 +179,19 @@ mod tests {
 
     #[test]
     fn test_detect_complete() {
-        let r = detect_stop_reason("The function is now fixed. Let me know if you need anything else.", None);
+        let r = detect_stop_reason(
+            "The function is now fixed. Let me know if you need anything else.",
+            None,
+        );
         assert_eq!(r, StopReason::Complete);
     }
 
     #[test]
     fn test_detect_self_interrupted() {
-        let r = detect_stop_reason("Here's part one of the refactor. I'll continue with the tests next.", None);
+        let r = detect_stop_reason(
+            "Here's part one of the refactor. I'll continue with the tests next.",
+            None,
+        );
         assert_eq!(r, StopReason::SelfInterrupted);
     }
 

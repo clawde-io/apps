@@ -168,12 +168,11 @@ pub async fn build_bridge(storage: &Storage, session_id: &str) -> Result<BridgeC
     }
 
     // Retrieve session metadata for turn count + repo path.
-    let session_row: Option<SessionMetaRow> = sqlx::query_as(
-        "SELECT message_count, repo_path FROM sessions WHERE id = ?",
-    )
-    .bind(session_id)
-    .fetch_optional(&pool)
-    .await?;
+    let session_row: Option<SessionMetaRow> =
+        sqlx::query_as("SELECT message_count, repo_path FROM sessions WHERE id = ?")
+            .bind(session_id)
+            .fetch_optional(&pool)
+            .await?;
 
     let (source_turn_count, repo_path) = session_row
         .map(|r| (r.message_count as usize, r.repo_path))

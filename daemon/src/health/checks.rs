@@ -197,10 +197,7 @@ impl SystemHealthCheck for StorageHealthCheck {
         .await;
 
         match result {
-            Ok(Ok(p)) => CheckResult::ok(
-                "storage",
-                format!("data_dir writable: {}", p.display()),
-            ),
+            Ok(Ok(p)) => CheckResult::ok("storage", format!("data_dir writable: {}", p.display())),
             Ok(Err(msg)) => CheckResult::critical("storage", msg),
             Err(e) => CheckResult::critical("storage", format!("spawn_blocking error: {e}")),
         }
@@ -238,9 +235,7 @@ impl SystemHealthCheck for ProviderHealthCheck {
         let found: Vec<String> = tokio::task::spawn_blocking(|| {
             PROVIDER_BINARIES
                 .iter()
-                .filter_map(|(bin, label)| {
-                    which_bin(bin).map(|_| (*label).to_string())
-                })
+                .filter_map(|(bin, label)| which_bin(bin).map(|_| (*label).to_string()))
                 .collect()
         })
         .await
@@ -259,7 +254,10 @@ impl SystemHealthCheck for ProviderHealthCheck {
                 ),
             )
         } else {
-            CheckResult::ok("provider", format!("Available providers: {}", found.join(", ")))
+            CheckResult::ok(
+                "provider",
+                format!("Available providers: {}", found.join(", ")),
+            )
         }
     }
 }

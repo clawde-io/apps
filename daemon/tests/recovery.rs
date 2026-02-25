@@ -2,8 +2,8 @@
 //! These tests use Storage directly (no real claude CLI needed) — they run in CI.
 
 use clawd::storage::Storage;
-use tempfile::TempDir;
 use std::fs;
+use tempfile::TempDir;
 
 /// Helper: create a fresh Storage in a temp dir
 async fn make_storage(dir: &TempDir) -> Storage {
@@ -49,10 +49,16 @@ async fn test_stale_session_recovery_on_restart() {
 
     // 6. Verify session status is now "error"
     let s2 = storage2.get_session(&session.id).await.unwrap().unwrap();
-    assert_eq!(s2.status, "error", "stale running session should become 'error'");
+    assert_eq!(
+        s2.status, "error",
+        "stale running session should become 'error'"
+    );
 
     // 7. JSONL file should still exist (preserved on recovery)
-    assert!(jsonl_path.exists(), "JSONL file should be preserved after recovery");
+    assert!(
+        jsonl_path.exists(),
+        "JSONL file should be preserved after recovery"
+    );
 }
 
 #[tokio::test]
@@ -64,7 +70,12 @@ async fn test_multiple_stale_sessions_all_marked_error() {
     let mut ids = Vec::new();
     for i in 0..3 {
         let s = storage
-            .create_session("claude", &format!("/tmp/repo{i}"), &format!("session {i}"), None)
+            .create_session(
+                "claude",
+                &format!("/tmp/repo{i}"),
+                &format!("session {i}"),
+                None,
+            )
             .await
             .expect("create session");
         storage
@@ -125,5 +136,8 @@ async fn test_paused_session_becomes_idle_on_recovery() {
     assert_eq!(recovered, 1, "paused session should be recovered");
 
     let s = storage2.get_session(&session.id).await.unwrap().unwrap();
-    assert_eq!(s.status, "idle", "paused session should become 'idle' on recovery");
+    assert_eq!(
+        s.status, "idle",
+        "paused session should become 'idle' on recovery"
+    );
 }

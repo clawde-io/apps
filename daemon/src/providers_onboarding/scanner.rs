@@ -57,11 +57,7 @@ pub struct RateLimits {
 ///
 /// Returns a map of provider name → `ProviderStatus`.
 pub async fn check_all_providers() -> Result<Vec<(String, ProviderStatus)>> {
-    let (claude, codex, cursor) = tokio::join!(
-        check_claude(),
-        check_codex(),
-        check_cursor(),
-    );
+    let (claude, codex, cursor) = tokio::join!(check_claude(), check_codex(), check_cursor(),);
 
     Ok(vec![
         ("claude".to_string(), claude?),
@@ -260,7 +256,11 @@ async fn check_cursor_auth() -> (bool, u32) {
         .map(|s| !s.is_empty())
         .unwrap_or(false);
 
-    if has_token { (true, 1) } else { (false, 0) }
+    if has_token {
+        (true, 1)
+    } else {
+        (false, 0)
+    }
 }
 
 // ─── Binary detection helpers ─────────────────────────────────────────────────
@@ -376,7 +376,10 @@ mod tests {
         let ac = AccountCapabilities {
             provider: "claude".to_string(),
             tier: "pro".to_string(),
-            rate_limits: Some(RateLimits { rpm: Some(60), tpm: Some(100_000) }),
+            rate_limits: Some(RateLimits {
+                rpm: Some(60),
+                tpm: Some(100_000),
+            }),
             last_used: None,
             success_rate: 0.99,
             cooldown_until: None,
@@ -389,7 +392,10 @@ mod tests {
 
     #[test]
     fn rate_limits_both_none() {
-        let rl = RateLimits { rpm: None, tpm: None };
+        let rl = RateLimits {
+            rpm: None,
+            tpm: None,
+        };
         assert!(rl.rpm.is_none());
         assert!(rl.tpm.is_none());
     }

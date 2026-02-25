@@ -8,12 +8,12 @@
 //! - Review workflow: orchestrate the full pipeline and compute a grade
 //! - RPC handlers: `review.run`, `review.fix`, `review.learn`
 
+pub mod ai_synthesis;
+pub mod codegraph;
+pub mod handlers;
 pub mod model;
 pub mod tool_runner;
-pub mod codegraph;
-pub mod ai_synthesis;
 pub mod workflow;
-pub mod handlers;
 
 pub use model::{
     Grade, ReviewComment, ReviewConfig, ReviewIssue, ReviewResult, ReviewSeverity, ToolConfig,

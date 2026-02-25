@@ -70,9 +70,14 @@ pub fn detect_stack(project_root: &std::path::Path) -> Stack {
 
     // Next.js: package.json + next.config.{js,ts,mjs,cjs}
     if project_root.join("package.json").exists() {
-        let has_next = ["next.config.js", "next.config.ts", "next.config.mjs", "next.config.cjs"]
-            .iter()
-            .any(|f| project_root.join(f).exists());
+        let has_next = [
+            "next.config.js",
+            "next.config.ts",
+            "next.config.mjs",
+            "next.config.cjs",
+        ]
+        .iter()
+        .any(|f| project_root.join(f).exists());
         if has_next {
             return Stack::NextJs;
         }

@@ -320,7 +320,11 @@ async fn make_shutdown_future() {
     }
 }
 
-async fn handle_connection(stream: tokio::net::TcpStream, peer_ip: IpAddr, ctx: Arc<AppContext>) -> Result<()> {
+async fn handle_connection(
+    stream: tokio::net::TcpStream,
+    peer_ip: IpAddr,
+    ctx: Arc<AppContext>,
+) -> Result<()> {
     // Peek at the first bytes to distinguish HTTP health checks from WebSocket upgrades.
     // Both share the same port. An HTTP GET starts with "GET "; WS upgrade also starts
     // with "GET " but has an "Upgrade: websocket" header — we detect health checks by
@@ -509,7 +513,11 @@ pub(crate) async fn dispatch_text(text: &str, ctx: &AppContext, client_token: &s
         let is_daemon_token = tokens_equal(client_token, &ctx.auth_token);
         let is_device_token = if !is_daemon_token && !client_token.is_empty() {
             let pairing_storage = crate::pairing::storage::PairingStorage::new(ctx.storage.pool());
-            pairing_storage.get_by_token(client_token).await.unwrap_or(None).is_some()
+            pairing_storage
+                .get_by_token(client_token)
+                .await
+                .unwrap_or(None)
+                .is_some()
         } else {
             false
         };
@@ -560,15 +568,15 @@ pub(crate) async fn dispatch_text(text: &str, ctx: &AppContext, client_token: &s
 async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Result<Value> {
     match method {
         // ─── Multi-account management ─────────────────────────────────────────
-        "account.list"        => handlers::accounts::list(params, ctx).await,
-        "account.create"      => handlers::accounts::create(params, ctx).await,
-        "account.delete"      => handlers::accounts::delete(params, ctx).await,
+        "account.list" => handlers::accounts::list(params, ctx).await,
+        "account.create" => handlers::accounts::create(params, ctx).await,
+        "account.delete" => handlers::accounts::delete(params, ctx).await,
         "account.setPriority" => handlers::accounts::set_priority(params, ctx).await,
-        "account.history"     => handlers::accounts::history(params, ctx).await,
+        "account.history" => handlers::accounts::history(params, ctx).await,
         // ─── License tier gating ─────────────────────────────────────────────
-        "license.get"   => handlers::license::get(params, ctx).await,
+        "license.get" => handlers::license::get(params, ctx).await,
         "license.check" => handlers::license::check(params, ctx).await,
-        "license.tier"  => handlers::license::tier(params, ctx).await,
+        "license.tier" => handlers::license::tier(params, ctx).await,
         "daemon.ping" => handlers::daemon::ping(params, ctx).await,
         "daemon.status" => handlers::daemon::status(params, ctx).await,
         "daemon.checkUpdate" => handlers::daemon::check_update(params, ctx).await,
@@ -576,36 +584,48 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
         "daemon.updatePolicy" => handlers::daemon::update_policy(params, ctx).await,
         "daemon.setUpdatePolicy" => handlers::daemon::set_update_policy(params, ctx).await,
         "daemon.checkProvider" => handlers::provider::check_provider(params, ctx).await,
-        "daemon.providers"    => handlers::daemon::providers(params, ctx).await,
-        "repo.list"    => handlers::repo::list(params, ctx).await,
-        "repo.open"    => handlers::repo::open(params, ctx).await,
-        "repo.close"   => handlers::repo::close(params, ctx).await,
-        "repo.status"  => handlers::repo::status(params, ctx).await,
-        "repo.diff"    => handlers::repo::diff(params, ctx).await,
+        "daemon.providers" => handlers::daemon::providers(params, ctx).await,
+        "repo.list" => handlers::repo::list(params, ctx).await,
+        "repo.open" => handlers::repo::open(params, ctx).await,
+        "repo.close" => handlers::repo::close(params, ctx).await,
+        "repo.status" => handlers::repo::status(params, ctx).await,
+        "repo.diff" => handlers::repo::diff(params, ctx).await,
         "repo.fileDiff" => handlers::repo::file_diff(params, ctx).await,
-        "repo.tree"    => handlers::repo::tree(params, ctx).await,
+        "repo.tree" => handlers::repo::tree(params, ctx).await,
         "repo.readFile" => handlers::repo::read_file(params, ctx).await,
         // ─── Session Intelligence (Sprint G) ──────────────────────────────────
-        "message.pin"            => handlers::session_intelligence::pin_message(params, ctx).await,
-        "message.unpin"          => handlers::session_intelligence::unpin_message(params, ctx).await,
-        "session.contextStatus"  => handlers::session_intelligence::context_status(params, ctx).await,
-        "session.health"         => handlers::session_intelligence::session_health(params, ctx).await,
-        "session.splitProposed"  => handlers::session_intelligence::split_proposed(params, ctx).await,
-        "context.bridge"         => handlers::session_intelligence::context_bridge(params, ctx).await,
+        "message.pin" => handlers::session_intelligence::pin_message(params, ctx).await,
+        "message.unpin" => handlers::session_intelligence::unpin_message(params, ctx).await,
+        "session.contextStatus" => {
+            handlers::session_intelligence::context_status(params, ctx).await
+        }
+        "session.health" => handlers::session_intelligence::session_health(params, ctx).await,
+        "session.splitProposed" => {
+            handlers::session_intelligence::split_proposed(params, ctx).await
+        }
+        "context.bridge" => handlers::session_intelligence::context_bridge(params, ctx).await,
         // ─── Model Intelligence (Sprint H) ────────────────────────────────────
-        "session.setModel"          => handlers::model_intelligence::set_model(params, ctx).await,
-        "session.addRepoContext"    => handlers::model_intelligence::add_repo_context(params, ctx).await,
-        "session.listRepoContexts"  => handlers::model_intelligence::list_repo_contexts(params, ctx).await,
-        "session.removeRepoContext" => handlers::model_intelligence::remove_repo_context(params, ctx).await,
+        "session.setModel" => handlers::model_intelligence::set_model(params, ctx).await,
+        "session.addRepoContext" => {
+            handlers::model_intelligence::add_repo_context(params, ctx).await
+        }
+        "session.listRepoContexts" => {
+            handlers::model_intelligence::list_repo_contexts(params, ctx).await
+        }
+        "session.removeRepoContext" => {
+            handlers::model_intelligence::remove_repo_context(params, ctx).await
+        }
         // ─── Repo Intelligence (Sprint F) ─────────────────────────────────────
-        "repo.scan"              => handlers::repo_intelligence::scan(params, ctx).await,
-        "repo.profile"           => handlers::repo_intelligence::profile(params, ctx).await,
-        "repo.generateArtifacts" => handlers::repo_intelligence::generate_artifacts(params, ctx).await,
-        "repo.syncArtifacts"     => handlers::repo_intelligence::sync_artifacts(params, ctx).await,
-        "repo.driftScore"        => handlers::repo_intelligence::drift_score(params, ctx).await,
-        "repo.driftReport"       => handlers::repo_intelligence::drift_report(params, ctx).await,
-        "validators.list"        => handlers::repo_intelligence::validators_list(params, ctx).await,
-        "validators.run"         => handlers::repo_intelligence::validators_run(params, ctx).await,
+        "repo.scan" => handlers::repo_intelligence::scan(params, ctx).await,
+        "repo.profile" => handlers::repo_intelligence::profile(params, ctx).await,
+        "repo.generateArtifacts" => {
+            handlers::repo_intelligence::generate_artifacts(params, ctx).await
+        }
+        "repo.syncArtifacts" => handlers::repo_intelligence::sync_artifacts(params, ctx).await,
+        "repo.driftScore" => handlers::repo_intelligence::drift_score(params, ctx).await,
+        "repo.driftReport" => handlers::repo_intelligence::drift_report(params, ctx).await,
+        "validators.list" => handlers::repo_intelligence::validators_list(params, ctx).await,
+        "validators.run" => handlers::repo_intelligence::validators_run(params, ctx).await,
         "session.create" => handlers::session::create(params, ctx).await,
         "session.list" => handlers::session::list(params, ctx).await,
         "session.get" => handlers::session::get(params, ctx).await,
@@ -614,13 +634,13 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
         "session.getMessages" => handlers::session::get_messages(params, ctx).await,
         "session.pause" => handlers::session::pause(params, ctx).await,
         "session.resume" => handlers::session::resume(params, ctx).await,
-        "session.cancel"      => handlers::session::cancel(params, ctx).await,
+        "session.cancel" => handlers::session::cancel(params, ctx).await,
         "session.setProvider" => handlers::session::set_provider(params, ctx).await,
-        "session.setMode"     => handlers::session::set_mode(params, ctx).await,
+        "session.setMode" => handlers::session::set_mode(params, ctx).await,
         // ─── Token usage ─────────────────────────────────────────────────────
-        "token.sessionUsage"  => handlers::token::session_usage(params, ctx).await,
-        "token.totalUsage"    => handlers::token::total_usage(params, ctx).await,
-        "token.budgetStatus"  => handlers::token::budget_status(params, ctx).await,
+        "token.sessionUsage" => handlers::token::session_usage(params, ctx).await,
+        "token.totalUsage" => handlers::token::total_usage(params, ctx).await,
+        "token.budgetStatus" => handlers::token::budget_status(params, ctx).await,
         "tool.approve" => handlers::tool::approve(params, ctx).await,
         "tool.reject" => handlers::tool::reject(params, ctx).await,
         // ─── Tool call audit log (DC.T43) ─────────────────────────────────────
@@ -670,7 +690,7 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
         "standards.list" => handlers::standards::list(params, ctx).await,
         // ─── Provider knowledge (V02.T33-T35) ─────────────────────────────────
         "providers.detect" => handlers::providers_handler::detect(params, ctx).await,
-        "providers.list"   => handlers::providers_handler::list(params, ctx).await,
+        "providers.list" => handlers::providers_handler::list(params, ctx).await,
         // ─── Doctor (D64) ─────────────────────────────────────────────────────
         "doctor.scan" => handlers::doctor::scan(params, ctx).await,
         "doctor.fix" => handlers::doctor::fix(params, ctx).await,
@@ -680,14 +700,14 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
         "traces.query" => handlers::telemetry::query_traces(params, ctx).await,
         "traces.summary" => handlers::telemetry::summary(params, ctx).await,
         // ─── Task Worktrees ───────────────────────────────────────────────────
-        "worktrees.create"  => handlers::worktrees::create(params, ctx).await,
-        "worktrees.list"    => handlers::worktrees::list(params, ctx).await,
-        "worktrees.diff"    => handlers::worktrees::diff(params, ctx).await,
-        "worktrees.commit"  => handlers::worktrees::commit(params, ctx).await,
-        "worktrees.accept"  => handlers::worktrees::accept(params, ctx).await,
-        "worktrees.reject"  => handlers::worktrees::reject(params, ctx).await,
-        "worktrees.delete"  => handlers::worktrees::delete(params, ctx).await,
-        "worktrees.merge"   => handlers::worktrees::merge(params, ctx).await,
+        "worktrees.create" => handlers::worktrees::create(params, ctx).await,
+        "worktrees.list" => handlers::worktrees::list(params, ctx).await,
+        "worktrees.diff" => handlers::worktrees::diff(params, ctx).await,
+        "worktrees.commit" => handlers::worktrees::commit(params, ctx).await,
+        "worktrees.accept" => handlers::worktrees::accept(params, ctx).await,
+        "worktrees.reject" => handlers::worktrees::reject(params, ctx).await,
+        "worktrees.delete" => handlers::worktrees::delete(params, ctx).await,
+        "worktrees.merge" => handlers::worktrees::merge(params, ctx).await,
         "worktrees.cleanup" => handlers::worktrees::cleanup(params, ctx).await,
         // ─── Human-approval workflow ──────────────────────────────────────────
         "approval.list" => handlers::approval::list(params, ctx).await,
@@ -719,100 +739,128 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
         "te.note.add" => handlers::task_engine::note_add(params, ctx).await,
         "te.note.list" => handlers::task_engine::note_list(params, ctx).await,
         // ─── Phase 56: Projects ──────────────────────────────────────────────
-        "project.create"     => crate::project::handlers::project_create(params, ctx).await,
-        "project.list"       => crate::project::handlers::project_list(params, ctx).await,
-        "project.get"        => crate::project::handlers::project_get(params, ctx).await,
-        "project.update"     => crate::project::handlers::project_update(params, ctx).await,
-        "project.delete"     => crate::project::handlers::project_delete(params, ctx).await,
-        "project.addRepo"    => crate::project::handlers::project_add_repo(params, ctx).await,
+        "project.create" => crate::project::handlers::project_create(params, ctx).await,
+        "project.list" => crate::project::handlers::project_list(params, ctx).await,
+        "project.get" => crate::project::handlers::project_get(params, ctx).await,
+        "project.update" => crate::project::handlers::project_update(params, ctx).await,
+        "project.delete" => crate::project::handlers::project_delete(params, ctx).await,
+        "project.addRepo" => crate::project::handlers::project_add_repo(params, ctx).await,
         "project.removeRepo" => crate::project::handlers::project_remove_repo(params, ctx).await,
-        "daemon.setName"     => crate::project::handlers::daemon_set_name(params, ctx).await,
+        "daemon.setName" => crate::project::handlers::daemon_set_name(params, ctx).await,
         // ─── Phase 56: Device Pairing ─────────────────────────────────────────
-        "daemon.pairPin"     => crate::pairing::handlers::pairing_generate_pin(params, ctx).await,
-        "device.pair"        => crate::pairing::handlers::device_pair(params, ctx).await,
-        "device.list"        => crate::pairing::handlers::device_list(params, ctx).await,
-        "device.revoke"      => crate::pairing::handlers::device_revoke(params, ctx).await,
-        "device.rename"      => crate::pairing::handlers::device_rename(params, ctx).await,
+        "daemon.pairPin" => crate::pairing::handlers::pairing_generate_pin(params, ctx).await,
+        "device.pair" => crate::pairing::handlers::device_pair(params, ctx).await,
+        "device.list" => crate::pairing::handlers::device_list(params, ctx).await,
+        "device.revoke" => crate::pairing::handlers::device_revoke(params, ctx).await,
+        "device.rename" => crate::pairing::handlers::device_rename(params, ctx).await,
 
         // ─── Sprint I: Provider Onboarding ────────────────────────────────────
-        "onboarding.checkAll"          => crate::providers_onboarding::handlers::check_all(params, ctx).await,
-        "onboarding.checkProvider"     => crate::providers_onboarding::handlers::check_provider(params, ctx).await,
-        "onboarding.addApiKey"         => crate::providers_onboarding::handlers::add_api_key(params, ctx).await,
-        "onboarding.capabilities"      => crate::providers_onboarding::handlers::account_capabilities(params, ctx).await,
-        "onboarding.generateGci"       => crate::providers_onboarding::handlers::generate_gci(params, ctx).await,
-        "onboarding.generateCodexMd"   => crate::providers_onboarding::handlers::generate_codex_md(params, ctx).await,
-        "onboarding.generateCursorRules" => crate::providers_onboarding::handlers::generate_cursor_rules(params, ctx).await,
-        "onboarding.bootstrapAid"      => crate::providers_onboarding::handlers::bootstrap_aid(params, ctx).await,
-        "onboarding.checkAid"          => crate::providers_onboarding::handlers::check_aid(params, ctx).await,
+        "onboarding.checkAll" => {
+            crate::providers_onboarding::handlers::check_all(params, ctx).await
+        }
+        "onboarding.checkProvider" => {
+            crate::providers_onboarding::handlers::check_provider(params, ctx).await
+        }
+        "onboarding.addApiKey" => {
+            crate::providers_onboarding::handlers::add_api_key(params, ctx).await
+        }
+        "onboarding.capabilities" => {
+            crate::providers_onboarding::handlers::account_capabilities(params, ctx).await
+        }
+        "onboarding.generateGci" => {
+            crate::providers_onboarding::handlers::generate_gci(params, ctx).await
+        }
+        "onboarding.generateCodexMd" => {
+            crate::providers_onboarding::handlers::generate_codex_md(params, ctx).await
+        }
+        "onboarding.generateCursorRules" => {
+            crate::providers_onboarding::handlers::generate_cursor_rules(params, ctx).await
+        }
+        "onboarding.bootstrapAid" => {
+            crate::providers_onboarding::handlers::bootstrap_aid(params, ctx).await
+        }
+        "onboarding.checkAid" => {
+            crate::providers_onboarding::handlers::check_aid(params, ctx).await
+        }
 
         // ─── Sprint J: Autonomous Execution Engine ────────────────────────────
-        "ae.plan.create"    => crate::autonomous::handlers::ae_plan_create(params, ctx).await,
-        "ae.plan.approve"   => crate::autonomous::handlers::ae_plan_approve(params, ctx).await,
-        "ae.plan.get"       => crate::autonomous::handlers::ae_plan_get(params, ctx).await,
+        "ae.plan.create" => crate::autonomous::handlers::ae_plan_create(params, ctx).await,
+        "ae.plan.approve" => crate::autonomous::handlers::ae_plan_approve(params, ctx).await,
+        "ae.plan.get" => crate::autonomous::handlers::ae_plan_get(params, ctx).await,
         "ae.decision.record" => crate::autonomous::handlers::ae_decision_record(params, ctx).await,
-        "ae.confidence.get"  => crate::autonomous::handlers::ae_confidence_get(params, ctx).await,
-        "ae.recipe.list"    => crate::autonomous::handlers::recipe_list(params, ctx).await,
-        "ae.recipe.create"  => crate::autonomous::handlers::recipe_create(params, ctx).await,
+        "ae.confidence.get" => crate::autonomous::handlers::ae_confidence_get(params, ctx).await,
+        "ae.recipe.list" => crate::autonomous::handlers::recipe_list(params, ctx).await,
+        "ae.recipe.create" => crate::autonomous::handlers::recipe_create(params, ctx).await,
 
         // ─── Sprint K: Arena Mode + Code Completion ───────────────────────────
-        "arena.create"      => crate::arena::handlers::create_arena_session(params, ctx).await,
-        "arena.vote"        => crate::arena::handlers::record_vote(params, ctx).await,
+        "arena.create" => crate::arena::handlers::create_arena_session(params, ctx).await,
+        "arena.vote" => crate::arena::handlers::record_vote(params, ctx).await,
         "arena.leaderboard" => crate::arena::handlers::get_leaderboard(params, ctx).await,
         "completion.suggest" => crate::completion::handlers::suggest_completion(params, ctx).await,
 
         // ─── Sprint M: Pack Marketplace ───────────────────────────────────────
-        "packs.install"     => handlers::packs::install(params, ctx).await,
-        "packs.update"      => handlers::packs::update(params, ctx).await,
-        "packs.remove"      => handlers::packs::remove(params, ctx).await,
-        "packs.search"      => handlers::packs::search(params, ctx).await,
-        "packs.list"        => handlers::packs::list_installed(params, ctx).await,
+        "packs.install" => handlers::packs::install(params, ctx).await,
+        "packs.update" => handlers::packs::update(params, ctx).await,
+        "packs.remove" => handlers::packs::remove(params, ctx).await,
+        "packs.search" => handlers::packs::search(params, ctx).await,
+        "packs.list" => handlers::packs::list_installed(params, ctx).await,
 
         // ─── Sprint N: Multi-Repo Orchestration ───────────────────────────────
-        "mailbox.send"              => crate::mailbox::handlers::mailbox_send(params, ctx).await,
-        "mailbox.list"              => crate::mailbox::handlers::mailbox_list(params, ctx).await,
-        "mailbox.archive"           => crate::mailbox::handlers::mailbox_archive(params, ctx).await,
-        "topology.get"              => crate::topology::handlers::topology_get(params, ctx).await,
-        "topology.validate"         => crate::topology::handlers::topology_validate(params, ctx).await,
-        "topology.addDependency"    => crate::topology::handlers::topology_add_dependency(params, ctx).await,
-        "topology.removeDependency" => crate::topology::handlers::topology_remove_dependency(params, ctx).await,
-        "topology.crossValidate"    => crate::topology::handlers::topology_cross_validate(params, ctx).await,
+        "mailbox.send" => crate::mailbox::handlers::mailbox_send(params, ctx).await,
+        "mailbox.list" => crate::mailbox::handlers::mailbox_list(params, ctx).await,
+        "mailbox.archive" => crate::mailbox::handlers::mailbox_archive(params, ctx).await,
+        "topology.get" => crate::topology::handlers::topology_get(params, ctx).await,
+        "topology.validate" => crate::topology::handlers::topology_validate(params, ctx).await,
+        "topology.addDependency" => {
+            crate::topology::handlers::topology_add_dependency(params, ctx).await
+        }
+        "topology.removeDependency" => {
+            crate::topology::handlers::topology_remove_dependency(params, ctx).await
+        }
+        "topology.crossValidate" => {
+            crate::topology::handlers::topology_cross_validate(params, ctx).await
+        }
 
         // ─── Sprint O: AI Code Review Engine ─────────────────────────────────
-        "review.run"   => crate::code_review::handlers::run(params, ctx).await,
-        "review.fix"   => crate::code_review::handlers::fix(params, ctx).await,
+        "review.run" => crate::code_review::handlers::run(params, ctx).await,
+        "review.fix" => crate::code_review::handlers::fix(params, ctx).await,
         "review.learn" => crate::code_review::handlers::learn(params, ctx).await,
 
         // ─── Sprint P: Builder Mode ───────────────────────────────────────────
-        "builder.create"    => crate::builder::handlers::builder_create_session(params, ctx).await,
+        "builder.create" => crate::builder::handlers::builder_create_session(params, ctx).await,
         "builder.templates" => crate::builder::handlers::builder_list_templates(params, ctx).await,
-        "builder.status"    => crate::builder::handlers::builder_get_status(params, ctx).await,
+        "builder.status" => crate::builder::handlers::builder_get_status(params, ctx).await,
 
         // ─── Sprint Q: Analytics ──────────────────────────────────────────────
-        "analytics.personal"      => crate::analytics::handlers::personal(params, ctx).await,
-        "analytics.providers"     => crate::analytics::handlers::provider_breakdown(params, ctx).await,
-        "analytics.session"       => crate::analytics::handlers::session(params, ctx).await,
-        "analytics.achievements"  => crate::analytics::handlers::achievements_list(params, ctx).await,
+        "analytics.personal" => crate::analytics::handlers::personal(params, ctx).await,
+        "analytics.providers" => crate::analytics::handlers::provider_breakdown(params, ctx).await,
+        "analytics.session" => crate::analytics::handlers::session(params, ctx).await,
+        "analytics.achievements" => {
+            crate::analytics::handlers::achievements_list(params, ctx).await
+        }
 
         // ─── Sprint S: LSP + VS Code compatibility ────────────────────────────
-        "lsp.start"       => crate::lsp::handlers::lsp_start(params, ctx).await,
-        "lsp.stop"        => crate::lsp::handlers::lsp_stop(params, ctx).await,
+        "lsp.start" => crate::lsp::handlers::lsp_start(params, ctx).await,
+        "lsp.stop" => crate::lsp::handlers::lsp_stop(params, ctx).await,
         "lsp.diagnostics" => crate::lsp::handlers::lsp_diagnostics(params, ctx).await,
         "lsp.completions" => crate::lsp::handlers::lsp_completions(params, ctx).await,
-        "lsp.list"        => crate::lsp::handlers::lsp_list_servers(params, ctx).await,
+        "lsp.list" => crate::lsp::handlers::lsp_list_servers(params, ctx).await,
 
         // ─── Sprint L: Browser Tool (Visual & Multimodal) ────────────────────
         "browser.screenshot" => crate::browser_tool::handlers::screenshot(params, ctx).await,
 
         // ─── Sprint V: Prompt Intelligence ───────────────────────────────────
-        "prompt.suggest"     => crate::prompt_intelligence::handlers::prompt_suggest(params, ctx).await,
-        "prompt.recordUsed"  => crate::prompt_intelligence::handlers::prompt_record_used(params, ctx).await,
+        "prompt.suggest" => crate::prompt_intelligence::handlers::prompt_suggest(params, ctx).await,
+        "prompt.recordUsed" => {
+            crate::prompt_intelligence::handlers::prompt_record_used(params, ctx).await
+        }
 
         // ─── Sprint Z: IDE Extension Host ─────────────────────────────────────
         "ide.extensionConnected" => crate::ide::handlers::extension_connected(params, ctx).await,
-        "ide.editorContext"      => crate::ide::handlers::editor_context(params, ctx).await,
-        "ide.syncSettings"       => crate::ide::handlers::sync_settings(params, ctx).await,
-        "ide.listConnections"    => crate::ide::handlers::list_connections(params, ctx).await,
-        "ide.latestContext"      => crate::ide::handlers::latest_context(params, ctx).await,
+        "ide.editorContext" => crate::ide::handlers::editor_context(params, ctx).await,
+        "ide.syncSettings" => crate::ide::handlers::sync_settings(params, ctx).await,
+        "ide.listConnections" => crate::ide::handlers::list_connections(params, ctx).await,
+        "ide.latestContext" => crate::ide::handlers::latest_context(params, ctx).await,
 
         _ => Err(anyhow::anyhow!("METHOD_NOT_FOUND:{}", method)),
     }
@@ -893,8 +941,14 @@ fn classify_error(e: &anyhow::Error, _method: &str) -> (i32, String) {
         );
     }
     // Tool call blocked by security policy (DC.T40): allowlist, denylist, or denied path.
-    if msg.contains("TOOL_DENIED:") || msg.contains("TOOL_NOT_ALLOWED:") || msg.contains("TOOL_PATH_DENIED:") {
-        return (TOOL_SECURITY_CODE, "Tool call blocked by security policy".to_string());
+    if msg.contains("TOOL_DENIED:")
+        || msg.contains("TOOL_NOT_ALLOWED:")
+        || msg.contains("TOOL_PATH_DENIED:")
+    {
+        return (
+            TOOL_SECURITY_CODE,
+            "Tool call blocked by security policy".to_string(),
+        );
     }
 
     if msg.contains("MODE_VIOLATION") {

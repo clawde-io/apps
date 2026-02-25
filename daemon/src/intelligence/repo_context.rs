@@ -27,9 +27,8 @@ const MAX_ROOT_ENTRIES: usize = 50;
 ///
 /// Matches paths such as `src/main.rs`, `./lib/util.py`, `packages/ui/index.ts`.
 /// Must contain at least one `/` and end with a recognised file extension.
-static FILE_PATH_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"\b(?:\.{0,2}/)?(?:[\w.\-]+/)+[\w.\-]+\.[\w]{1,10}\b").unwrap()
-});
+static FILE_PATH_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"\b(?:\.{0,2}/)?(?:[\w.\-]+/)+[\w.\-]+\.[\w]{1,10}\b").unwrap());
 
 /// Returns `true` if `name` matches a sensitive file pattern that should never
 /// be included in AI context (e.g. credentials, private keys).
@@ -83,10 +82,7 @@ fn is_sensitive(name: &str) -> bool {
 /// ```
 ///
 /// Total length is guaranteed ≤ 8,000 characters.
-pub fn build_repo_context(
-    repo_path: &Path,
-    recent_messages: &[ContextMessage],
-) -> Result<String> {
+pub fn build_repo_context(repo_path: &Path, recent_messages: &[ContextMessage]) -> Result<String> {
     let structure = build_structure_section(repo_path);
     let modified = build_modified_section(repo_path);
     let session = build_session_section(repo_path, recent_messages);
@@ -176,12 +172,10 @@ fn build_structure_section(repo_path: &Path) -> String {
 /// non-sensitive files were changed.
 fn build_modified_section(repo_path: &Path) -> String {
     let result: anyhow::Result<Vec<String>> = (|| {
-        let repo = git2::Repository::open(repo_path)
-            .map_err(|e| anyhow::anyhow!("open repo: {}", e))?;
+        let repo =
+            git2::Repository::open(repo_path).map_err(|e| anyhow::anyhow!("open repo: {}", e))?;
 
-        let head = repo
-            .head()
-            .map_err(|e| anyhow::anyhow!("no HEAD: {}", e))?;
+        let head = repo.head().map_err(|e| anyhow::anyhow!("no HEAD: {}", e))?;
         let head_commit = head
             .peel_to_commit()
             .map_err(|e| anyhow::anyhow!("HEAD not a commit: {}", e))?;
@@ -338,10 +332,7 @@ mod tests {
             "should have truncation note — got:\n{result}"
         );
         // Exactly 50 entries + truncation line
-        let file_lines: Vec<&str> = result
-            .lines()
-            .filter(|l| l.starts_with("file"))
-            .collect();
+        let file_lines: Vec<&str> = result.lines().filter(|l| l.starts_with("file")).collect();
         assert_eq!(file_lines.len(), 50, "exactly 50 file entries expected");
     }
 
@@ -412,7 +403,10 @@ mod tests {
         let dir = make_dir();
         let messages = vec![msg("look at ../../etc/passwd for details")];
         let result = build_session_section(dir.path(), &messages);
-        assert!(!result.contains("etc/passwd"), "traversal path must be rejected");
+        assert!(
+            !result.contains("etc/passwd"),
+            "traversal path must be rejected"
+        );
     }
 
     #[test]
@@ -424,7 +418,10 @@ mod tests {
         let messages = vec![msg("I edited config/.env and keys/server.key today")];
         let result = build_session_section(dir.path(), &messages);
         assert!(!result.contains(".env"), ".env refs must be excluded");
-        assert!(!result.contains("server.key"), "*.key refs must be excluded");
+        assert!(
+            !result.contains("server.key"),
+            "*.key refs must be excluded"
+        );
     }
 
     #[test]
@@ -436,12 +433,12 @@ mod tests {
         // 6 messages — only last 5 should be scanned.
         // src/old.rs only in message #1 (index 0), src/new.rs in message #6 (index 5).
         let messages = vec![
-            msg("see src/old.rs"),     // index 0 — NOT in last 5
+            msg("see src/old.rs"), // index 0 — NOT in last 5
             msg("nothing here"),
             msg("nothing here"),
             msg("nothing here"),
             msg("nothing here"),
-            msg("check src/new.rs"),  // index 5 — in last 5
+            msg("check src/new.rs"), // index 5 — in last 5
         ];
 
         let result = build_session_section(dir.path(), &messages);
@@ -481,7 +478,10 @@ mod tests {
         create_file(&dir, "lib.rs");
 
         let output = build_repo_context(dir.path(), &[]).unwrap();
-        assert!(output.contains("## Project Structure"), "missing structure section");
+        assert!(
+            output.contains("## Project Structure"),
+            "missing structure section"
+        );
     }
 
     #[test]
@@ -491,7 +491,10 @@ mod tests {
         let messages = vec![msg("working on src/auth.rs today")];
 
         let output = build_repo_context(dir.path(), &messages).unwrap();
-        assert!(output.contains("## Session Context"), "missing session section");
+        assert!(
+            output.contains("## Session Context"),
+            "missing session section"
+        );
         assert!(output.contains("src/auth.rs"));
     }
 
@@ -519,7 +522,13 @@ mod tests {
         create_file(&dir, "main.rs");
 
         let result = build_structure_section(dir.path());
-        assert!(result.contains("src/"), "directories should have trailing /");
-        assert!(result.contains("main.rs"), "files should not have trailing /");
+        assert!(
+            result.contains("src/"),
+            "directories should have trailing /"
+        );
+        assert!(
+            result.contains("main.rs"),
+            "files should not have trailing /"
+        );
     }
 }

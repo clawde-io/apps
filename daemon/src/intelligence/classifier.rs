@@ -10,7 +10,6 @@
 ///   Score 10+  → DeepReasoning
 ///
 /// `prior_failure = true` always overrides to DeepReasoning regardless of score.
-
 use serde::Serialize;
 use std::sync::OnceLock;
 
@@ -67,8 +66,10 @@ fn re_deep_kw() -> &'static regex::Regex {
 
 fn re_file_ref() -> &'static regex::Regex {
     RE_FILE_REF.get_or_init(|| {
-        regex::Regex::new(r"\b\w+\.(rs|dart|ts|tsx|js|jsx|py|go|swift|kt|java|cpp|c|h|md)\b|(?:\w+/)+\w+")
-            .expect("file ref regex")
+        regex::Regex::new(
+            r"\b\w+\.(rs|dart|ts|tsx|js|jsx|py|go|swift|kt|java|cpp|c|h|md)\b|(?:\w+/)+\w+",
+        )
+        .expect("file ref regex")
     })
 }
 
@@ -372,7 +373,10 @@ mod tests {
 
     #[test]
     fn what_is_question_is_simple_or_moderate() {
-        let r = classify_task("what is the difference between Vec and slice in Rust?", &ctx(0, false));
+        let r = classify_task(
+            "what is the difference between Vec and slice in Rust?",
+            &ctx(0, false),
+        );
         assert!(matches!(
             r.complexity,
             TaskComplexity::Simple | TaskComplexity::Moderate
@@ -403,7 +407,10 @@ mod tests {
             TaskComplexity::Complex => 2,
             TaskComplexity::DeepReasoning => 3,
         };
-        assert!(level >= 1, "refactor should be at least Moderate, got {level}");
+        assert!(
+            level >= 1,
+            "refactor should be at least Moderate, got {level}"
+        );
     }
 
     #[test]

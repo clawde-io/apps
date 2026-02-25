@@ -10,9 +10,7 @@ use clawd::{
     license::LicenseInfo,
     repo::RepoRegistry,
     scheduler::{
-        accounts::AccountPool,
-        fallback::FallbackEngine,
-        queue::SchedulerQueue,
+        accounts::AccountPool, fallback::FallbackEngine, queue::SchedulerQueue,
         rate_limits::RateLimitTracker,
     },
     session::SessionManager,
@@ -91,6 +89,7 @@ async fn make_test_ctx(dir: &TempDir, port: u16) -> Arc<AppContext> {
         version_watcher: Arc::new(clawd::doctor::version_watcher::VersionWatcher::new(
             Arc::new(clawd::ipc::event::EventBroadcaster::new()),
         )),
+        ide_bridge: clawd::ide::new_shared_bridge(),
     })
 }
 
@@ -110,7 +109,9 @@ async fn test_health_endpoint_response_fields() {
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
     // Send HTTP GET /health request
-    let mut stream = TcpStream::connect(format!("127.0.0.1:{port}")).await.unwrap();
+    let mut stream = TcpStream::connect(format!("127.0.0.1:{port}"))
+        .await
+        .unwrap();
     let request = "GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
     stream.write_all(request.as_bytes()).await.unwrap();
 
@@ -128,14 +129,16 @@ async fn test_health_endpoint_response_fields() {
     let body = &response[body_start..];
 
     // Parse as JSON
-    let json: serde_json::Value =
-        serde_json::from_str(body).expect("body is not valid JSON");
+    let json: serde_json::Value = serde_json::from_str(body).expect("body is not valid JSON");
 
     // Assert all required fields
     assert_eq!(json["status"], "ok", "status should be 'ok'");
     assert!(json["version"].is_string(), "version should be a string");
     assert!(json["uptime"].is_number(), "uptime should be a number");
-    assert!(json["activeSessions"].is_number(), "activeSessions should be a number");
+    assert!(
+        json["activeSessions"].is_number(),
+        "activeSessions should be a number"
+    );
     assert!(json["port"].is_number(), "port should be a number");
 
     // Assert version matches CARGO_PKG_VERSION
@@ -153,8 +156,14 @@ async fn test_health_endpoint_response_fields() {
     );
 
     // Assert no sensitive fields
-    assert!(json.get("auth_token").is_none(), "response must not expose auth_token");
-    assert!(json.get("data_dir").is_none(), "response must not expose data_dir");
+    assert!(
+        json.get("auth_token").is_none(),
+        "response must not expose auth_token"
+    );
+    assert!(
+        json.get("data_dir").is_none(),
+        "response must not expose data_dir"
+    );
 }
 
 #[tokio::test]
@@ -170,7 +179,9 @@ async fn test_health_endpoint_returns_200() {
 
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
-    let mut stream = TcpStream::connect(format!("127.0.0.1:{port}")).await.unwrap();
+    let mut stream = TcpStream::connect(format!("127.0.0.1:{port}"))
+        .await
+        .unwrap();
     stream
         .write_all(b"GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
         .await

@@ -102,11 +102,10 @@ pub async fn list_items(
 
 /// Count unresolved drift items for a project.
 pub async fn count_unresolved(pool: &SqlitePool, project_path: &str) -> Result<i64> {
-    let row: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM drift_items WHERE project_path = ? AND resolved = 0",
-    )
-    .bind(project_path)
-    .fetch_one(pool)
-    .await?;
+    let row: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM drift_items WHERE project_path = ? AND resolved = 0")
+            .bind(project_path)
+            .fetch_one(pool)
+            .await?;
     Ok(row.0)
 }

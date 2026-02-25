@@ -121,10 +121,7 @@ pub async fn add_api_key(params: Value, ctx: &AppContext) -> Result<Value> {
 
     // Count existing accounts for this provider to set priority.
     let existing = ctx.storage.list_accounts().await?;
-    let next_priority = existing
-        .iter()
-        .filter(|a| a.provider == provider)
-        .count() as i64;
+    let next_priority = existing.iter().filter(|a| a.provider == provider).count() as i64;
 
     // Register the account row in the DB.
     let account = ctx
@@ -160,7 +157,10 @@ async fn validate_api_key(provider: &str, api_key: &str) -> Result<()> {
         "codex" | "openai" => ("https://api.openai.com/v1/models", "Authorization"),
         "claude" | "anthropic" => ("https://api.anthropic.com/v1/models", "x-api-key"),
         other => {
-            warn!(provider = other, "unknown provider — skipping API key validation");
+            warn!(
+                provider = other,
+                "unknown provider — skipping API key validation"
+            );
             return Ok(());
         }
     };
@@ -215,11 +215,7 @@ pub async fn account_capabilities(params: Value, ctx: &AppContext) -> Result<Val
 
     let filtered: Vec<_> = accounts
         .into_iter()
-        .filter(|a| {
-            requested_id
-                .as_deref()
-                .map_or(true, |id| a.id == id)
-        })
+        .filter(|a| requested_id.as_deref().is_none_or(|id| a.id == id))
         .collect();
 
     let capabilities: Vec<Value> = filtered

@@ -35,10 +35,8 @@ pub async fn project_create(params: Value, ctx: &AppContext) -> Result<Value> {
         })
         .await?;
 
-    ctx.broadcaster.broadcast(
-        "project.created",
-        json!({ "project": project }),
-    );
+    ctx.broadcaster
+        .broadcast("project.created", json!({ "project": project }));
 
     Ok(serde_json::to_value(&project)?)
 }
@@ -66,13 +64,18 @@ pub async fn project_update(params: Value, ctx: &AppContext) -> Result<Value> {
     let org_slug = params["orgSlug"].as_str().map(str::to_string);
 
     let project = proj_storage(ctx)
-        .update(&id, UpdateProjectParams { name, description, org_slug })
+        .update(
+            &id,
+            UpdateProjectParams {
+                name,
+                description,
+                org_slug,
+            },
+        )
         .await?;
 
-    ctx.broadcaster.broadcast(
-        "project.updated",
-        json!({ "project": project }),
-    );
+    ctx.broadcaster
+        .broadcast("project.updated", json!({ "project": project }));
 
     Ok(serde_json::to_value(&project)?)
 }
@@ -85,10 +88,8 @@ pub async fn project_delete(params: Value, ctx: &AppContext) -> Result<Value> {
         anyhow::bail!("PROJECT_NOT_FOUND: {}", id);
     }
 
-    ctx.broadcaster.broadcast(
-        "project.deleted",
-        json!({ "id": id }),
-    );
+    ctx.broadcaster
+        .broadcast("project.deleted", json!({ "id": id }));
 
     Ok(json!({ "deleted": true, "id": id }))
 }
@@ -115,7 +116,9 @@ pub async fn project_remove_repo(params: Value, ctx: &AppContext) -> Result<Valu
     let project_id = params["projectId"].as_str().unwrap_or("").to_string();
     let repo_path = params["repoPath"].as_str().unwrap_or("").to_string();
 
-    let removed = proj_storage(ctx).remove_repo(&project_id, &repo_path).await?;
+    let removed = proj_storage(ctx)
+        .remove_repo(&project_id, &repo_path)
+        .await?;
     if !removed {
         anyhow::bail!("REPO_NOT_IN_PROJECT: {}", repo_path);
     }

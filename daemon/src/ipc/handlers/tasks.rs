@@ -218,8 +218,7 @@ pub async fn update_status(params: Value, ctx: &AppContext) -> Result<Value> {
             if !modified_files.is_empty() {
                 let project_root = infer_project_root(&modified_files)
                     .unwrap_or_else(|| std::path::PathBuf::from("."));
-                let config =
-                    crate::tasks::stub_gate::CompletionChecksConfig::load(&project_root);
+                let config = crate::tasks::stub_gate::CompletionChecksConfig::load(&project_root);
                 let matches =
                     crate::tasks::stub_gate::check(&modified_files, &project_root, &config);
                 if !matches.is_empty() {

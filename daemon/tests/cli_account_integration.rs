@@ -104,6 +104,7 @@ async fn start_test_daemon(dir: &TempDir) -> (u16, Arc<AppContext>) {
         version_watcher: Arc::new(clawd::doctor::version_watcher::VersionWatcher::new(
             broadcaster.clone(),
         )),
+        ide_bridge: clawd::ide::new_shared_bridge(),
     });
 
     let ctx_clone = ctx.clone();
@@ -214,15 +215,12 @@ async fn test_cli_account_add_and_list() {
     );
 
     // Verify via RPC that the account appears in account.list
-    let resp = ws_rpc_authed(
-        port,
-        "test-token-12345",
-        "account.list",
-        json!({}),
-    )
-    .await;
+    let resp = ws_rpc_authed(port, "test-token-12345", "account.list", json!({})).await;
     let accounts = resp["result"].as_array().expect("expected array");
-    assert!(!accounts.is_empty(), "account list should not be empty after add");
+    assert!(
+        !accounts.is_empty(),
+        "account list should not be empty after add"
+    );
 
     let added = accounts
         .iter()
@@ -308,13 +306,7 @@ async fn test_cli_account_remove_with_yes_flag() {
     );
 
     // Get account ID from RPC
-    let list_resp = ws_rpc_authed(
-        port,
-        "test-token-12345",
-        "account.list",
-        json!({}),
-    )
-    .await;
+    let list_resp = ws_rpc_authed(port, "test-token-12345", "account.list", json!({})).await;
     let accounts = list_resp["result"].as_array().expect("expected array");
     assert!(!accounts.is_empty(), "expected at least one account");
     let account_id = accounts[0]["id"].as_str().expect("expected id");
@@ -341,16 +333,12 @@ async fn test_cli_account_remove_with_yes_flag() {
     );
 
     // Verify account is gone via RPC
-    let final_list = ws_rpc_authed(
-        port,
-        "test-token-12345",
-        "account.list",
-        json!({}),
-    )
-    .await;
+    let final_list = ws_rpc_authed(port, "test-token-12345", "account.list", json!({})).await;
     let remaining = final_list["result"].as_array().expect("expected array");
     assert!(
-        remaining.iter().all(|a| a["id"].as_str() != Some(account_id)),
+        remaining
+            .iter()
+            .all(|a| a["id"].as_str() != Some(account_id)),
         "account should be removed"
     );
 }

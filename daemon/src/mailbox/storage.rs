@@ -12,28 +12,28 @@ use super::model::MailboxMessage;
 
 #[derive(sqlx::FromRow)]
 struct MessageRow {
-    id:         String,
-    from_repo:  String,
-    to_repo:    String,
-    subject:    String,
-    body:       String,
-    reply_to:   Option<String>,
+    id: String,
+    from_repo: String,
+    to_repo: String,
+    subject: String,
+    body: String,
+    reply_to: Option<String>,
     expires_at: Option<String>,
-    archived:   i64,
+    archived: i64,
     created_at: String,
 }
 
 impl From<MessageRow> for MailboxMessage {
     fn from(r: MessageRow) -> MailboxMessage {
         MailboxMessage {
-            id:         r.id,
-            from_repo:  r.from_repo,
-            to_repo:    r.to_repo,
-            subject:    r.subject,
-            body:       r.body,
-            reply_to:   r.reply_to,
+            id: r.id,
+            from_repo: r.from_repo,
+            to_repo: r.to_repo,
+            subject: r.subject,
+            body: r.body,
+            reply_to: r.reply_to,
             expires_at: r.expires_at,
-            archived:   r.archived != 0,
+            archived: r.archived != 0,
             created_at: r.created_at,
         }
     }
@@ -58,14 +58,14 @@ impl MailboxStorage {
     /// dropped (idempotent — safe to call if the watcher fires twice).
     pub async fn send_message(
         &self,
-        from_repo:  &str,
-        to_repo:    &str,
-        subject:    &str,
-        body:       &str,
-        reply_to:   Option<&str>,
+        from_repo: &str,
+        to_repo: &str,
+        subject: &str,
+        body: &str,
+        reply_to: Option<&str>,
         expires_at: Option<&str>,
     ) -> Result<MailboxMessage> {
-        let id  = Uuid::new_v4().to_string();
+        let id = Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
 
         sqlx::query(
@@ -84,11 +84,10 @@ impl MailboxStorage {
         .execute(&self.pool)
         .await?;
 
-        let row: MessageRow =
-            sqlx::query_as("SELECT * FROM mailbox_messages WHERE id = ?")
-                .bind(&id)
-                .fetch_one(&self.pool)
-                .await?;
+        let row: MessageRow = sqlx::query_as("SELECT * FROM mailbox_messages WHERE id = ?")
+            .bind(&id)
+            .fetch_one(&self.pool)
+            .await?;
 
         Ok(row.into())
     }
@@ -193,12 +192,12 @@ impl MailboxStorage {
 /// Move `{to_repo}/.claude/inbox/{id}.md` to
 /// `{to_repo}/.claude/archive/inbox/{id}.md` (best-effort).
 fn move_to_dead_letter(to_repo: &str, id: &str) {
-    let inbox   = std::path::Path::new(to_repo).join(".claude/inbox").join(format!("{id}.md"));
+    let inbox = std::path::Path::new(to_repo)
+        .join(".claude/inbox")
+        .join(format!("{id}.md"));
     let archive = std::path::Path::new(to_repo).join(".claude/archive/inbox");
-    if inbox.is_file() {
-        if std::fs::create_dir_all(&archive).is_ok() {
-            let dest = archive.join(format!("{id}.md"));
-            let _ = std::fs::rename(&inbox, &dest);
-        }
+    if inbox.is_file() && std::fs::create_dir_all(&archive).is_ok() {
+        let dest = archive.join(format!("{id}.md"));
+        let _ = std::fs::rename(&inbox, &dest);
     }
 }

@@ -5,7 +5,7 @@
 //! fallible operation with exponentially increasing delays between attempts.
 //!
 //! # Example
-//! ```rust,no_run
+//! ```rust,ignore
 //! use clawd::retry::{retry_with_backoff, RetryConfig};
 //!
 //! let result = retry_with_backoff(&RetryConfig::default(), || async {

@@ -90,9 +90,7 @@ pub async fn device_pair(params: Value, ctx: &AppContext) -> Result<Value> {
     }
 
     // Issue a new device token and persist the device record.
-    let device = storage
-        .issue_device_token(&req.name, &req.platform)
-        .await?;
+    let device = storage.issue_device_token(&req.name, &req.platform).await?;
 
     // Broadcast `device.paired` to all connected clients (desktop UI refresh).
     // The event does NOT include the device token — only public metadata.
@@ -138,10 +136,8 @@ pub async fn device_revoke(params: Value, ctx: &AppContext) -> Result<Value> {
     }
 
     // Notify connected clients (desktop list refresh).
-    ctx.broadcaster.broadcast(
-        "device.revoked",
-        json!({ "device_id": id }),
-    );
+    ctx.broadcaster
+        .broadcast("device.revoked", json!({ "device_id": id }));
 
     Ok(json!({ "revoked": true }))
 }

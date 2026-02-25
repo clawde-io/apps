@@ -66,10 +66,6 @@ pub async fn learn(params: Value, _ctx: &AppContext) -> Result<Value> {
         .and_then(|v| v.as_bool())
         .unwrap_or(true);
 
-    tracing::info!(
-        "review.learn: review_id={} useful={}",
-        review_id,
-        useful
-    );
+    tracing::info!("review.learn: review_id={} useful={}", review_id, useful);
     Ok(json!({ "status": "ok" }))
 }

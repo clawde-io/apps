@@ -130,20 +130,20 @@ pub async fn read_file(params: Value, _ctx: &AppContext) -> Result<Value> {
     let joined = repo_root.join(&p.path);
 
     // Canonicalize to catch symlink-based traversal.
-    let canonical = tokio::fs::canonicalize(&joined).await.map_err(|e| {
-        anyhow::anyhow!("cannot resolve path '{}': {}", p.path, e)
-    })?;
-    let canonical_root = tokio::fs::canonicalize(&repo_root).await.map_err(|e| {
-        anyhow::anyhow!("cannot resolve repo root '{}': {}", p.repo_path, e)
-    })?;
+    let canonical = tokio::fs::canonicalize(&joined)
+        .await
+        .map_err(|e| anyhow::anyhow!("cannot resolve path '{}': {}", p.path, e))?;
+    let canonical_root = tokio::fs::canonicalize(&repo_root)
+        .await
+        .map_err(|e| anyhow::anyhow!("cannot resolve repo root '{}': {}", p.repo_path, e))?;
     if !canonical.starts_with(&canonical_root) {
         bail!("path escapes repository root");
     }
 
     // Guard file size before reading.
-    let meta = tokio::fs::metadata(&canonical).await.map_err(|e| {
-        anyhow::anyhow!("cannot stat '{}': {}", p.path, e)
-    })?;
+    let meta = tokio::fs::metadata(&canonical)
+        .await
+        .map_err(|e| anyhow::anyhow!("cannot stat '{}': {}", p.path, e))?;
     if meta.len() > MAX_READ_FILE_BYTES {
         bail!(
             "file too large: {} bytes (max {} bytes)",
@@ -152,9 +152,9 @@ pub async fn read_file(params: Value, _ctx: &AppContext) -> Result<Value> {
         );
     }
 
-    let content = tokio::fs::read_to_string(&canonical).await.map_err(|e| {
-        anyhow::anyhow!("cannot read '{}': {}", p.path, e)
-    })?;
+    let content = tokio::fs::read_to_string(&canonical)
+        .await
+        .map_err(|e| anyhow::anyhow!("cannot read '{}': {}", p.path, e))?;
 
     Ok(json!({
         "repoPath": p.repo_path,

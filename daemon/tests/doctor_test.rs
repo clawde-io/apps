@@ -21,21 +21,45 @@ fn scaffold_healthy(root: &std::path::Path) {
     }
 
     // Required files per afs_checks T04
-    fs::write(root.join(".claude/docs/VISION.md"), "# Vision
-").unwrap();
-    fs::write(root.join(".claude/docs/FEATURES.md"), "# Features
-").unwrap();
-    fs::write(root.join(".claude/tasks/active.md"), "# Active
-").unwrap();
-    fs::write(root.join(".claude/qa/pre-commit.md"), "# Pre-commit
-").unwrap();
-    fs::write(root.join(".claude/qa/pre-pr.md"), "# Pre-PR
-").unwrap();
+    fs::write(
+        root.join(".claude/docs/VISION.md"),
+        "# Vision
+",
+    )
+    .unwrap();
+    fs::write(
+        root.join(".claude/docs/FEATURES.md"),
+        "# Features
+",
+    )
+    .unwrap();
+    fs::write(
+        root.join(".claude/tasks/active.md"),
+        "# Active
+",
+    )
+    .unwrap();
+    fs::write(
+        root.join(".claude/qa/pre-commit.md"),
+        "# Pre-commit
+",
+    )
+    .unwrap();
+    fs::write(
+        root.join(".claude/qa/pre-pr.md"),
+        "# Pre-PR
+",
+    )
+    .unwrap();
 
     // .gitignore with .claude/ entry (afs_checks T05)
-    fs::write(root.join(".gitignore"), ".claude/
+    fs::write(
+        root.join(".gitignore"),
+        ".claude/
 .DS_Store
-").unwrap();
+",
+    )
+    .unwrap();
 }
 
 /// D64.T26 — healthy project scores >= 90 with no Critical or High findings.
@@ -58,9 +82,7 @@ fn test_doctor_scan_healthy() {
     let critical_or_high: Vec<_> = result
         .findings
         .iter()
-        .filter(|f| {
-            f.severity == DoctorSeverity::Critical || f.severity == DoctorSeverity::High
-        })
+        .filter(|f| f.severity == DoctorSeverity::Critical || f.severity == DoctorSeverity::High)
         .collect();
 
     assert!(
@@ -84,23 +106,43 @@ fn test_doctor_scan_unhealthy() {
     fs::create_dir_all(root.join(".claude/ideas")).unwrap();
 
     // Present: FEATURES.md, pre-commit.md, pre-pr.md -- but NOT VISION.md or active.md
-    fs::write(root.join(".claude/docs/FEATURES.md"), "# Features
-").unwrap();
-    fs::write(root.join(".claude/qa/pre-commit.md"), "# Pre-commit
-").unwrap();
-    fs::write(root.join(".claude/qa/pre-pr.md"), "# Pre-PR
-").unwrap();
+    fs::write(
+        root.join(".claude/docs/FEATURES.md"),
+        "# Features
+",
+    )
+    .unwrap();
+    fs::write(
+        root.join(".claude/qa/pre-commit.md"),
+        "# Pre-commit
+",
+    )
+    .unwrap();
+    fs::write(
+        root.join(".claude/qa/pre-pr.md"),
+        "# Pre-PR
+",
+    )
+    .unwrap();
     // Deliberately missing: .claude/docs/VISION.md  (afs.missing_vision -- High)
     // Deliberately missing: .claude/tasks/active.md (afs.missing_active_md -- Critical)
 
     // Mutual exclusivity violation: both .docs/ and .wiki/ present
     // (docs.both_docs_and_wiki -- High)
     fs::create_dir_all(root.join(".docs")).unwrap();
-    fs::write(root.join(".docs/README.md"), "# Docs
-").unwrap();
+    fs::write(
+        root.join(".docs/README.md"),
+        "# Docs
+",
+    )
+    .unwrap();
     fs::create_dir_all(root.join(".wiki")).unwrap();
-    fs::write(root.join(".wiki/Home.md"), "# Wiki
-").unwrap();
+    fs::write(
+        root.join(".wiki/Home.md"),
+        "# Wiki
+",
+    )
+    .unwrap();
 
     let result = scan(root, ScanScope::All);
 
@@ -115,9 +157,10 @@ fn test_doctor_scan_unhealthy() {
         "unhealthy project should have at least one finding"
     );
 
-    let has_critical_or_high = result.findings.iter().any(|f| {
-        f.severity == DoctorSeverity::Critical || f.severity == DoctorSeverity::High
-    });
+    let has_critical_or_high = result
+        .findings
+        .iter()
+        .any(|f| f.severity == DoctorSeverity::Critical || f.severity == DoctorSeverity::High);
 
     assert!(
         has_critical_or_high,

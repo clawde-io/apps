@@ -113,9 +113,8 @@ impl SessionHealthState {
     /// individual counters were updated externally.
     pub fn recompute_score(&self) -> i64 {
         let base: i64 = 100;
-        let deductions = self.short_response_count * 8
-            + self.tool_error_count * 5
-            + self.truncation_count * 15;
+        let deductions =
+            self.short_response_count * 8 + self.tool_error_count * 5 + self.truncation_count * 15;
 
         let mut score = (base - deductions).clamp(0, 100);
 

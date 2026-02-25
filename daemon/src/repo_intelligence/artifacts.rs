@@ -20,10 +20,7 @@ pub struct ArtifactResult {
 // ─── Per-artifact generators ─────────────────────────────────────────────────
 
 /// Generate `.claude/CLAUDE.md` from a repo profile (RI.T09).
-pub async fn generate_claude(
-    profile: &RepoProfile,
-    overwrite: bool,
-) -> Result<ArtifactResult> {
+pub async fn generate_claude(profile: &RepoProfile, overwrite: bool) -> Result<ArtifactResult> {
     let repo = Path::new(&profile.repo_path);
     let claude_dir = repo.join(".claude");
     let target = claude_dir.join("CLAUDE.md");
@@ -32,10 +29,7 @@ pub async fn generate_claude(
 }
 
 /// Generate `.codex/AGENTS.md` from a repo profile (RI.T10).
-pub async fn generate_codex(
-    profile: &RepoProfile,
-    overwrite: bool,
-) -> Result<ArtifactResult> {
+pub async fn generate_codex(profile: &RepoProfile, overwrite: bool) -> Result<ArtifactResult> {
     let repo = Path::new(&profile.repo_path);
     let codex_dir = repo.join(".codex");
     let target = codex_dir.join("AGENTS.md");
@@ -44,10 +38,7 @@ pub async fn generate_codex(
 }
 
 /// Generate `.cursor/rules` from a repo profile (RI.T11).
-pub async fn generate_cursor(
-    profile: &RepoProfile,
-    overwrite: bool,
-) -> Result<ArtifactResult> {
+pub async fn generate_cursor(profile: &RepoProfile, overwrite: bool) -> Result<ArtifactResult> {
     let repo = Path::new(&profile.repo_path);
     let cursor_dir = repo.join(".cursor");
     let target = cursor_dir.join("rules");
@@ -58,10 +49,7 @@ pub async fn generate_cursor(
 /// Generate all three artifacts (RI.T12).
 ///
 /// Returns one `ArtifactResult` per artifact (claude, codex, cursor).
-pub async fn generate_all(
-    profile: &RepoProfile,
-    overwrite: bool,
-) -> Result<Vec<ArtifactResult>> {
+pub async fn generate_all(profile: &RepoProfile, overwrite: bool) -> Result<Vec<ArtifactResult>> {
     let claude = generate_claude(profile, overwrite).await?;
     let codex = generate_codex(profile, overwrite).await?;
     let cursor = generate_cursor(profile, overwrite).await?;
@@ -157,7 +145,10 @@ fn render_claude_md(profile: &RepoProfile) -> String {
 
     if profile.monorepo {
         lines.push("\n## Monorepo notes\n".to_string());
-        lines.push("- This is a monorepo. Prefer making changes in the affected sub-package only.\n".to_string());
+        lines.push(
+            "- This is a monorepo. Prefer making changes in the affected sub-package only.\n"
+                .to_string(),
+        );
         lines.push("- Run tests for the affected package, not the whole repo.\n".to_string());
     }
 
@@ -195,44 +186,53 @@ fn language_rules(lang: &PrimaryLanguage) -> String {
             "- Run `cargo clippy --all-targets --all-features`. Zero warnings allowed.\n",
             "- Use `thiserror` for library errors, `anyhow` for application errors.\n",
             "- Async: tokio runtime. Avoid blocking the thread pool.\n",
-        ).to_string(),
+        )
+        .to_string(),
         PrimaryLanguage::TypeScript => concat!(
             "- Strict mode (`\"strict\": true` in tsconfig). No `any`.\n",
             "- Prefer `type` over `interface` for unions and mapped types.\n",
             "- No `console.log` in production — use a logger.\n",
-        ).to_string(),
+        )
+        .to_string(),
         PrimaryLanguage::JavaScript => concat!(
             "- Prefer `const` and `let` over `var`.\n",
             "- Use ESM imports (`import`/`export`), not `require()`.\n",
             "- No `console.log` in production.\n",
-        ).to_string(),
+        )
+        .to_string(),
         PrimaryLanguage::Dart => concat!(
             "- Run `flutter analyze`. Zero warnings allowed.\n",
             "- Prefer `const` constructors where possible.\n",
             "- Use `riverpod` for state management if the project already uses it.\n",
-        ).to_string(),
+        )
+        .to_string(),
         PrimaryLanguage::Python => concat!(
             "- Use type hints on all public functions.\n",
             "- Use `ruff` for linting and `black` for formatting.\n",
             "- Prefer dataclasses or Pydantic models over plain dicts.\n",
-        ).to_string(),
+        )
+        .to_string(),
         PrimaryLanguage::Go => concat!(
             "- Return `error` as the last value. Never panic in library code.\n",
             "- Run `go vet` and `staticcheck` before committing.\n",
             "- Use the standard library where possible.\n",
-        ).to_string(),
+        )
+        .to_string(),
         PrimaryLanguage::Ruby => concat!(
             "- Follow the Ruby Style Guide (indentation: 2 spaces).\n",
             "- Use RuboCop for linting.\n",
-        ).to_string(),
+        )
+        .to_string(),
         PrimaryLanguage::Swift => concat!(
             "- Use Swift concurrency (`async`/`await`) over callbacks.\n",
             "- Prefer `struct` over `class` where semantics allow.\n",
-        ).to_string(),
+        )
+        .to_string(),
         PrimaryLanguage::Kotlin | PrimaryLanguage::Java => concat!(
             "- Prefer Kotlin idioms (data classes, extension functions, null safety).\n",
             "- Run `./gradlew lint`.\n",
-        ).to_string(),
+        )
+        .to_string(),
         _ => String::new(),
     }
 }
@@ -358,7 +358,8 @@ mod tests {
         let profile = test_profile(&tmp, PrimaryLanguage::Rust);
         let result = generate_claude(&profile, true).await.unwrap();
         assert_eq!(result.action, "created");
-        let content = std::fs::read_to_string(tmp.path().join(".claude").join("CLAUDE.md")).unwrap();
+        let content =
+            std::fs::read_to_string(tmp.path().join(".claude").join("CLAUDE.md")).unwrap();
         assert!(content.contains("rust"));
         assert!(content.contains("snake_case"));
     }

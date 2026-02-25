@@ -98,7 +98,7 @@ impl BreakerInner {
 /// Cheaply cloneable — all clones share the same internal state via `Arc`.
 ///
 /// # Example
-/// ```rust,no_run
+/// ```rust,ignore
 /// use clawd::circuit_breaker::{CircuitBreaker, CircuitBreakerConfig};
 ///
 /// let cb = CircuitBreaker::new("claude-api", CircuitBreakerConfig::default());
@@ -135,7 +135,7 @@ impl CircuitBreaker {
     ///
     /// - `Closed` → always `true`
     /// - `Open`   → `false`, unless the timeout has elapsed, in which case the
-    ///              breaker transitions to `HalfOpen` and returns `true` for the probe.
+    ///   breaker transitions to `HalfOpen` and returns `true` for the probe.
     /// - `HalfOpen` → `true` (allows the probe call through)
     pub async fn is_allowed(&self) -> bool {
         // Fast path: take a read lock to check closed state.

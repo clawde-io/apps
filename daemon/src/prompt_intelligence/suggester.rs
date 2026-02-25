@@ -140,7 +140,11 @@ impl PromptSuggester {
         }
 
         // Sort by score descending, then deduplicate by text, then truncate.
-        suggestions.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        suggestions.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         let mut seen = std::collections::HashSet::new();
         suggestions.retain(|s| seen.insert(s.text.clone()));

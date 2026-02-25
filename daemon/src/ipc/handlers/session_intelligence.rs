@@ -10,8 +10,7 @@
 //!   context.bridge        — build bridge context for a new session (SI.T08)
 
 use crate::session_intelligence::{
-    bridge,
-    complexity,
+    bridge, complexity,
     context_guard::{check_context_health, ModelLimit},
     health,
 };
@@ -79,7 +78,9 @@ pub async fn context_status(params: Value, ctx: &AppContext) -> Result<Value> {
 
     // Sum token counts stored in the messages table.
     #[derive(FromRow)]
-    struct TokenSumRow { total: i64 }
+    struct TokenSumRow {
+        total: i64,
+    }
     let row: TokenSumRow = sqlx::query_as(
         "SELECT COALESCE(SUM(token_count), 0) AS total FROM messages WHERE session_id = ?",
     )

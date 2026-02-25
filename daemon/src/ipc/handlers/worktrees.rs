@@ -36,7 +36,10 @@ pub async fn create(params: Value, ctx: &AppContext) -> Result<Value> {
     // Validate repo path exists.
     let repo_path = std::path::Path::new(repo_path_str);
     if !repo_path.exists() {
-        anyhow::bail!("REPO_NOT_FOUND: repo_path does not exist: {}", repo_path_str);
+        anyhow::bail!(
+            "REPO_NOT_FOUND: repo_path does not exist: {}",
+            repo_path_str
+        );
     }
 
     // Reject if worktree already exists for this task.
@@ -187,9 +190,7 @@ pub async fn diff(params: Value, ctx: &AppContext) -> Result<Value> {
 pub async fn commit(params: Value, ctx: &AppContext) -> Result<Value> {
     let task_id =
         sv(&params, "task_id").ok_or_else(|| anyhow::anyhow!("missing field: task_id"))?;
-    let message = sv(&params, "message")
-        .unwrap_or("task commit")
-        .to_string();
+    let message = sv(&params, "message").unwrap_or("task commit").to_string();
 
     let info = ctx
         .worktree_manager
@@ -276,8 +277,7 @@ pub async fn accept(params: Value, ctx: &AppContext) -> Result<Value> {
     let branch = info.branch.clone();
 
     // Perform the merge.
-    let merge_result =
-        crate::worktree::merge::merge_to_main(&ctx.worktree_manager, task_id).await;
+    let merge_result = crate::worktree::merge::merge_to_main(&ctx.worktree_manager, task_id).await;
 
     match merge_result {
         Ok(()) => {

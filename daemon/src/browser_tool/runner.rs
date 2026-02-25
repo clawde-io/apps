@@ -26,8 +26,7 @@ use tracing::{debug, warn};
 const MAX_IMAGE_BYTES: usize = 10 * 1024 * 1024;
 
 /// Browser binaries to probe, in preference order.
-const CANDIDATE_BROWSERS: &[&str] =
-    &["chromium", "chrome", "google-chrome", "chromium-browser"];
+const CANDIDATE_BROWSERS: &[&str] = &["chromium", "chrome", "google-chrome", "chromium-browser"];
 
 /// The daemon-side runner for headless browser screenshots.
 pub struct BrowserToolRunner;
@@ -90,13 +89,11 @@ impl BrowserToolRunner {
         debug!(browser = %browser, url = %url, "spawning headless browser");
 
         // 4. Spawn and wait with a timeout.
-        let mut child = cmd.spawn().map_err(|e| BrowserError::spawn_failed(&e.to_string()))?;
+        let mut child = cmd
+            .spawn()
+            .map_err(|e| BrowserError::spawn_failed(&e.to_string()))?;
 
-        let wait_result = timeout(
-            Duration::from_secs(config.timeout_secs),
-            child.wait(),
-        )
-        .await;
+        let wait_result = timeout(Duration::from_secs(config.timeout_secs), child.wait()).await;
 
         match wait_result {
             Err(_elapsed) => {

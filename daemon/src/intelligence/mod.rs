@@ -6,17 +6,16 @@
 /// 3. Evaluates response quality and auto-upgrades on failure (post-response hook)
 /// 4. Tracks token spend and enforces budget caps (MI.T05+)
 /// 5. Optimizes context window to minimize cost (MI.T07+)
-
 pub mod classifier;
 pub mod model_router;
 pub mod upgrade;
 
 // Stub modules for future phases (MI.T05-T09)
-pub mod token_tracker;
-pub mod cost;
 pub mod context;
+pub mod cost;
 pub mod file_context;
 pub mod repo_context;
+pub mod token_tracker;
 
 /// Output produced by an AI provider runner.
 ///

@@ -1,41 +1,41 @@
 pub mod account;
 pub mod agents;
-pub mod intelligence;
 pub mod claw_init;
+pub mod cli;
 pub mod config;
+pub mod context_manager;
+pub mod doctor;
+pub mod drift;
 pub mod evals;
 pub mod identity;
+pub mod init_templates;
+pub mod intelligence;
 pub mod ipc;
 pub mod license;
 pub mod mcp;
 pub mod mdns;
+pub mod metrics;
+pub mod observability;
 pub mod policy;
+pub mod process_pool;
+pub mod providers_knowledge;
 pub mod relay;
 pub mod repo;
+pub mod repo_intelligence;
+pub mod resource_governor;
 pub mod scheduler;
+pub mod security;
 pub mod service;
 pub mod session;
+pub mod session_intelligence;
+pub mod standards;
 pub mod storage;
+pub mod task_engine;
 pub mod tasks;
 pub mod telemetry;
 pub mod threads;
 pub mod update;
-pub mod context_manager;
-pub mod process_pool;
-pub mod resource_governor;
 pub mod worktree;
-pub mod security;
-pub mod observability;
-pub mod doctor;
-pub mod drift;
-pub mod init_templates;
-pub mod metrics;
-pub mod providers_knowledge;
-pub mod standards;
-pub mod task_engine;
-pub mod cli;
-pub mod repo_intelligence;
-pub mod session_intelligence;
 
 // Re-export auth so main.rs can use clawd::auth directly.
 pub use ipc::auth;
@@ -45,9 +45,11 @@ use std::sync::Arc;
 use account::AccountRegistry;
 use agents::orchestrator::{Orchestrator, SharedOrchestrator};
 use config::DaemonConfig;
+use doctor::version_watcher::VersionWatcher;
 use intelligence::token_tracker::TokenTracker;
 use ipc::event::EventBroadcaster;
 use license::LicenseInfo;
+use metrics::SharedMetrics;
 use repo::RepoRegistry;
 use scheduler::accounts::{AccountPool, SharedAccountPool};
 use scheduler::fallback::{FallbackEngine, SharedFallbackEngine};
@@ -57,8 +59,6 @@ use session::SessionManager;
 use storage::Storage;
 use tasks::TaskStorage;
 use telemetry::TelemetrySender;
-use doctor::version_watcher::VersionWatcher;
-use metrics::SharedMetrics;
 use update::Updater;
 use worktree::manager::{SharedWorktreeManager, WorktreeManager};
 
@@ -131,9 +131,9 @@ impl AppContext {
         self
     }
 }
+pub mod packs;
 pub mod pairing;
 pub mod project;
-pub mod packs;
 
 // Sprint I — Provider Onboarding
 pub mod providers_onboarding;
@@ -169,8 +169,8 @@ pub mod vscode;
 pub mod prompt_intelligence;
 
 // Sprint X — Production Reliability utilities
-pub mod health;
 pub mod circuit_breaker;
+pub mod health;
 pub mod retry;
 
 // Sprint Z — IDE Extension Host + Performance

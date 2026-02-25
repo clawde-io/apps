@@ -57,12 +57,10 @@ impl ArenaStorage {
 
     /// Fetch an arena session by ID.
     pub async fn get_session(&self, id: &str) -> Result<Option<ArenaSession>> {
-        Ok(
-            sqlx::query_as("SELECT * FROM arena_sessions WHERE id = ?")
-                .bind(id)
-                .fetch_optional(&self.pool)
-                .await?,
-        )
+        Ok(sqlx::query_as("SELECT * FROM arena_sessions WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?)
     }
 
     // ─── arena_votes ─────────────────────────────────────────────────────────
@@ -78,9 +76,9 @@ impl ArenaStorage {
         task_type: &str,
     ) -> Result<ArenaVote> {
         // Verify the arena session exists before inserting.
-        self.get_session(arena_id)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("ARENA_NOT_FOUND: arena session '{arena_id}' not found"))?;
+        self.get_session(arena_id).await?.ok_or_else(|| {
+            anyhow::anyhow!("ARENA_NOT_FOUND: arena session '{arena_id}' not found")
+        })?;
 
         // Check for duplicate vote.
         let existing: Option<(String,)> =

@@ -7,7 +7,7 @@
 
 use std::path::Path;
 
-use super::model::{Dependency, DepType};
+use super::model::{DepType, Dependency};
 use chrono::Utc;
 use uuid::Uuid;
 
@@ -26,10 +26,7 @@ use uuid::Uuid;
 /// 3. **Import path scan** — all `*.dart`, `*.ts`, `*.rs`, `*.py` files are
 ///    searched for string occurrences of the other repo's name; if found,
 ///    classified as `uses_api` (confidence 0.6).
-pub fn auto_detect_dependencies(
-    repo_path: &Path,
-    all_repos: &[String],
-) -> Vec<Dependency> {
+pub fn auto_detect_dependencies(repo_path: &Path, all_repos: &[String]) -> Vec<Dependency> {
     let mut deps: Vec<Dependency> = Vec::new();
     let from = repo_path.to_string_lossy().to_string();
 
@@ -49,7 +46,9 @@ pub fn auto_detect_dependencies(
         let cargo_path = repo_path.join("Cargo.toml");
         if cargo_path.is_file() {
             if let Ok(content) = std::fs::read_to_string(&cargo_path) {
-                if cargo_members_reference(&content, &other_name) || content.contains(other.as_str()) {
+                if cargo_members_reference(&content, &other_name)
+                    || content.contains(other.as_str())
+                {
                     deps.push(make_dep(&from, other, DepType::BuildsOn, 0.9, true));
                     continue;
                 }
@@ -79,20 +78,20 @@ pub fn auto_detect_dependencies(
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 fn make_dep(
-    from:          &str,
-    to:            &str,
-    dep_type:      DepType,
-    confidence:    f64,
+    from: &str,
+    to: &str,
+    dep_type: DepType,
+    confidence: f64,
     auto_detected: bool,
 ) -> Dependency {
     Dependency {
-        id:            Uuid::new_v4().to_string(),
-        from_repo:     from.to_string(),
-        to_repo:       to.to_string(),
+        id: Uuid::new_v4().to_string(),
+        from_repo: from.to_string(),
+        to_repo: to.to_string(),
         dep_type,
         confidence,
         auto_detected,
-        created_at:    Utc::now().to_rfc3339(),
+        created_at: Utc::now().to_rfc3339(),
     }
 }
 
@@ -130,7 +129,9 @@ fn scan_dir(dir: &Path, exts: &[&str], needle: &str, depth: u32) -> bool {
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or_default();
-        if name.starts_with('.') || matches!(name, "node_modules" | "target" | "build" | ".dart_tool") {
+        if name.starts_with('.')
+            || matches!(name, "node_modules" | "target" | "build" | ".dart_tool")
+        {
             continue;
         }
 

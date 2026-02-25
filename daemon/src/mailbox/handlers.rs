@@ -19,11 +19,11 @@ use std::path::Path;
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SendParams {
-    from_repo:  String,
-    to_repo:    String,
-    subject:    String,
-    body:       String,
-    reply_to:   Option<String>,
+    from_repo: String,
+    to_repo: String,
+    subject: String,
+    body: String,
+    reply_to: Option<String>,
     expires_at: Option<String>,
 }
 
@@ -51,16 +51,24 @@ struct ArchiveParams {
 pub async fn mailbox_send(params: Value, ctx: &AppContext) -> Result<Value> {
     let p: SendParams = serde_json::from_value(params)?;
 
-    if p.from_repo.is_empty() { bail!("fromRepo is required"); }
-    if p.to_repo.is_empty()   { bail!("toRepo is required"); }
-    if p.subject.is_empty()   { bail!("subject is required"); }
-    if p.body.is_empty()      { bail!("body is required"); }
+    if p.from_repo.is_empty() {
+        bail!("fromRepo is required");
+    }
+    if p.to_repo.is_empty() {
+        bail!("toRepo is required");
+    }
+    if p.subject.is_empty() {
+        bail!("subject is required");
+    }
+    if p.body.is_empty() {
+        bail!("body is required");
+    }
     validate_path("fromRepo", &p.from_repo)?;
-    validate_path("toRepo",   &p.to_repo)?;
+    validate_path("toRepo", &p.to_repo)?;
 
     // ── Policy gate (MR.T10) ─────────────────────────────────────────────────
     // Check whether the action mentioned in the subject requires approval.
-    let policy  = MailboxPolicy::default();
+    let policy = MailboxPolicy::default();
     let subject_lc = p.subject.to_lowercase();
     let requires_approval = policy
         .require_approval
@@ -109,7 +117,7 @@ pub async fn mailbox_list(params: Value, ctx: &AppContext) -> Result<Value> {
     let p: RepoPathParams = serde_json::from_value(params)?;
     validate_path("repoPath", &p.repo_path)?;
 
-    let storage  = MailboxStorage::new(ctx.storage.pool());
+    let storage = MailboxStorage::new(ctx.storage.pool());
     let messages = storage.list_messages(&p.repo_path).await?;
 
     Ok(json!({
@@ -145,7 +153,7 @@ fn write_inbox_file(msg: &crate::mailbox::model::MailboxMessage) -> Result<()> {
     let inbox_dir = Path::new(&msg.to_repo).join(".claude/inbox");
     std::fs::create_dir_all(&inbox_dir)?;
 
-    let tmp_path  = inbox_dir.join(format!("{}.tmp", msg.id));
+    let tmp_path = inbox_dir.join(format!("{}.tmp", msg.id));
     let final_path = inbox_dir.join(format!("{}.md", msg.id));
 
     std::fs::write(&tmp_path, msg.to_markdown())?;

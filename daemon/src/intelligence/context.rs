@@ -50,7 +50,7 @@ impl Default for ContextConfig {
 /// budget.
 #[inline]
 pub fn estimate_tokens(text: &str) -> usize {
-    (text.len() + 3) / 4
+    text.len().div_ceil(4)
 }
 
 /// Trim `text` so that its estimated token count does not exceed `max_tokens`.
@@ -85,7 +85,10 @@ pub fn truncate_to_tokens(text: &str, max_tokens: usize) -> String {
 ///
 /// * `messages` — Full ordered list, oldest first.
 /// * `config` — Token budget and reserve settings.
-pub fn optimize_context(messages: &[ContextMessage], config: &ContextConfig) -> Vec<ContextMessage> {
+pub fn optimize_context(
+    messages: &[ContextMessage],
+    config: &ContextConfig,
+) -> Vec<ContextMessage> {
     let budget = config
         .max_tokens
         .saturating_sub(config.response_reserve_tokens);
@@ -128,17 +131,17 @@ pub fn optimize_context(messages: &[ContextMessage], config: &ContextConfig) -> 
     selected.reverse();
 
     // Merge pinned + selected, preserving original order.
-    let selected_ptrs: std::collections::HashSet<*const ContextMessage> =
-        selected.iter().map(|m| *m as *const ContextMessage).collect();
+    let selected_ptrs: std::collections::HashSet<*const ContextMessage> = selected
+        .iter()
+        .map(|m| *m as *const ContextMessage)
+        .collect();
 
     let mut result: Vec<ContextMessage> = messages
         .iter()
         .filter(|m| {
-            m.pinned
-                || m.role == "system"
-                || selected_ptrs.contains(&(*m as *const ContextMessage))
+            m.pinned || m.role == "system" || selected_ptrs.contains(&(*m as *const ContextMessage))
         })
-        .map(|m| m.clone())
+        .cloned()
         .collect();
 
     // If the most recent assistant/user message alone exceeds what's left,

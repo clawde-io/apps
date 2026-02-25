@@ -38,19 +38,28 @@ impl Provider {
 ///
 /// The routing decision is **logged at `debug` level only** to avoid
 /// leaking user message content into info-level logs.
-pub fn classify_intent(
-    initial_message: Option<&str>,
-    _repo_languages: &[String],
-) -> Provider {
+pub fn classify_intent(initial_message: Option<&str>, _repo_languages: &[String]) -> Provider {
     let msg = initial_message.unwrap_or("").to_lowercase();
 
     let codex_signals: &[&str] = &[
-        "debug", "explain", "review", "why", "error", "bug",
-        "what does", "what is",
+        "debug",
+        "explain",
+        "review",
+        "why",
+        "error",
+        "bug",
+        "what does",
+        "what is",
     ];
     let claude_signals: &[&str] = &[
-        "generate", "refactor", "implement", "build", "create",
-        "write", "add", "fix",
+        "generate",
+        "refactor",
+        "implement",
+        "build",
+        "create",
+        "write",
+        "add",
+        "fix",
     ];
 
     let codex_score: usize = codex_signals.iter().filter(|&&s| msg.contains(s)).count();

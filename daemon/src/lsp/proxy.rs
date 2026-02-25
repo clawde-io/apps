@@ -18,7 +18,9 @@
 /// - Requests are serialized with a monotonically increasing id so that
 ///   responses can be matched even when the server sends notifications
 ///   interleaved with responses.
-use crate::lsp::model::{CompletionItem, DiagnosticItem, DiagSeverity, LspConfig, LspMessage, LspProcess};
+use crate::lsp::model::{
+    CompletionItem, DiagSeverity, DiagnosticItem, LspConfig, LspMessage, LspProcess,
+};
 use anyhow::{bail, Context, Result};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
@@ -43,7 +45,7 @@ impl ServerState {
     /// Send a JSON-RPC message via LSP stdio transport.
     ///
     /// The LSP stdio transport framing is:
-    /// ```
+    /// ```text
     /// Content-Length: <n>\r\n
     /// \r\n
     /// <n bytes of JSON>
@@ -67,7 +69,7 @@ impl ServerState {
         loop {
             let mut line = String::new();
             self.stdout.read_line(&mut line)?;
-            let line = line.trim_end_matches(|c| c == '\r' || c == '\n');
+            let line = line.trim_end_matches(['\r', '\n']);
             if line.is_empty() {
                 break;
             }
@@ -82,8 +84,8 @@ impl ServerState {
         use std::io::Read;
         self.stdout.read_exact(&mut body)?;
 
-        let msg: LspMessage = serde_json::from_slice(&body)
-            .context("failed to parse LSP JSON body")?;
+        let msg: LspMessage =
+            serde_json::from_slice(&body).context("failed to parse LSP JSON body")?;
         Ok(msg)
     }
 
@@ -115,6 +117,7 @@ impl ServerState {
     }
 
     /// Allocate the next request id.
+    #[allow(dead_code)]
     fn alloc_id(&self) -> u64 {
         self.next_id.fetch_add(1, Ordering::SeqCst)
     }
@@ -137,6 +140,12 @@ pub struct LspProxy {
     servers: Arc<Mutex<HashMap<String, ServerState>>>,
     /// Available LSP configs (built-ins + user overrides).
     configs: Vec<LspConfig>,
+}
+
+impl Default for LspProxy {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl LspProxy {
@@ -173,7 +182,10 @@ impl LspProxy {
     pub fn start_server(&self, language: &str, workspace_root: &Path) -> Result<LspProcess> {
         let key = Self::server_key(language, workspace_root);
 
-        let mut servers = self.servers.lock().map_err(|_| anyhow::anyhow!("LSP proxy mutex poisoned"))?;
+        let mut servers = self
+            .servers
+            .lock()
+            .map_err(|_| anyhow::anyhow!("LSP proxy mutex poisoned"))?;
 
         // Return existing healthy server
         if let Some(existing) = servers.get_mut(&key) {
@@ -193,10 +205,9 @@ impl LspProxy {
             .find_config(language)
             .ok_or_else(|| anyhow::anyhow!("no LSP config for language: {language}"))?;
 
-        let executable = config
-            .server_command
-            .first()
-            .ok_or_else(|| anyhow::anyhow!("LSP server_command is empty for language: {language}"))?;
+        let executable = config.server_command.first().ok_or_else(|| {
+            anyhow::anyhow!("LSP server_command is empty for language: {language}")
+        })?;
 
         info!(language, cmd = executable, "launching LSP server");
 
@@ -209,9 +220,9 @@ impl LspProxy {
             .stderr(Stdio::null())
             .current_dir(workspace_root);
 
-        let mut child = cmd.spawn().with_context(|| {
-            format!("failed to spawn LSP server for {language}: {executable}")
-        })?;
+        let mut child = cmd
+            .spawn()
+            .with_context(|| format!("failed to spawn LSP server for {language}: {executable}"))?;
 
         let stdin = child.stdin.take().context("child stdin not available")?;
         let stdout = child.stdout.take().context("child stdout not available")?;
@@ -279,7 +290,10 @@ impl LspProxy {
     /// then removes the process from the pool.
     pub fn stop_server(&self, language: &str, workspace_root: &Path) -> Result<()> {
         let key = Self::server_key(language, workspace_root);
-        let mut servers = self.servers.lock().map_err(|_| anyhow::anyhow!("LSP proxy mutex poisoned"))?;
+        let mut servers = self
+            .servers
+            .lock()
+            .map_err(|_| anyhow::anyhow!("LSP proxy mutex poisoned"))?;
 
         if let Some(mut state) = servers.remove(&key) {
             // Best-effort shutdown handshake — ignore errors (server may have already exited)
@@ -294,7 +308,10 @@ impl LspProxy {
 
     /// List all currently running LSP server processes.
     pub fn list_servers(&self) -> Result<Vec<LspProcess>> {
-        let mut servers = self.servers.lock().map_err(|_| anyhow::anyhow!("LSP proxy mutex poisoned"))?;
+        let mut servers = self
+            .servers
+            .lock()
+            .map_err(|_| anyhow::anyhow!("LSP proxy mutex poisoned"))?;
         let procs = servers
             .values_mut()
             .filter_map(|s| {
@@ -322,12 +339,24 @@ impl LspProxy {
     ///
     /// Returns an empty list if no diagnostics are published within the read
     /// window — callers should poll periodically for a complete picture.
-    pub fn get_diagnostics(&self, language: &str, workspace_root: &Path, file: &Path, content: &str) -> Result<Vec<DiagnosticItem>> {
+    pub fn get_diagnostics(
+        &self,
+        language: &str,
+        workspace_root: &Path,
+        file: &Path,
+        content: &str,
+    ) -> Result<Vec<DiagnosticItem>> {
         let key = Self::server_key(language, workspace_root);
-        let mut servers = self.servers.lock().map_err(|_| anyhow::anyhow!("LSP proxy mutex poisoned"))?;
-        let state = servers
-            .get_mut(&key)
-            .ok_or_else(|| anyhow::anyhow!("LSP server not running for {language} at {}", workspace_root.display()))?;
+        let mut servers = self
+            .servers
+            .lock()
+            .map_err(|_| anyhow::anyhow!("LSP proxy mutex poisoned"))?;
+        let state = servers.get_mut(&key).ok_or_else(|| {
+            anyhow::anyhow!(
+                "LSP server not running for {language} at {}",
+                workspace_root.display()
+            )
+        })?;
 
         let file_uri = format!("file://{}", file.display());
 
@@ -356,7 +385,11 @@ impl LspProxy {
         for _ in 0..20 {
             // Check if there's data available without blocking
             // Using fill_buf to see if anything is buffered
-            let has_data = state.stdout.fill_buf().map(|b| !b.is_empty()).unwrap_or(false);
+            let has_data = state
+                .stdout
+                .fill_buf()
+                .map(|b| !b.is_empty())
+                .unwrap_or(false);
             if !has_data {
                 break;
             }
@@ -390,10 +423,16 @@ impl LspProxy {
         col: u32,
     ) -> Result<Vec<CompletionItem>> {
         let key = Self::server_key(language, workspace_root);
-        let mut servers = self.servers.lock().map_err(|_| anyhow::anyhow!("LSP proxy mutex poisoned"))?;
-        let state = servers
-            .get_mut(&key)
-            .ok_or_else(|| anyhow::anyhow!("LSP server not running for {language} at {}", workspace_root.display()))?;
+        let mut servers = self
+            .servers
+            .lock()
+            .map_err(|_| anyhow::anyhow!("LSP proxy mutex poisoned"))?;
+        let state = servers.get_mut(&key).ok_or_else(|| {
+            anyhow::anyhow!(
+                "LSP server not running for {language} at {}",
+                workspace_root.display()
+            )
+        })?;
 
         let file_uri = format!("file://{}", file.display());
         let result = state.request(

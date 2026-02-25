@@ -23,6 +23,7 @@ pub enum ExtensionType {
 
 impl ExtensionType {
     /// Parse from a raw string such as `"vscode"`.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Self {
         match s {
             "vscode" => Self::Vscode,

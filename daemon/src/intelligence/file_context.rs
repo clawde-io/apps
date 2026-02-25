@@ -135,7 +135,10 @@ mod tests {
         };
         let result = truncate_file_context(&content, None, &config);
         // No truncation header — all 50 lines fit.
-        assert!(!result.contains("[file truncated"), "short file should not show header");
+        assert!(
+            !result.contains("[file truncated"),
+            "short file should not show header"
+        );
         assert_eq!(result.lines().count(), 50);
     }
 
@@ -151,7 +154,10 @@ mod tests {
         // Header line + 100 content lines = 101 lines.
         let line_count = result.lines().count();
         assert!(line_count <= 101, "got {line_count} lines");
-        assert!(result.contains("[file truncated"), "should have truncation header");
+        assert!(
+            result.contains("[file truncated"),
+            "should have truncation header"
+        );
     }
 
     #[test]
@@ -209,7 +215,10 @@ mod tests {
             result.starts_with("// [file truncated"),
             "header should be first line"
         );
-        assert!(result.contains("of 1000"), "header should state total line count");
+        assert!(
+            result.contains("of 1000"),
+            "header should state total line count"
+        );
     }
 
     #[test]

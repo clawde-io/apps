@@ -61,24 +61,20 @@ impl TaskEngineStorage {
         let now = unixepoch();
         match status {
             "active" => {
-                sqlx::query(
-                    "UPDATE te_phases SET status = ?, started_at = ? WHERE id = ?",
-                )
-                .bind(status)
-                .bind(now)
-                .bind(id)
-                .execute(&self.pool)
-                .await?;
+                sqlx::query("UPDATE te_phases SET status = ?, started_at = ? WHERE id = ?")
+                    .bind(status)
+                    .bind(now)
+                    .bind(id)
+                    .execute(&self.pool)
+                    .await?;
             }
             "completed" => {
-                sqlx::query(
-                    "UPDATE te_phases SET status = ?, completed_at = ? WHERE id = ?",
-                )
-                .bind(status)
-                .bind(now)
-                .bind(id)
-                .execute(&self.pool)
-                .await?;
+                sqlx::query("UPDATE te_phases SET status = ?, completed_at = ? WHERE id = ?")
+                    .bind(status)
+                    .bind(now)
+                    .bind(id)
+                    .execute(&self.pool)
+                    .await?;
             }
             _ => {
                 sqlx::query("UPDATE te_phases SET status = ? WHERE id = ?")
@@ -157,11 +153,11 @@ impl TaskEngineStorage {
             .bind(s)
             .fetch_all(&self.pool)
             .await?),
-            (None, None) => Ok(sqlx::query_as(
-                "SELECT * FROM te_tasks ORDER BY created_at ASC",
-            )
-            .fetch_all(&self.pool)
-            .await?),
+            (None, None) => Ok(
+                sqlx::query_as("SELECT * FROM te_tasks ORDER BY created_at ASC")
+                    .fetch_all(&self.pool)
+                    .await?,
+            ),
         }
     }
 
@@ -232,14 +228,14 @@ impl TaskEngineStorage {
         let task = self.get_task(task_id).await?;
 
         if !valid_transition(&task.status, new_status) {
-            anyhow::bail!(
-                "invalid transition: {} -> {}",
-                task.status,
-                new_status
-            );
+            anyhow::bail!("invalid transition: {} -> {}", task.status, new_status);
         }
 
-        let block_r: Option<&str> = if new_status == "blocked" { reason } else { None };
+        let block_r: Option<&str> = if new_status == "blocked" {
+            reason
+        } else {
+            None
+        };
         let pause_r: Option<&str> = if new_status == "paused" { reason } else { None };
         let fail_r: Option<&str> = if new_status == "failed" { reason } else { None };
 
@@ -452,12 +448,11 @@ impl TaskEngineStorage {
         context_summary: Option<&str>,
     ) -> Result<TeCheckpoint> {
         let id = new_id();
-        let (seq,): (i64,) = sqlx::query_as(
-            "SELECT COALESCE(MAX(event_seq), 0) FROM te_events WHERE task_id = ?",
-        )
-        .bind(task_id)
-        .fetch_one(&self.pool)
-        .await?;
+        let (seq,): (i64,) =
+            sqlx::query_as("SELECT COALESCE(MAX(event_seq), 0) FROM te_events WHERE task_id = ?")
+                .bind(task_id)
+                .fetch_one(&self.pool)
+                .await?;
 
         sqlx::query(
             "INSERT INTO te_checkpoints \
@@ -531,12 +526,12 @@ impl TaskEngineStorage {
     }
 
     pub async fn list_notes(&self, task_id: &str) -> Result<Vec<TeNote>> {
-        Ok(sqlx::query_as(
-            "SELECT * FROM te_notes WHERE task_id = ? ORDER BY timestamp ASC",
+        Ok(
+            sqlx::query_as("SELECT * FROM te_notes WHERE task_id = ? ORDER BY timestamp ASC")
+                .bind(task_id)
+                .fetch_all(&self.pool)
+                .await?,
         )
-        .bind(task_id)
-        .fetch_all(&self.pool)
-        .await?)
     }
 }
 
@@ -623,7 +618,15 @@ mod tests {
             .await
             .unwrap();
         let task = s
-            .create_task("P98.T01", &phase.id, None, "Task", "d", "implementation", "high")
+            .create_task(
+                "P98.T01",
+                &phase.id,
+                None,
+                "Task",
+                "d",
+                "implementation",
+                "high",
+            )
             .await
             .unwrap();
         let agent = s
@@ -659,7 +662,15 @@ mod tests {
             .await
             .unwrap();
         let task = s
-            .create_task("P97.T01", &phase.id, None, "Task", "d", "implementation", "medium")
+            .create_task(
+                "P97.T01",
+                &phase.id,
+                None,
+                "Task",
+                "d",
+                "implementation",
+                "medium",
+            )
             .await
             .unwrap();
         let agent = s

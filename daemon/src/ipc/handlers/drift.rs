@@ -81,12 +81,7 @@ pub async fn list(params: Value, ctx: &AppContext) -> Result<Value> {
         .map(|s| s.to_string());
 
     let pool = ctx.storage.pool();
-    let items = storage::list_items(
-        &pool,
-        &project_path,
-        severity_filter.as_deref(),
-    )
-    .await?;
+    let items = storage::list_items(&pool, &project_path, severity_filter.as_deref()).await?;
 
     let count = items.len();
     let items_json: Vec<Value> = items

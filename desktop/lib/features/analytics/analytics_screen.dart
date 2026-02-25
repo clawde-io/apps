@@ -5,7 +5,7 @@ import 'package:clawd_ui/clawd_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'analytics_providers.dart';
+import 'package:clawde/features/analytics/analytics_providers.dart';
 
 // ─── Analytics Screen ─────────────────────────────────────────────────────────
 

@@ -33,7 +33,9 @@ struct AddRepoContextParams {
     priority: i64,
 }
 
-fn default_priority() -> i64 { 5 }
+fn default_priority() -> i64 {
+    5
+}
 
 #[derive(Deserialize)]
 struct SessionIdParams {

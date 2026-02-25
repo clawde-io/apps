@@ -86,6 +86,7 @@ pub enum ScanScope {
 }
 
 impl ScanScope {
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Self {
         match s {
             "afs" => ScanScope::Afs,
@@ -167,10 +168,8 @@ fn apply_fix(project_path: &Path, code: &str) -> bool {
                 for entry in entries.flatten() {
                     if let Ok(meta) = entry.metadata() {
                         if let Ok(modified) = meta.modified() {
-                            if modified < cutoff {
-                                if std::fs::remove_file(entry.path()).is_err() {
-                                    all_ok = false;
-                                }
+                            if modified < cutoff && std::fs::remove_file(entry.path()).is_err() {
+                                all_ok = false;
                             }
                         }
                     }
@@ -183,10 +182,8 @@ fn apply_fix(project_path: &Path, code: &str) -> bool {
         }
         "docs.missing_docs_readme" => {
             let docs = project_path.join(".docs");
-            if !docs.exists() {
-                if std::fs::create_dir_all(&docs).is_err() {
-                    return false;
-                }
+            if !docs.exists() && std::fs::create_dir_all(&docs).is_err() {
+                return false;
             }
             let readme = docs.join("README.md");
             if readme.exists() {
@@ -488,9 +485,7 @@ fn check_relay_reachable() -> CheckResult {
                 Err(e) => CheckResult {
                     name: "Relay reachable",
                     passed: false,
-                    detail: format!(
-                        "cannot reach api.clawde.io (check internet connection): {e}"
-                    ),
+                    detail: format!("cannot reach api.clawde.io (check internet connection): {e}"),
                 },
             }
         }
@@ -523,11 +518,7 @@ fn dirs_data_dir() -> Option<std::path::PathBuf> {
                 .join("Application Support"),
         );
         #[cfg(not(target_os = "macos"))]
-        return Some(
-            std::path::PathBuf::from(home)
-                .join(".local")
-                .join("share"),
-        );
+        return Some(std::path::PathBuf::from(home).join(".local").join("share"));
     }
     None
 }
@@ -543,7 +534,7 @@ fn available_disk_bytes(path: &std::path::Path) -> Option<u64> {
         if ret == 0 {
             // f_bavail = blocks available to unprivileged user
             // f_frsize = fundamental file system block size
-            Some(stat.f_bavail as u64 * stat.f_frsize as u64)
+            Some(stat.f_bavail as u64 * stat.f_frsize)
         } else {
             None
         }
@@ -570,11 +561,12 @@ pub fn print_doctor_results(results: &[CheckResult]) {
     println!("{}", "─".repeat(60));
 
     for r in results {
-        let (symbol, color) = if r.passed { ("✓", GREEN) } else { ("✗", RED) };
-        println!(
-            "  {color}{symbol}{RESET}  {:<30}  {}",
-            r.name, r.detail
-        );
+        let (symbol, color) = if r.passed {
+            ("✓", GREEN)
+        } else {
+            ("✗", RED)
+        };
+        println!("  {color}{symbol}{RESET}  {:<30}  {}", r.name, r.detail);
     }
 
     println!("{}", "─".repeat(60));

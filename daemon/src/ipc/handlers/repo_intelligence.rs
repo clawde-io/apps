@@ -67,10 +67,7 @@ pub async fn scan(params: Value, ctx: &AppContext) -> Result<Value> {
     validate_repo_path(&p.repo_path)?;
 
     let repo_path = p.repo_path.clone();
-    let profile = tokio::task::spawn_blocking(move || {
-        scanner::scan(Path::new(&repo_path))
-    })
-    .await?;
+    let profile = tokio::task::spawn_blocking(move || scanner::scan(Path::new(&repo_path))).await?;
 
     // Persist to DB
     let pool = ctx.storage.pool();
@@ -106,10 +103,8 @@ pub async fn generate_artifacts(params: Value, ctx: &AppContext) -> Result<Value
         Some(existing) => existing,
         None => {
             let repo_path = p.repo_path.clone();
-            let scanned = tokio::task::spawn_blocking(move || {
-                scanner::scan(Path::new(&repo_path))
-            })
-            .await?;
+            let scanned =
+                tokio::task::spawn_blocking(move || scanner::scan(Path::new(&repo_path))).await?;
             storage::upsert(&pool, &scanned).await?;
             scanned
         }
@@ -138,10 +133,8 @@ pub async fn drift_score(params: Value, _ctx: &AppContext) -> Result<Value> {
     let p: RepoPathParams = serde_json::from_value(params)?;
     validate_repo_path(&p.repo_path)?;
     let repo_path = p.repo_path.clone();
-    let score = tokio::task::spawn_blocking(move || {
-        drift::drift_score(Path::new(&repo_path))
-    })
-    .await?;
+    let score =
+        tokio::task::spawn_blocking(move || drift::drift_score(Path::new(&repo_path))).await?;
     Ok(json!({ "repoPath": p.repo_path, "score": score }))
 }
 
@@ -152,10 +145,8 @@ pub async fn drift_report(params: Value, _ctx: &AppContext) -> Result<Value> {
     let p: RepoPathParams = serde_json::from_value(params)?;
     validate_repo_path(&p.repo_path)?;
     let repo_path = p.repo_path.clone();
-    let items = tokio::task::spawn_blocking(move || {
-        drift::drift_report(Path::new(&repo_path))
-    })
-    .await?;
+    let items =
+        tokio::task::spawn_blocking(move || drift::drift_report(Path::new(&repo_path))).await?;
     Ok(json!({ "repoPath": p.repo_path, "items": items }))
 }
 

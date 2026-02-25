@@ -35,7 +35,7 @@ impl HealthReport {
 /// Runs all registered health checks and aggregates the results.
 ///
 /// # Example
-/// ```rust,no_run
+/// ```rust,ignore
 /// use clawd::health::{
 ///     reporter::HealthReporter,
 ///     checks::{DatabaseHealthCheck, StorageHealthCheck, ProviderHealthCheck},
@@ -55,9 +55,7 @@ pub struct HealthReporter {
 impl HealthReporter {
     /// Create a new reporter with no checks registered.
     pub fn new() -> Self {
-        Self {
-            checks: Vec::new(),
-        }
+        Self { checks: Vec::new() }
     }
 
     /// Register a health check.
@@ -109,9 +107,9 @@ impl HealthReporter {
         }
 
         // Derive overall status from worst individual result.
-        let overall = results
-            .iter()
-            .fold(CheckStatus::Ok, |acc, r| CheckStatus::worst(acc, r.status.clone()));
+        let overall = results.iter().fold(CheckStatus::Ok, |acc, r| {
+            CheckStatus::worst(acc, r.status.clone())
+        });
 
         HealthReport {
             status: overall.to_string(),

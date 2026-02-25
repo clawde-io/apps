@@ -128,8 +128,7 @@ pub fn detect_vscode_extensions(workspace: &Path) -> Vec<ExtensionInfo> {
         .into_iter()
         .filter(|id| !unwanted.contains(&id.to_lowercase()))
         .map(|id| {
-            let (name, version, enabled) =
-                probe_installed_extension(&id, ext_dir.as_deref());
+            let (name, version, enabled) = probe_installed_extension(&id, ext_dir.as_deref());
             ExtensionInfo {
                 name: name.unwrap_or_else(|| extension_display_name(&id)),
                 version: version.unwrap_or_default(),
@@ -167,11 +166,7 @@ fn probe_installed_extension(
             let pkg_json = entry.path().join("package.json");
             if let Ok(content) = std::fs::read_to_string(&pkg_json) {
                 if let Ok(pkg) = serde_json::from_str::<ExtensionPackageJson>(&content) {
-                    return (
-                        pkg.display_name.or(pkg.name),
-                        pkg.version,
-                        true,
-                    );
+                    return (pkg.display_name.or(pkg.name), pkg.version, true);
                 }
             }
             return (None, None, true);
@@ -185,7 +180,7 @@ fn probe_installed_extension(
 ///
 /// For example, `"rust-lang.rust-analyzer"` → `"rust-analyzer"`.
 fn extension_display_name(id: &str) -> String {
-    id.splitn(2, '.').nth(1).unwrap_or(id).to_string()
+    id.split_once('.').map(|x| x.1).unwrap_or(id).to_string()
 }
 
 /// Strip `//` single-line comments from JSON text (VS Code JSONC dialect).

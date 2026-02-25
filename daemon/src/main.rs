@@ -671,8 +671,7 @@ async fn main() -> Result<()> {
     // ── Logging setup ────────────────────────────────────────────────────────
     // Init once — must happen before any tracing calls.
     let log_level = args.log.as_deref().unwrap_or("info").to_owned();
-    let log_format = std::env::var("CLAWD_LOG_FORMAT")
-        .unwrap_or_else(|_| "pretty".to_string());
+    let log_format = std::env::var("CLAWD_LOG_FORMAT").unwrap_or_else(|_| "pretty".to_string());
     let _file_guard = setup_logging(&log_level, args.log_file.as_deref(), &log_format);
 
     let quiet = args.quiet;
@@ -712,7 +711,8 @@ async fn main() -> Result<()> {
             println!("(Requires daemon to be running to generate a one-time PIN)");
         }
         Some(Command::Token { cmd }) => {
-            let config = DaemonConfig::new(None, args.data_dir, Some("error".to_string()), None, None);
+            let config =
+                DaemonConfig::new(None, args.data_dir, Some("error".to_string()), None, None);
             match cmd {
                 TokenCmd::Show => run_token_show(&config)?,
                 TokenCmd::Qr { relay } => run_token_qr(&config, relay)?,
@@ -725,20 +725,34 @@ async fn main() -> Result<()> {
             std::process::exit(1);
         }
         Some(Command::Status { json }) => {
-            let config = DaemonConfig::new(None, args.data_dir, Some("error".to_string()), None, None);
+            let config =
+                DaemonConfig::new(None, args.data_dir, Some("error".to_string()), None, None);
             let exit_code = run_status(&config, json).await;
             std::process::exit(exit_code);
         }
-        Some(Command::Logs { follow, lines, filter }) => {
-            let config = DaemonConfig::new(None, args.data_dir, Some("error".to_string()), None, None);
+        Some(Command::Logs {
+            follow,
+            lines,
+            filter,
+        }) => {
+            let config =
+                DaemonConfig::new(None, args.data_dir, Some("error".to_string()), None, None);
             run_logs(&config, follow, lines, filter.as_deref())?;
         }
         Some(Command::Account { cmd }) => {
-            let config = DaemonConfig::new(None, args.data_dir, Some("error".to_string()), None, None);
+            let config =
+                DaemonConfig::new(None, args.data_dir, Some("error".to_string()), None, None);
             run_account(&config, cmd).await?;
         }
         None | Some(Command::Serve) => {
-            run_server(args.port, args.data_dir, args.log, args.max_sessions, args.bind_address).await?;
+            run_server(
+                args.port,
+                args.data_dir,
+                args.log,
+                args.max_sessions,
+                args.bind_address,
+            )
+            .await?;
         }
     }
 
@@ -777,9 +791,15 @@ fn setup_logging(
                 dir.display()
             );
             if use_json {
-                tracing_subscriber::fmt().json().with_env_filter(log_level).init();
+                tracing_subscriber::fmt()
+                    .json()
+                    .with_env_filter(log_level)
+                    .init();
             } else {
-                tracing_subscriber::fmt().with_env_filter(log_level).compact().init();
+                tracing_subscriber::fmt()
+                    .with_env_filter(log_level)
+                    .compact()
+                    .init();
             }
             return None;
         }
@@ -803,10 +823,16 @@ fn setup_logging(
 
         Some(guard)
     } else if use_json {
-        tracing_subscriber::fmt().json().with_env_filter(log_level).init();
+        tracing_subscriber::fmt()
+            .json()
+            .with_env_filter(log_level)
+            .init();
         None
     } else {
-        tracing_subscriber::fmt().with_env_filter(log_level).compact().init();
+        tracing_subscriber::fmt()
+            .with_env_filter(log_level)
+            .compact()
+            .init();
         None
     }
 }
@@ -972,11 +998,7 @@ async fn run_init(path: &std::path::Path, template: Option<&str>, quiet: bool) -
         if created.is_empty() && !gitignore_updated {
             println!("Already initialized: {}", path.display());
         } else {
-            println!(
-                "Initialized AFS at: {} (stack: {})",
-                path.display(),
-                stack
-            );
+            println!("Initialized AFS at: {} (stack: {})", path.display(), stack);
             for item in &created {
                 println!("  created   {item}");
             }
@@ -1130,7 +1152,10 @@ async fn run_status(config: &DaemonConfig, json: bool) -> i32 {
     };
 
     let client = DaemonClient::new(config.port, token);
-    match client.call_once("daemon.status", serde_json::json!({})).await {
+    match client
+        .call_once("daemon.status", serde_json::json!({}))
+        .await
+    {
         Ok(result) => {
             let version = result["version"].as_str().unwrap_or("?");
             let sessions = result["activeSessions"].as_u64().unwrap_or(0);
@@ -1140,7 +1165,9 @@ async fn run_status(config: &DaemonConfig, json: bool) -> i32 {
             if json {
                 println!("{}", serde_json::to_string(&result).unwrap_or_default());
             } else {
-                println!("clawd {version} — Running ({sessions} active sessions, uptime {uptime_str})");
+                println!(
+                    "clawd {version} — Running ({sessions} active sessions, uptime {uptime_str})"
+                );
             }
             0
         }
@@ -1171,12 +1198,7 @@ fn format_uptime(secs: u64) -> String {
 
 // ── clawd logs ────────────────────────────────────────────────────────────────
 
-fn run_logs(
-    config: &DaemonConfig,
-    follow: bool,
-    lines: u64,
-    filter: Option<&str>,
-) -> Result<()> {
+fn run_logs(config: &DaemonConfig, follow: bool, lines: u64, filter: Option<&str>) -> Result<()> {
     use std::fs::File;
     use std::io::{Read, Seek, SeekFrom};
 
@@ -1258,7 +1280,9 @@ fn run_logs(
         if !buf.is_empty() {
             let should_print = if let Some(ref level) = min_level {
                 let levels = log_level_order(level);
-                levels.iter().any(|lvl| buf.to_ascii_lowercase().contains(lvl))
+                levels
+                    .iter()
+                    .any(|lvl| buf.to_ascii_lowercase().contains(lvl))
             } else {
                 true
             };
@@ -1319,7 +1343,9 @@ async fn run_account(config: &DaemonConfig, cmd: AccountCmd) -> Result<()> {
         }
 
         AccountCmd::List { json } => {
-            let result = client.call_once("account.list", serde_json::json!({})).await?;
+            let result = client
+                .call_once("account.list", serde_json::json!({}))
+                .await?;
             let accounts = result.as_array().cloned().unwrap_or_default();
 
             if json {
@@ -1333,7 +1359,10 @@ async fn run_account(config: &DaemonConfig, cmd: AccountCmd) -> Result<()> {
             }
 
             // Plain ASCII table
-            println!("{:<36}  {:<20}  {:<12}  {:<8}  Status", "ID", "Name", "Provider", "Priority");
+            println!(
+                "{:<36}  {:<20}  {:<12}  {:<8}  Status",
+                "ID", "Name", "Provider", "Priority"
+            );
             println!("{}", "-".repeat(90));
             for acc in &accounts {
                 let id = acc["id"].as_str().unwrap_or("-");
@@ -1341,9 +1370,7 @@ async fn run_account(config: &DaemonConfig, cmd: AccountCmd) -> Result<()> {
                 let provider = acc["provider"].as_str().unwrap_or("-");
                 let priority = acc["priority"].as_i64().unwrap_or(0);
                 let status = acc["status"].as_str().unwrap_or("-");
-                println!(
-                    "{id:<36}  {name:<20}  {provider:<12}  {priority:<8}  {status}"
-                );
+                println!("{id:<36}  {name:<20}  {provider:<12}  {priority:<8}  {status}");
             }
         }
 
@@ -1384,7 +1411,11 @@ fn resolve_task_id(id: Option<String>, task: Option<String>) -> Result<String> {
         .ok_or_else(|| anyhow::anyhow!("task ID required (positional or --task)"))
 }
 
-async fn run_tasks(action: TasksAction, data_dir: Option<std::path::PathBuf>, quiet: bool) -> Result<()> {
+async fn run_tasks(
+    action: TasksAction,
+    data_dir: Option<std::path::PathBuf>,
+    quiet: bool,
+) -> Result<()> {
     let ts = open_task_storage(data_dir).await?;
 
     match action {
@@ -1453,7 +1484,9 @@ async fn run_tasks(action: TasksAction, data_dir: Option<std::path::PathBuf>, qu
         TasksAction::Release { id, task, agent } => {
             let task_id = resolve_task_id(id, task)?;
             ts.release_task(&task_id, &agent).await?;
-            if !quiet { println!("Released: {task_id}"); }
+            if !quiet {
+                println!("Released: {task_id}");
+            }
         }
 
         TasksAction::Done {
@@ -1468,7 +1501,9 @@ async fn run_tasks(action: TasksAction, data_dir: Option<std::path::PathBuf>, qu
             let t = ts
                 .update_status(&task_id, "done", Some(&notes_text), None)
                 .await?;
-            if !quiet { println!("Done: {} — {}", t.id, t.title); }
+            if !quiet {
+                println!("Done: {} — {}", t.id, t.title);
+            }
         }
 
         TasksAction::Blocked {
@@ -1478,7 +1513,9 @@ async fn run_tasks(action: TasksAction, data_dir: Option<std::path::PathBuf>, qu
             let t = ts
                 .update_status(&task_id, "blocked", None, notes.as_deref())
                 .await?;
-            if !quiet { println!("Blocked: {} — {}", t.id, t.title); }
+            if !quiet {
+                println!("Blocked: {} — {}", t.id, t.title);
+            }
         }
 
         TasksAction::Heartbeat {
@@ -1515,7 +1552,9 @@ async fn run_tasks(action: TasksAction, data_dir: Option<std::path::PathBuf>, qu
                     repo_path,
                 )
                 .await?;
-            if !quiet { println!("Added: {} — {}", t.id, t.title); }
+            if !quiet {
+                println!("Added: {} — {}", t.id, t.title);
+            }
         }
 
         TasksAction::Log {
@@ -1568,7 +1607,9 @@ async fn run_tasks(action: TasksAction, data_dir: Option<std::path::PathBuf>, qu
                 repo_path,
             )
             .await?;
-            if !quiet { println!("Note posted."); }
+            if !quiet {
+                println!("Note posted.");
+            }
         }
 
         TasksAction::FromPlanning { file, repo } => {
@@ -1578,10 +1619,14 @@ async fn run_tasks(action: TasksAction, data_dir: Option<std::path::PathBuf>, qu
                 .map_err(|e| anyhow::anyhow!("Cannot read file {}: {e}", file.display()))?;
             let parsed = clawd::tasks::markdown_parser::parse_active_md(&content);
             if parsed.is_empty() {
-                if !quiet { println!("No tasks found in {}", file.display()); }
+                if !quiet {
+                    println!("No tasks found in {}", file.display());
+                }
             } else {
                 let count = ts.backfill_from_tasks(parsed, repo_path).await?;
-                if !quiet { println!("Imported {count} new task(s) from {}", file.display()); }
+                if !quiet {
+                    println!("Imported {count} new task(s) from {}", file.display());
+                }
             }
         }
 
@@ -1596,7 +1641,9 @@ async fn run_tasks(action: TasksAction, data_dir: Option<std::path::PathBuf>, qu
             let parsed = clawd::tasks::markdown_parser::parse_active_md(&content);
             let count = ts.backfill_from_tasks(parsed, repo_path).await?;
             clawd::tasks::queue_serializer::flush_queue(&ts, repo_path).await?;
-            if !quiet { println!("Synced: {count} new task(s), queue.json updated."); }
+            if !quiet {
+                println!("Synced: {count} new task(s), queue.json updated.");
+            }
         }
 
         TasksAction::Summary { repo, json } => {
@@ -1765,7 +1812,13 @@ async fn run_server(
     }
     info!(version = env!("CARGO_PKG_VERSION"), "clawd starting");
 
-    let config = Arc::new(DaemonConfig::new(port, data_dir, log, max_sessions, bind_address));
+    let config = Arc::new(DaemonConfig::new(
+        port,
+        data_dir,
+        log,
+        max_sessions,
+        bind_address,
+    ));
     info!(
         data_dir = %config.data_dir.display(),
         port = config.port,
@@ -1942,9 +1995,9 @@ async fn run_server(
     let scheduler_queue = std::sync::Arc::new(clawd::scheduler::queue::SchedulerQueue::new());
 
     // ── Version bump watcher (D64.T16) ───────────────────────────────────────
-    let version_watcher = std::sync::Arc::new(
-        clawd::doctor::version_watcher::VersionWatcher::new(broadcaster.clone()),
-    );
+    let version_watcher = std::sync::Arc::new(clawd::doctor::version_watcher::VersionWatcher::new(
+        broadcaster.clone(),
+    ));
 
     // Retain a handle for post-shutdown WAL checkpoint (Sprint Z).
     let storage_for_shutdown = storage.clone();

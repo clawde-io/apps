@@ -130,7 +130,8 @@ impl ToolRunner {
         let success = output.status.code().map(|c| c <= 1).unwrap_or(false);
 
         if !success {
-            let stderr_preview = String::from_utf8_lossy(&output.stderr[..output.stderr.len().min(512)]);
+            let stderr_preview =
+                String::from_utf8_lossy(&output.stderr[..output.stderr.len().min(512)]);
             warn!(tool = %config.name, code = ?output.status.code(), stderr = %stderr_preview, "tool exited with error");
         }
 
@@ -199,7 +200,11 @@ fn parse_output(tool: &str, format: &str, raw: &str, repo_path: &Path) -> Vec<Re
         "pylint-json" => parse_pylint_json(raw, tool),
         "semgrep-json" => parse_semgrep_json(raw, tool),
         other => {
-            warn!(tool, format = other, "unknown output format — skipping parse");
+            warn!(
+                tool,
+                format = other,
+                "unknown output format — skipping parse"
+            );
             return vec![];
         }
     };
@@ -280,29 +285,27 @@ fn parse_clippy_json(raw: &str, tool: &str) -> Result<Vec<ReviewIssue>> {
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .to_string();
-                let line = span
-                    .get("line_start")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(1) as u32;
+                let line = span.get("line_start").and_then(|v| v.as_u64()).unwrap_or(1) as u32;
                 let col = span
                     .get("column_start")
                     .and_then(|v| v.as_u64())
                     .map(|c| c as u32);
 
                 // Look for a fix suggestion in the span.
-                let fix_suggestion = msg
-                    .get("children")
-                    .and_then(|v| v.as_array())
-                    .and_then(|children| {
-                        children.iter().find_map(|child| {
-                            let child_msg = child.get("message")?.as_str()?;
-                            if child_msg.starts_with("help:") || child_msg.starts_with("note:") {
-                                Some(child_msg.to_string())
-                            } else {
-                                None
-                            }
-                        })
-                    });
+                let fix_suggestion =
+                    msg.get("children")
+                        .and_then(|v| v.as_array())
+                        .and_then(|children| {
+                            children.iter().find_map(|child| {
+                                let child_msg = child.get("message")?.as_str()?;
+                                if child_msg.starts_with("help:") || child_msg.starts_with("note:")
+                                {
+                                    Some(child_msg.to_string())
+                                } else {
+                                    None
+                                }
+                            })
+                        });
 
                 issues.push(ReviewIssue {
                     file,
@@ -339,7 +342,9 @@ fn parse_clippy_json(raw: &str, tool: &str) -> Result<Vec<ReviewIssue>> {
 /// Top-level is a JSON array of file results, each with a `messages` array.
 fn parse_eslint_json(raw: &str, tool: &str) -> Result<Vec<ReviewIssue>> {
     let root: serde_json::Value = serde_json::from_str(raw.trim())?;
-    let files = root.as_array().ok_or_else(|| anyhow::anyhow!("expected array"))?;
+    let files = root
+        .as_array()
+        .ok_or_else(|| anyhow::anyhow!("expected array"))?;
     let mut issues = Vec::new();
 
     for file_obj in files {
@@ -367,10 +372,7 @@ fn parse_eslint_json(raw: &str, tool: &str) -> Result<Vec<ReviewIssue>> {
                 .unwrap_or("unknown")
                 .to_string();
             let line = msg.get("line").and_then(|v| v.as_u64()).unwrap_or(1) as u32;
-            let col = msg
-                .get("column")
-                .and_then(|v| v.as_u64())
-                .map(|c| c as u32);
+            let col = msg.get("column").and_then(|v| v.as_u64()).map(|c| c as u32);
             let code = msg
                 .get("ruleId")
                 .and_then(|v| v.as_str())
@@ -435,7 +437,9 @@ fn parse_flutter_text(raw: &str, tool: &str) -> Result<Vec<ReviewIssue>> {
         let severity = ReviewSeverity::from_str(severity_str);
 
         // Location part: "file_path:line:col"
-        let loc_part = parts[parts.len().saturating_sub(if parts.len() >= 4 { 2 } else { 1 })];
+        let loc_part = parts[parts
+            .len()
+            .saturating_sub(if parts.len() >= 4 { 2 } else { 1 })];
         let (file, line_num, col_num) = parse_file_location(loc_part);
 
         let code = if parts.len() >= 4 {
@@ -516,7 +520,9 @@ fn parse_golangci_json(raw: &str, tool: &str) -> Result<Vec<ReviewIssue>> {
 /// Parse `pylint --output-format=json` output.
 fn parse_pylint_json(raw: &str, tool: &str) -> Result<Vec<ReviewIssue>> {
     let root: serde_json::Value = serde_json::from_str(raw.trim())?;
-    let items = root.as_array().ok_or_else(|| anyhow::anyhow!("expected array"))?;
+    let items = root
+        .as_array()
+        .ok_or_else(|| anyhow::anyhow!("expected array"))?;
     let mut issues = Vec::new();
 
     for item in items {
@@ -641,9 +647,7 @@ pub fn aggregate_results(results: Vec<Vec<ReviewIssue>>) -> Vec<ReviewIssue> {
         let msg_prefix: String = issue.message.chars().take(40).collect();
 
         if let Some(existing) = seen.iter_mut().find(|s| {
-            s.file == issue.file
-                && s.line == issue.line
-                && s.message.starts_with(&msg_prefix)
+            s.file == issue.file && s.line == issue.line && s.message.starts_with(&msg_prefix)
         }) {
             // Merge: keep the higher severity, combine tool names.
             if issue.severity > existing.severity {
@@ -744,7 +748,10 @@ mod tests {
     fn test_parse_eslint_json_malformed_returns_empty() {
         let raw = "this is not json {{{";
         let issues = parse_output("eslint", "eslint-json", raw, Path::new("/project"));
-        assert!(issues.is_empty(), "malformed output should produce no issues");
+        assert!(
+            issues.is_empty(),
+            "malformed output should produce no issues"
+        );
     }
 
     #[test]
@@ -776,9 +783,19 @@ mod tests {
 
         let aggregated = aggregate_results(vec![vec![issue_a], vec![issue_b]]);
         assert_eq!(aggregated.len(), 1, "duplicate finding should be merged");
-        assert_eq!(aggregated[0].severity, ReviewSeverity::Error, "higher severity wins");
-        assert!(aggregated[0].tool.contains("clippy"), "merged tool list should include clippy");
-        assert!(aggregated[0].tool.contains("semgrep"), "merged tool list should include semgrep");
+        assert_eq!(
+            aggregated[0].severity,
+            ReviewSeverity::Error,
+            "higher severity wins"
+        );
+        assert!(
+            aggregated[0].tool.contains("clippy"),
+            "merged tool list should include clippy"
+        );
+        assert!(
+            aggregated[0].tool.contains("semgrep"),
+            "merged tool list should include semgrep"
+        );
     }
 
     #[test]

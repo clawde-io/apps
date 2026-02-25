@@ -12,8 +12,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
-use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use notify::event::CreateKind;
+use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 
@@ -28,9 +28,9 @@ use crate::mailbox::storage::MailboxStorage;
 /// connected clients.
 pub struct MailboxWatcher {
     broadcaster: Arc<EventBroadcaster>,
-    storage:     MailboxStorage,
+    storage: MailboxStorage,
     /// Watched inbox directories.
-    watched:     Vec<PathBuf>,
+    watched: Vec<PathBuf>,
 }
 
 impl MailboxWatcher {
@@ -81,7 +81,7 @@ impl MailboxWatcher {
         }
 
         let broadcaster = Arc::clone(&self.broadcaster);
-        let storage     = self.storage.clone();
+        let storage = self.storage.clone();
 
         tokio::spawn(async move {
             // Keep the watcher alive for the duration of the spawned task.
@@ -112,8 +112,8 @@ impl MailboxWatcher {
 // ─── File ingestion ───────────────────────────────────────────────────────────
 
 async fn handle_new_inbox_file(
-    path:        &Path,
-    storage:     &MailboxStorage,
+    path: &Path,
+    storage: &MailboxStorage,
     broadcaster: &EventBroadcaster,
 ) {
     // Derive the file ID from the filename stem (minus `.md`).
@@ -127,7 +127,7 @@ async fn handle_new_inbox_file(
     // rename from `.tmp` to `.md` completes, but the file might still be
     // flushed by the OS.
     let content = match read_with_retry(path, 3).await {
-        Ok(c)  => c,
+        Ok(c) => c,
         Err(e) => {
             warn!(path = %path.display(), err = %e, "failed to read inbox file");
             return;

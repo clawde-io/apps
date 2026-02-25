@@ -315,7 +315,11 @@ impl CursorRunner {
 
         // Set session status unless cancelled (cancelled sessions are managed by SessionManager).
         if !self.cancelled.load(Ordering::Acquire) {
-            let final_status = if accumulated.is_empty() { "error" } else { "idle" };
+            let final_status = if accumulated.is_empty() {
+                "error"
+            } else {
+                "idle"
+            };
             self.storage
                 .update_session_status(&self.session_id, final_status)
                 .await?;

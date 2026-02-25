@@ -3,7 +3,6 @@
 /// This is Stage 0b in the pre-send pipeline. It runs after the classifier and before
 /// the context optimizer. It never fails — if the preferred model is unavailable, the
 /// fallback chain (opus → sonnet → haiku) guarantees a valid selection.
-
 use super::classifier::TaskComplexity;
 use crate::config::ModelIntelligenceConfig;
 use tracing::info;

@@ -3,9 +3,7 @@
 /// Verifies that `doctor.scan` returns expected findings for:
 ///   - A clean `.claude/` structure (all required files present) → 0 findings
 ///   - A broken structure (missing VISION.md, wrong docs dir) → expected findings
-use clawd::doctor::{
-    scan, DoctorScanResult, DoctorSeverity, ScanScope,
-};
+use clawd::doctor::{scan, DoctorScanResult, DoctorSeverity, ScanScope};
 use std::fs;
 use tempfile::TempDir;
 
@@ -34,9 +32,8 @@ fn make_clean_project() -> TempDir {
 
     // active.md with a fresh session handoff block
     let today = "2099-12-31"; // far future = never stale
-    let active_content = format!(
-        "# Tasks\n\n## Session Handoff ({today})\n\n**Last action:** fresh\n"
-    );
+    let active_content =
+        format!("# Tasks\n\n## Session Handoff ({today})\n\n**Last action:** fresh\n");
     fs::write(claude.join("tasks/active.md"), active_content).unwrap();
 
     // QA checklists
@@ -63,9 +60,7 @@ fn test_clean_project_has_no_critical_findings() {
     let criticals: Vec<_> = result
         .findings
         .iter()
-        .filter(|f| {
-            f.severity == DoctorSeverity::Critical || f.severity == DoctorSeverity::High
-        })
+        .filter(|f| f.severity == DoctorSeverity::Critical || f.severity == DoctorSeverity::High)
         .collect();
 
     assert!(
@@ -90,7 +85,9 @@ fn test_missing_vision_md_is_reported() {
     let result: DoctorScanResult = scan(tmp.path(), ScanScope::Afs);
     let codes: Vec<&str> = result.findings.iter().map(|f| f.code.as_str()).collect();
     assert!(
-        codes.iter().any(|c| c.contains("vision") || c.contains("VISION")),
+        codes
+            .iter()
+            .any(|c| c.contains("vision") || c.contains("VISION")),
         "missing VISION.md not flagged; findings: {:?}",
         result.findings
     );
@@ -173,10 +170,15 @@ fn test_scope_afs_only_returns_afs_findings() {
 
     let result: DoctorScanResult = scan(tmp.path(), ScanScope::Afs);
     // AFS scope should find VISION.md issue
-    let has_afs = result.findings.iter().any(|f| {
-        f.code.contains("afs") || f.code.contains("vision") || f.code.contains("VISION")
-    });
-    assert!(has_afs, "AFS scope should find AFS issues; findings: {:?}", result.findings);
+    let has_afs = result
+        .findings
+        .iter()
+        .any(|f| f.code.contains("afs") || f.code.contains("vision") || f.code.contains("VISION"));
+    assert!(
+        has_afs,
+        "AFS scope should find AFS issues; findings: {:?}",
+        result.findings
+    );
 }
 
 #[test]
@@ -185,10 +187,7 @@ fn test_ideas_dir_missing_is_info_level() {
     fs::remove_dir_all(tmp.path().join(".claude/ideas")).unwrap();
 
     let result: DoctorScanResult = scan(tmp.path(), ScanScope::Afs);
-    let ideas_finding = result
-        .findings
-        .iter()
-        .find(|f| f.code.contains("ideas"));
+    let ideas_finding = result.findings.iter().find(|f| f.code.contains("ideas"));
 
     if let Some(f) = ideas_finding {
         assert_eq!(

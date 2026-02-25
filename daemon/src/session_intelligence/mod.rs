@@ -11,8 +11,8 @@
 
 pub mod bridge;
 pub mod complexity;
-pub mod continuation;
 pub mod context_guard;
+pub mod continuation;
 pub mod health;
 
 pub use complexity::TaskComplexity;

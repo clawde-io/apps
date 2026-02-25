@@ -22,9 +22,9 @@ use std::path::Path;
 #[serde(rename_all = "camelCase")]
 struct AddDependencyParams {
     from_repo: String,
-    to_repo:   String,
+    to_repo: String,
     #[serde(default = "default_dep_type")]
-    dep_type:  String,
+    dep_type: String,
     #[serde(default = "default_confidence")]
     confidence: f64,
 }
@@ -65,8 +65,8 @@ pub async fn topology_get(_params: Value, ctx: &AppContext) -> Result<Value> {
 /// referenced in edges but not registered with the daemon.
 pub async fn topology_validate(_params: Value, ctx: &AppContext) -> Result<Value> {
     let storage = TopologyStorage::new(ctx.storage.pool());
-    let graph   = storage.get_topology().await?;
-    let cycles  = storage.find_cycles().await?;
+    let graph = storage.get_topology().await?;
+    let cycles = storage.find_cycles().await?;
 
     // Collect all repo paths referenced by edges.
     let mut edge_repos: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -98,15 +98,15 @@ pub async fn topology_add_dependency(params: Value, ctx: &AppContext) -> Result<
     let p: AddDependencyParams = serde_json::from_value(params)?;
 
     validate_path("fromRepo", &p.from_repo)?;
-    validate_path("toRepo",   &p.to_repo)?;
+    validate_path("toRepo", &p.to_repo)?;
 
     if p.from_repo == p.to_repo {
         bail!("fromRepo and toRepo must be different");
     }
 
     let dep_type = DepType::from_str(&p.dep_type);
-    let storage  = TopologyStorage::new(ctx.storage.pool());
-    let dep      = storage
+    let storage = TopologyStorage::new(ctx.storage.pool());
+    let dep = storage
         .add_dependency(&p.from_repo, &p.to_repo, &dep_type, p.confidence, false)
         .await?;
 
@@ -135,9 +135,10 @@ pub async fn topology_remove_dependency(params: Value, ctx: &AppContext) -> Resu
 ///
 /// Additional validators can be added here as Sprint N matures.
 pub async fn topology_cross_validate(params: Value, ctx: &AppContext) -> Result<Value> {
-    let p: CrossValidateParams = serde_json::from_value(params).unwrap_or(CrossValidateParams { repo_path: None });
+    let p: CrossValidateParams =
+        serde_json::from_value(params).unwrap_or(CrossValidateParams { repo_path: None });
     let storage = TopologyStorage::new(ctx.storage.pool());
-    let graph   = storage.get_topology().await?;
+    let graph = storage.get_topology().await?;
 
     let edges_to_check: Vec<_> = if let Some(ref rp) = p.repo_path {
         graph.edges.iter().filter(|e| &e.from_repo == rp).collect()
@@ -165,7 +166,7 @@ pub async fn topology_cross_validate(params: Value, ctx: &AppContext) -> Result<
 /// whether those sets overlap (heuristic: count matching identifiers).
 fn validate_shared_types(from_repo: &str, to_repo: &str) -> CrossValidationResult {
     let from_types = collect_exported_type_names(Path::new(from_repo));
-    let to_types   = collect_exported_type_names(Path::new(to_repo));
+    let to_types = collect_exported_type_names(Path::new(to_repo));
 
     let intersection_count = from_types
         .iter()
@@ -186,7 +187,7 @@ fn validate_shared_types(from_repo: &str, to_repo: &str) -> CrossValidationResul
     CrossValidationResult {
         source_repo: from_repo.to_string(),
         target_repo: to_repo.to_string(),
-        check:       "shared_type_names".to_string(),
+        check: "shared_type_names".to_string(),
         passed,
         detail,
     }
@@ -203,7 +204,7 @@ fn collect_exported_type_names(dir: &Path) -> std::collections::HashSet<String> 
 }
 
 fn collect_type_names_recursive(
-    dir:   &Path,
+    dir: &Path,
     names: &mut std::collections::HashSet<String>,
     depth: u32,
 ) {
@@ -216,10 +217,16 @@ fn collect_type_names_recursive(
     };
     for entry in entries.flatten() {
         let path = entry.path();
-        let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+        let file_name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or_default();
 
         if file_name.starts_with('.')
-            || matches!(file_name, "node_modules" | "target" | "build" | ".dart_tool")
+            || matches!(
+                file_name,
+                "node_modules" | "target" | "build" | ".dart_tool"
+            )
         {
             continue;
         }
@@ -266,7 +273,12 @@ fn extract_dart_type_names(content: &str, names: &mut std::collections::HashSet<
 fn extract_ts_type_names(content: &str, names: &mut std::collections::HashSet<String>) {
     for line in content.lines() {
         let line = line.trim();
-        for prefix in &["export interface ", "export type ", "export class ", "export enum "] {
+        for prefix in &[
+            "export interface ",
+            "export type ",
+            "export class ",
+            "export enum ",
+        ] {
             if let Some(rest) = line.strip_prefix(prefix) {
                 let name: String = rest
                     .chars()

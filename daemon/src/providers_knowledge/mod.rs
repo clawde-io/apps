@@ -1,13 +1,13 @@
+pub mod bundles;
 /// Provider knowledge library — V02.T33-T35.
 ///
 /// Detects which cloud providers a project uses by scanning `.env`, config files,
 /// and source code for provider footprints. Returns embedded knowledge bundles
 /// for each detected provider, appended to the system prompt on session.create.
 pub mod detection;
-pub mod bundles;
 
-pub use detection::detect_providers;
 pub use bundles::bundle_for_provider;
+pub use detection::detect_providers;
 
 /// A detected cloud/service provider.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

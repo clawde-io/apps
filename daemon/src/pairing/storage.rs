@@ -105,11 +105,7 @@ impl PairingStorage {
     ///
     /// Returns the full [`PairedDevice`] including the secret token — the
     /// caller is responsible for sending it exactly once to the pairing device.
-    pub async fn issue_device_token(
-        &self,
-        name: &str,
-        platform: &str,
-    ) -> Result<PairedDevice> {
+    pub async fn issue_device_token(&self, name: &str, platform: &str) -> Result<PairedDevice> {
         let id = Ulid::new().to_string();
         let device_token = random_device_token();
         let now = unixepoch();
@@ -159,12 +155,11 @@ impl PairingStorage {
     /// call (i.e. it is re-fetched after the UPDATE so the value is current).
     pub async fn get_by_token(&self, token: &str) -> Result<Option<PairedDevice>> {
         // First check whether the device exists and is not revoked.
-        let exists: Option<(String,)> = sqlx::query_as(
-            "SELECT id FROM paired_devices WHERE device_token = ? AND revoked = 0",
-        )
-        .bind(token)
-        .fetch_optional(&self.pool)
-        .await?;
+        let exists: Option<(String,)> =
+            sqlx::query_as("SELECT id FROM paired_devices WHERE device_token = ? AND revoked = 0")
+                .bind(token)
+                .fetch_optional(&self.pool)
+                .await?;
 
         let Some((id,)) = exists else {
             return Ok(None);
@@ -194,12 +189,11 @@ impl PairingStorage {
     /// Returns `true` if the row was found and updated, `false` if the device
     /// id does not exist or was already revoked.
     pub async fn revoke_device(&self, id: &str) -> Result<bool> {
-        let result = sqlx::query(
-            "UPDATE paired_devices SET revoked = 1 WHERE id = ? AND revoked = 0",
-        )
-        .bind(id)
-        .execute(&self.pool)
-        .await?;
+        let result =
+            sqlx::query("UPDATE paired_devices SET revoked = 1 WHERE id = ? AND revoked = 0")
+                .bind(id)
+                .execute(&self.pool)
+                .await?;
 
         Ok(result.rows_affected() > 0)
     }
@@ -208,13 +202,11 @@ impl PairingStorage {
     ///
     /// Returns `true` if the row was found and the name was updated.
     pub async fn rename_device(&self, id: &str, name: &str) -> Result<bool> {
-        let result = sqlx::query(
-            "UPDATE paired_devices SET name = ? WHERE id = ?",
-        )
-        .bind(name)
-        .bind(id)
-        .execute(&self.pool)
-        .await?;
+        let result = sqlx::query("UPDATE paired_devices SET name = ? WHERE id = ?")
+            .bind(name)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
 
         Ok(result.rows_affected() > 0)
     }
@@ -225,11 +217,10 @@ impl PairingStorage {
     /// "PIN consumed or expired" (→ EXPIRED) after `validate_and_consume_pin`
     /// returns `false`.
     pub async fn pin_row_exists(&self, pin: &str) -> Result<bool> {
-        let row: Option<(String,)> =
-            sqlx::query_as("SELECT pin FROM pair_pins WHERE pin = ?")
-                .bind(pin)
-                .fetch_optional(&self.pool)
-                .await?;
+        let row: Option<(String,)> = sqlx::query_as("SELECT pin FROM pair_pins WHERE pin = ?")
+            .bind(pin)
+            .fetch_optional(&self.pool)
+            .await?;
         Ok(row.is_some())
     }
 
@@ -240,12 +231,10 @@ impl PairingStorage {
     /// Called automatically by [`generate_pin`] before each new insertion.
     pub async fn cleanup_expired_pins(&self) -> Result<u64> {
         let now = unixepoch();
-        let result = sqlx::query(
-            "DELETE FROM pair_pins WHERE used = 1 OR expires_at <= ?",
-        )
-        .bind(now)
-        .execute(&self.pool)
-        .await?;
+        let result = sqlx::query("DELETE FROM pair_pins WHERE used = 1 OR expires_at <= ?")
+            .bind(now)
+            .execute(&self.pool)
+            .await?;
 
         Ok(result.rows_affected())
     }
@@ -309,10 +298,16 @@ mod tests {
 
         // Must be exactly 6 digits.
         assert_eq!(pin.len(), 6, "PIN must be 6 characters");
-        assert!(pin.chars().all(|c| c.is_ascii_digit()), "PIN must be numeric");
+        assert!(
+            pin.chars().all(|c| c.is_ascii_digit()),
+            "PIN must be numeric"
+        );
 
         let n: u32 = pin.parse().unwrap();
-        assert!((100_000..=999_999).contains(&n), "PIN must be in range 100000–999999");
+        assert!(
+            (100_000..=999_999).contains(&n),
+            "PIN must be in range 100000–999999"
+        );
     }
 
     #[tokio::test]
@@ -350,13 +345,13 @@ mod tests {
             "device_token must be 32 hex chars"
         );
         assert!(
-            device
-                .device_token
-                .chars()
-                .all(|c| c.is_ascii_hexdigit()),
+            device.device_token.chars().all(|c| c.is_ascii_hexdigit()),
             "device_token must be lowercase hex"
         );
-        assert!(!device.is_revoked(), "newly issued device must not be revoked");
+        assert!(
+            !device.is_revoked(),
+            "newly issued device must not be revoked"
+        );
     }
 
     #[tokio::test]
@@ -365,7 +360,10 @@ mod tests {
 
         // Issue two devices.
         let d1 = storage.issue_device_token("Phone A", "ios").await.unwrap();
-        let d2 = storage.issue_device_token("Phone B", "android").await.unwrap();
+        let d2 = storage
+            .issue_device_token("Phone B", "android")
+            .await
+            .unwrap();
 
         let list = storage.list_devices().await.unwrap();
         assert_eq!(list.len(), 2);
@@ -380,10 +378,7 @@ mod tests {
     #[tokio::test]
     async fn test_revoke_device() {
         let storage = PairingStorage::new(test_pool().await);
-        let device = storage
-            .issue_device_token("My Mac", "macos")
-            .await
-            .unwrap();
+        let device = storage.issue_device_token("My Mac", "macos").await.unwrap();
 
         // Revoking an active device must return true.
         let revoked = storage.revoke_device(&device.id).await.unwrap();
@@ -391,7 +386,10 @@ mod tests {
 
         // Revoking again must return false (idempotent but no-op).
         let revoked2 = storage.revoke_device(&device.id).await.unwrap();
-        assert!(!revoked2, "revoking an already-revoked device must return false");
+        assert!(
+            !revoked2,
+            "revoking an already-revoked device must return false"
+        );
 
         // The token must no longer be found via get_by_token.
         let found = storage.get_by_token(&device.device_token).await.unwrap();
@@ -424,7 +422,10 @@ mod tests {
     #[tokio::test]
     async fn test_rename_device() {
         let storage = PairingStorage::new(test_pool().await);
-        let device = storage.issue_device_token("Old Name", "macos").await.unwrap();
+        let device = storage
+            .issue_device_token("Old Name", "macos")
+            .await
+            .unwrap();
 
         let ok = storage.rename_device(&device.id, "New Name").await.unwrap();
         assert!(ok, "rename_device must return true for an existing device");

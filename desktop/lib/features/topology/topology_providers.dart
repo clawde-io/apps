@@ -18,11 +18,6 @@ class RepoNode {
     required this.stack,
   });
 
-  final String path;
-  final String name;
-  final int healthScore;
-  final List<String> stack;
-
   factory RepoNode.fromJson(Map<String, dynamic> json) => RepoNode(
         path:        json['path'] as String? ?? '',
         name:        json['name'] as String? ?? '',
@@ -32,6 +27,11 @@ class RepoNode {
                          .toList() ??
                      const [],
       );
+
+  final String path;
+  final String name;
+  final int healthScore;
+  final List<String> stack;
 }
 
 /// A directed dependency edge between two repos.
@@ -45,13 +45,6 @@ class RepoDependency {
     required this.autoDetected,
   });
 
-  final String id;
-  final String fromRepo;
-  final String toRepo;
-  final String depType;
-  final double confidence;
-  final bool autoDetected;
-
   factory RepoDependency.fromJson(Map<String, dynamic> json) => RepoDependency(
         id:           json['id'] as String? ?? '',
         fromRepo:     json['fromRepo'] as String? ?? '',
@@ -60,14 +53,18 @@ class RepoDependency {
         confidence:   (json['confidence'] as num?)?.toDouble() ?? 1.0,
         autoDetected: json['autoDetected'] as bool? ?? false,
       );
+
+  final String id;
+  final String fromRepo;
+  final String toRepo;
+  final String depType;
+  final double confidence;
+  final bool autoDetected;
 }
 
 /// The full topology graph returned by `topology.get`.
 class TopologyGraph {
   const TopologyGraph({required this.nodes, required this.edges});
-
-  final List<RepoNode> nodes;
-  final List<RepoDependency> edges;
 
   factory TopologyGraph.fromJson(Map<String, dynamic> json) => TopologyGraph(
         nodes: (json['nodes'] as List<dynamic>? ?? const [])
@@ -77,6 +74,9 @@ class TopologyGraph {
             .map((e) => RepoDependency.fromJson(e as Map<String, dynamic>))
             .toList(),
       );
+
+  final List<RepoNode> nodes;
+  final List<RepoDependency> edges;
 
   TopologyGraph get empty => const TopologyGraph(nodes: [], edges: []);
 }

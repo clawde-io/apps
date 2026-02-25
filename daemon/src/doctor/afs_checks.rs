@@ -146,9 +146,7 @@ pub fn run(project_path: &Path) -> Vec<DoctorFinding> {
             findings.push(DoctorFinding {
                 code: "afs.stale_temp".to_string(),
                 severity: DoctorSeverity::Low,
-                message: format!(
-                    "{stale_count} stale file(s) in .claude/temp/ (older than 24h)."
-                ),
+                message: format!("{stale_count} stale file(s) in .claude/temp/ (older than 24h)."),
                 path: Some(".claude/temp/".to_string()),
                 fixable: true,
             });

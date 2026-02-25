@@ -101,19 +101,29 @@ fn cursor_rules_path() -> Option<PathBuf> {
 
 /// Infer the best-fit persona template from questionnaire answers.
 fn select_template(answers: &QuestionnaireAnswers) -> &'static str {
-    let langs = answers.primary_languages.iter().map(|s| s.as_str()).collect::<Vec<_>>();
-    let types = answers.project_types.iter().map(|s| s.as_str()).collect::<Vec<_>>();
+    let langs = answers
+        .primary_languages
+        .iter()
+        .map(|s| s.as_str())
+        .collect::<Vec<_>>();
+    let types = answers
+        .project_types
+        .iter()
+        .map(|s| s.as_str())
+        .collect::<Vec<_>>();
 
-    let is_mobile = langs.contains(&"dart") || langs.contains(&"swift") || langs.contains(&"kotlin")
+    let is_mobile = langs.contains(&"dart")
+        || langs.contains(&"swift")
+        || langs.contains(&"kotlin")
         || types.contains(&"mobile-app");
-    let is_backend = langs.contains(&"rust") || langs.contains(&"go") || langs.contains(&"python")
-        || types.contains(&"backend-api") || types.contains(&"cli-tool");
-    let is_full_stack = (langs.contains(&"typescript") || langs.contains(&"javascript"))
-        && is_backend;
-    let is_team_lead = matches!(
-        answers.team_size.as_str(),
-        "medium" | "large"
-    );
+    let is_backend = langs.contains(&"rust")
+        || langs.contains(&"go")
+        || langs.contains(&"python")
+        || types.contains(&"backend-api")
+        || types.contains(&"cli-tool");
+    let is_full_stack =
+        (langs.contains(&"typescript") || langs.contains(&"javascript")) && is_backend;
+    let is_team_lead = matches!(answers.team_size.as_str(), "medium" | "large");
 
     if is_mobile {
         "mobile-focus"
@@ -256,81 +266,67 @@ fn render_template_header(template: &str, team_size: &str) -> String {
 
 fn render_autonomy_section(level: &str) -> String {
     match level {
-        "supervised" => {
-            "### Autonomy: Supervised\n\
+        "supervised" => "### Autonomy: Supervised\n\
              \n\
              - Always confirm before making structural changes\n\
              - Show a plan and wait for approval before executing multi-file changes\n\
              - Ask before installing new dependencies\n\
              - Prefer smaller, reviewable chunks over large sweeping changes"
-                .to_string()
-        }
-        "balanced" => {
-            "### Autonomy: Balanced\n\
+            .to_string(),
+        "balanced" => "### Autonomy: Balanced\n\
              \n\
              - Proceed confidently on clear tasks within defined scope\n\
              - Confirm before structural changes (new modules, schema changes, dependency adds)\n\
              - Self-correct small errors without asking\n\
              - Report what you changed after significant edits"
-                .to_string()
-        }
-        "autonomous" => {
-            "### Autonomy: Autonomous\n\
+            .to_string(),
+        "autonomous" => "### Autonomy: Autonomous\n\
              \n\
              - Execute tasks fully without intermediate check-ins\n\
              - Make reasonable decisions about implementation details\n\
              - Only pause for: missing credentials, destructive actions, or ambiguity that\n\
                would waste significant effort if wrong\n\
              - Summarise decisions made at the end of each task"
-                .to_string()
-        }
+            .to_string(),
         _ => String::new(),
     }
 }
 
 fn render_style_section(style: &str) -> String {
     match style {
-        "strict" => {
-            "Style enforcement: **Strict**\n\
+        "strict" => "Style enforcement: **Strict**\n\
              \n\
              - No deviations from established conventions in this codebase\n\
              - Point out style violations in code I write too\n\
              - Linter must be clean — no suppressions without explanation\n\
              - Line length, naming, and formatting must match existing code exactly"
-                .to_string()
-        }
-        "relaxed" => {
-            "Style enforcement: **Relaxed**\n\
+            .to_string(),
+        "relaxed" => "Style enforcement: **Relaxed**\n\
              \n\
              - Follow existing patterns but minor deviations are acceptable\n\
              - Prioritise readability over rigid convention adherence\n\
              - Flag obvious style issues but do not block on minor inconsistencies"
-                .to_string()
-        }
+            .to_string(),
         _ => String::new(),
     }
 }
 
 fn render_git_section(workflow: &str) -> String {
     match workflow {
-        "pr-based" => {
-            "Git workflow: **PR-based**\n\
+        "pr-based" => "Git workflow: **PR-based**\n\
              \n\
              - All changes go through pull requests — never push directly to main\n\
              - Each PR should be focused and reviewable in under 30 minutes\n\
              - Write clear PR descriptions: what changed and why\n\
              - Squash fixup commits before merging"
-                .to_string()
-        }
-        "trunk" => {
-            "Git workflow: **Trunk-based**\n\
+            .to_string(),
+        "trunk" => "Git workflow: **Trunk-based**\n\
              \n\
              - Trunk-based development — small, frequent commits directly to main\n\
              - Feature flags for incomplete work\n\
              - Every commit must leave the build green\n\
              - Short-lived feature branches (< 1 day) are acceptable"
-                .to_string()
-        }
+            .to_string(),
         _ => String::new(),
     }
 }

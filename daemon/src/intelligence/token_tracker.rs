@@ -133,11 +133,7 @@ impl TokenTracker {
         to: Option<&str>,
     ) -> Result<Vec<ModelUsage>> {
         let now = Utc::now();
-        let default_from = format!(
-            "{}-{:02}-01T00:00:00Z",
-            now.format("%Y"),
-            now.format("%m")
-        );
+        let default_from = format!("{}-{:02}-01T00:00:00Z", now.format("%Y"), now.format("%m"));
         let default_to = now.to_rfc3339();
         let from = from.unwrap_or(&default_from);
         let to = to.unwrap_or(&default_to);
@@ -167,9 +163,7 @@ impl TokenTracker {
                 model_id: r.try_get::<String, _>("model_id").unwrap_or_default(),
                 input_tokens: r.try_get::<i64, _>("input_tokens").unwrap_or(0) as u64,
                 output_tokens: r.try_get::<i64, _>("output_tokens").unwrap_or(0) as u64,
-                estimated_cost_usd: r
-                    .try_get::<f64, _>("estimated_cost_usd")
-                    .unwrap_or(0.0),
+                estimated_cost_usd: r.try_get::<f64, _>("estimated_cost_usd").unwrap_or(0.0),
                 message_count: r.try_get::<i64, _>("message_count").unwrap_or(0) as u64,
             })
             .collect())
@@ -178,11 +172,7 @@ impl TokenTracker {
     /// Return total estimated USD cost for the current calendar month.
     pub async fn get_monthly_total(&self) -> Result<f64> {
         let now = Utc::now();
-        let month_start = format!(
-            "{}-{:02}-01T00:00:00Z",
-            now.format("%Y"),
-            now.format("%m")
-        );
+        let month_start = format!("{}-{:02}-01T00:00:00Z", now.format("%Y"), now.format("%m"));
         let pool = self.storage.pool();
         let row = sqlx::query(
             "SELECT COALESCE(SUM(estimated_cost_usd), 0.0) AS total \
@@ -237,7 +227,10 @@ mod tests {
     async fn test_empty_session_returns_zeros() {
         let (tracker, _dir) = make_tracker().await;
 
-        let usage = tracker.get_session_usage("nonexistent-session").await.unwrap();
+        let usage = tracker
+            .get_session_usage("nonexistent-session")
+            .await
+            .unwrap();
         assert_eq!(usage.input_tokens, 0);
         assert_eq!(usage.output_tokens, 0);
         assert_eq!(usage.estimated_cost_usd, 0.0);
@@ -255,10 +248,7 @@ mod tests {
 
         let total = tracker.get_monthly_total().await.unwrap();
         // 1M input ($0.25) + 1M output ($1.25) = $1.50
-        assert!(
-            (total - 1.50).abs() < 0.001,
-            "expected ~1.50, got {total}"
-        );
+        assert!((total - 1.50).abs() < 0.001, "expected ~1.50, got {total}");
     }
 
     #[tokio::test]
@@ -292,8 +282,14 @@ mod tests {
             .unwrap();
 
         let usage = tracker.get_session_usage("sess-1").await.unwrap();
-        assert_eq!(usage.estimated_cost_usd, 0.0, "unknown model cost should be 0");
-        assert_eq!(usage.message_count, 1, "entry should be recorded even with 0 cost");
+        assert_eq!(
+            usage.estimated_cost_usd, 0.0,
+            "unknown model cost should be 0"
+        );
+        assert_eq!(
+            usage.message_count, 1,
+            "entry should be recorded even with 0 cost"
+        );
     }
 
     #[tokio::test]
@@ -411,10 +407,7 @@ mod tests {
         let cap = 10.0_f64;
         let pct = total / cap * 100.0;
 
-        assert!(
-            pct < 80.0,
-            "pct {pct:.1} should NOT trigger warning (<80)"
-        );
+        assert!(pct < 80.0, "pct {pct:.1} should NOT trigger warning (<80)");
     }
 
     /// Budget math with no cap configured (cap = None) → warning and

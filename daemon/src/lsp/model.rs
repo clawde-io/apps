@@ -324,7 +324,11 @@ mod tests {
 
     #[test]
     fn lsp_message_roundtrip_json() {
-        let msg = LspMessage::request(1, "initialize", serde_json::json!({ "rootUri": "file:///tmp" }));
+        let msg = LspMessage::request(
+            1,
+            "initialize",
+            serde_json::json!({ "rootUri": "file:///tmp" }),
+        );
         let json = serde_json::to_string(&msg).unwrap();
         let back: LspMessage = serde_json::from_str(&json).unwrap();
         assert_eq!(back.method.as_deref(), Some("initialize"));

@@ -21,7 +21,7 @@
 //! Update policy (DC.T32):
 //! - "auto"   — check, download, and apply automatically when idle (default)
 //! - "manual" — check and broadcast `daemon.updateAvailable`; download only;
-//!              user must call `daemon.applyUpdate` to restart
+//!   user must call `daemon.applyUpdate` to restart
 //! - "never"  — disable all update checks
 
 use std::path::{Path, PathBuf};
@@ -568,7 +568,10 @@ mod tests {
         let actual = format!("{:x}", Sha256::digest(data));
         let expected = "deadbeef00000000000000000000000000000000000000000000000000000000";
 
-        assert_ne!(actual, expected, "actual hash must not equal deliberately wrong hash");
+        assert_ne!(
+            actual, expected,
+            "actual hash must not equal deliberately wrong hash"
+        );
         // The download() function bails when actual != expected.
         // We verify the condition here without running the full async download flow.
     }

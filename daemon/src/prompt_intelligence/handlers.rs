@@ -54,7 +54,9 @@ pub async fn prompt_suggest(params: Value, ctx: &AppContext) -> Result<Value> {
     // Load repo profile if a path was supplied.
     let profile = if let Some(ref rp) = p.repo_path {
         if !rp.contains('\0') && std::path::Path::new(rp.as_str()).is_absolute() {
-            repo_intelligence::storage::load(&pool, rp).await.unwrap_or(None)
+            repo_intelligence::storage::load(&pool, rp)
+                .await
+                .unwrap_or(None)
         } else {
             None
         }

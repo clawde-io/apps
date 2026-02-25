@@ -120,10 +120,7 @@ pub async fn history(params: Value, ctx: &AppContext) -> Result<Value> {
     let account_id = params["accountId"].as_str();
     let limit = params["limit"].as_i64().unwrap_or(50).clamp(1, 500);
 
-    let events = ctx
-        .storage
-        .list_account_events(account_id, limit)
-        .await?;
+    let events = ctx.storage.list_account_events(account_id, limit).await?;
 
     let items: Vec<Value> = events
         .into_iter()

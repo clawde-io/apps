@@ -273,9 +273,10 @@ fn format_stack(profile: &RepoProfile) -> String {
 }
 
 fn format_stack_summary(profile: &RepoProfile) -> String {
-    let mut lines = vec![
-        format!("- Primary language: {}", profile.primary_lang.as_str()),
-    ];
+    let mut lines = vec![format!(
+        "- Primary language: {}",
+        profile.primary_lang.as_str()
+    )];
 
     if !profile.secondary_langs.is_empty() {
         let secondary: Vec<&str> = profile.secondary_langs.iter().map(|l| l.as_str()).collect();

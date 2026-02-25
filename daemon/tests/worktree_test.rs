@@ -149,7 +149,10 @@ async fn test_remove_worktree() {
     assert_eq!(manager.list().await.len(), 0);
 
     // Remove non-existent should return false (not error).
-    let not_found = manager.remove("nonexistent").await.expect("remove nonexistent");
+    let not_found = manager
+        .remove("nonexistent")
+        .await
+        .expect("remove nonexistent");
     assert!(!not_found, "remove of unknown task should return false");
 }
 
@@ -260,12 +263,23 @@ async fn test_full_worktree_lifecycle() {
             let tree = repo.find_tree(tree_oid)?;
             let sig = git2::Signature::now("Test Agent", "agent@example.com")?;
             let parents: Vec<git2::Commit<'_>> = if let Ok(head) = repo.head() {
-                if let Ok(c) = head.peel_to_commit() { vec![c] } else { vec![] }
+                if let Ok(c) = head.peel_to_commit() {
+                    vec![c]
+                } else {
+                    vec![]
+                }
             } else {
                 vec![]
             };
             let parent_refs: Vec<&git2::Commit<'_>> = parents.iter().collect();
-            let oid = repo.commit(Some("HEAD"), &sig, &sig, "Add feature.rs", &tree, &parent_refs)?;
+            let oid = repo.commit(
+                Some("HEAD"),
+                &sig,
+                &sig,
+                "Add feature.rs",
+                &tree,
+                &parent_refs,
+            )?;
             Ok(oid.to_string())
         })
         .await
@@ -292,7 +306,10 @@ async fn test_full_worktree_lifecycle() {
     // ── Step 6: Accept (merge) the worktree ──────────────────────────────────
     // Must set status to Done first (invariant enforced by merge_to_main).
     manager
-        .set_status("task-lifecycle", clawd::worktree::manager::WorktreeStatus::Done)
+        .set_status(
+            "task-lifecycle",
+            clawd::worktree::manager::WorktreeStatus::Done,
+        )
         .await;
 
     clawd::worktree::merge::merge_to_main(&manager, "task-lifecycle")

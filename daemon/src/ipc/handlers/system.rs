@@ -40,17 +40,15 @@ pub async fn resources(_params: Value, ctx: &AppContext) -> Result<Value> {
             .await
             .unwrap_or((0,));
 
-    let warm_count: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM sessions WHERE tier = 'warm'")
-            .fetch_one(&pool)
-            .await
-            .unwrap_or((0,));
+    let warm_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM sessions WHERE tier = 'warm'")
+        .fetch_one(&pool)
+        .await
+        .unwrap_or((0,));
 
-    let cold_count: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM sessions WHERE tier = 'cold'")
-            .fetch_one(&pool)
-            .await
-            .unwrap_or((0,));
+    let cold_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM sessions WHERE tier = 'cold'")
+        .fetch_one(&pool)
+        .await
+        .unwrap_or((0,));
 
     // Get latest resource_metrics row if it exists
     let latest: Option<LatestMetrics> = sqlx::query_as(
@@ -62,7 +60,11 @@ pub async fn resources(_params: Value, ctx: &AppContext) -> Result<Value> {
     .unwrap_or(None);
 
     let (total_ram, used_ram, daemon_ram) = if let Some(row) = latest {
-        (row.total_ram_bytes, row.used_ram_bytes, row.daemon_ram_bytes)
+        (
+            row.total_ram_bytes,
+            row.used_ram_bytes,
+            row.daemon_ram_bytes,
+        )
     } else {
         (0i64, 0i64, 0i64)
     };

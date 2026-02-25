@@ -183,7 +183,18 @@ pub async fn record_run_finish(
 
 /// List recent validator runs for a repository (last 20).
 pub async fn list_runs(pool: &SqlitePool, repo_path: &str) -> Result<Vec<ValidatorRun>> {
-    let rows = sqlx::query_as::<_, (String, String, String, Option<i64>, Option<String>, String, Option<String>)>(
+    let rows = sqlx::query_as::<
+        _,
+        (
+            String,
+            String,
+            String,
+            Option<i64>,
+            Option<String>,
+            String,
+            Option<String>,
+        ),
+    >(
         "SELECT id, repo_path, validator_cmd, exit_code, output, started_at, finished_at
          FROM validator_runs WHERE repo_path = ? ORDER BY started_at DESC LIMIT 20",
     )

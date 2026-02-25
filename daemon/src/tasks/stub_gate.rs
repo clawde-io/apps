@@ -1,3 +1,4 @@
+use serde::Deserialize;
 /// Stub gate — V02.T06-T08.
 ///
 /// When a task is marked done with `modified_files`, this module greps each
@@ -7,9 +8,7 @@
 ///
 /// Configuration lives in `.claude/qa/completion-checks.toml` in the project
 /// root. The file is optional — if absent, built-in defaults apply.
-
 use std::path::{Path, PathBuf};
-use serde::Deserialize;
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 

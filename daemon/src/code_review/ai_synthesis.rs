@@ -28,10 +28,7 @@ pub fn synthesise(issues: &[ReviewIssue]) -> Vec<ReviewComment> {
             let first = group[0];
             ReviewComment {
                 file: Some(first.file.clone()),
-                theme: first
-                    .code
-                    .clone()
-                    .unwrap_or_else(|| "general".to_string()),
+                theme: first.code.clone().unwrap_or_else(|| "general".to_string()),
                 severity: first.severity,
                 explanation: first.message.clone(),
                 suggestions: group

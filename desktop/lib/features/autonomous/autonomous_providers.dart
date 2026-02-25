@@ -26,19 +26,6 @@ class AePlan {
     this.parentTaskId,
   });
 
-  final String id;
-  final String sessionId;
-  final String title;
-  final List<String> requirements;
-  final List<String> definitionOfDone;
-  final List<String> filesExpected;
-  final String aiInstructions;
-  final String createdAt;
-  final String? approvedAt;
-  final String? parentTaskId;
-
-  bool get isApproved => approvedAt != null;
-
   factory AePlan.fromJson(Map<String, dynamic> json) => AePlan(
         id: json['id'] as String,
         sessionId: json['sessionId'] as String,
@@ -60,6 +47,19 @@ class AePlan {
         approvedAt: json['approvedAt'] as String?,
         parentTaskId: json['parentTaskId'] as String?,
       );
+
+  final String id;
+  final String sessionId;
+  final String title;
+  final List<String> requirements;
+  final List<String> definitionOfDone;
+  final List<String> filesExpected;
+  final String aiInstructions;
+  final String createdAt;
+  final String? approvedAt;
+  final String? parentTaskId;
+
+  bool get isApproved => approvedAt != null;
 
   AePlan copyWith({String? approvedAt}) => AePlan(
         id: id,
@@ -84,17 +84,17 @@ class AeDecision {
     required this.createdAt,
   });
 
-  final String id;
-  final String sessionId;
-  final String description;
-  final String createdAt;
-
   factory AeDecision.fromJson(Map<String, dynamic> json) => AeDecision(
         id: json['id'] as String,
         sessionId: json['sessionId'] as String,
         description: json['description'] as String,
         createdAt: json['createdAt'] as String,
       );
+
+  final String id;
+  final String sessionId;
+  final String description;
+  final String createdAt;
 }
 
 /// Confidence score with signal breakdown.
@@ -105,11 +105,6 @@ class ConfidenceData {
     required this.signals,
   });
 
-  final String planId;
-  /// 0.0–1.0.
-  final double score;
-  final List<ConfidenceSignal> signals;
-
   factory ConfidenceData.fromJson(Map<String, dynamic> json) => ConfidenceData(
         planId: json['planId'] as String,
         score: (json['score'] as num?)?.toDouble() ?? 0.0,
@@ -118,6 +113,11 @@ class ConfidenceData {
                 .toList() ??
             [],
       );
+
+  final String planId;
+  /// 0.0–1.0.
+  final double score;
+  final List<ConfidenceSignal> signals;
 }
 
 /// A single evidence signal for the confidence score.
@@ -128,16 +128,16 @@ class ConfidenceSignal {
     required this.weight,
   });
 
-  final String name;
-  final bool present;
-  final double weight;
-
   factory ConfidenceSignal.fromJson(Map<String, dynamic> json) =>
       ConfidenceSignal(
         name: json['name'] as String,
         present: json['present'] as bool? ?? false,
         weight: (json['weight'] as num?)?.toDouble() ?? 0.0,
       );
+
+  final String name;
+  final bool present;
+  final double weight;
 }
 
 // ─── aePlanProvider ───────────────────────────────────────────────────────────

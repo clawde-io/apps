@@ -132,7 +132,6 @@ fn load_toml(data_dir: &Path) -> Option<TomlConfig> {
     }
 }
 
-
 // ─── ModelIntelligenceConfig ──────────────────────────────────────────────────
 
 /// Sub-struct holding the default model IDs for each tier.

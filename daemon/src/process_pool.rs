@@ -70,7 +70,10 @@ impl ProcessPool {
             });
             debug!(pid, "pool worker released back to pool");
         } else {
-            debug!(pid, "pool worker process has exited — not returning to pool");
+            debug!(
+                pid,
+                "pool worker process has exited — not returning to pool"
+            );
         }
     }
 

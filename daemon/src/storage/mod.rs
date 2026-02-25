@@ -272,14 +272,12 @@ impl Storage {
         routed_provider: &str,
     ) -> Result<()> {
         let now = Utc::now().to_rfc3339();
-        sqlx::query(
-            "UPDATE sessions SET routed_provider = ?, updated_at = ? WHERE id = ?",
-        )
-        .bind(routed_provider)
-        .bind(&now)
-        .bind(id)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("UPDATE sessions SET routed_provider = ?, updated_at = ? WHERE id = ?")
+            .bind(routed_provider)
+            .bind(&now)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 
@@ -337,14 +335,12 @@ impl Storage {
     /// Set the GCI mode on a session.  Valid values: NORMAL, LEARN, STORM, FORGE, CRUNCH.
     pub async fn set_session_mode(&self, id: &str, mode: &str) -> Result<()> {
         let now = Utc::now().to_rfc3339();
-        sqlx::query(
-            "UPDATE sessions SET mode = ?, updated_at = ? WHERE id = ?",
-        )
-        .bind(mode)
-        .bind(&now)
-        .bind(id)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("UPDATE sessions SET mode = ?, updated_at = ? WHERE id = ?")
+            .bind(mode)
+            .bind(&now)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 
@@ -792,12 +788,12 @@ impl Storage {
             .fetch_all(&self.pool)
             .await?)
         } else {
-            Ok(sqlx::query_as(
-                "SELECT * FROM account_events ORDER BY created_at DESC LIMIT ?",
+            Ok(
+                sqlx::query_as("SELECT * FROM account_events ORDER BY created_at DESC LIMIT ?")
+                    .bind(limit)
+                    .fetch_all(&self.pool)
+                    .await?,
             )
-            .bind(limit)
-            .fetch_all(&self.pool)
-            .await?)
         }
     }
 
@@ -830,23 +826,19 @@ impl Storage {
     }
 
     pub async fn get_worktree(&self, task_id: &str) -> Result<Option<WorktreeRow>> {
-        Ok(
-            sqlx::query_as("SELECT * FROM worktrees WHERE task_id = ?")
-                .bind(task_id)
-                .fetch_optional(&self.pool)
-                .await?,
-        )
+        Ok(sqlx::query_as("SELECT * FROM worktrees WHERE task_id = ?")
+            .bind(task_id)
+            .fetch_optional(&self.pool)
+            .await?)
     }
 
     pub async fn list_worktrees(&self, status_filter: Option<&str>) -> Result<Vec<WorktreeRow>> {
         if let Some(status) = status_filter {
             Ok(
-                sqlx::query_as(
-                    "SELECT * FROM worktrees WHERE status = ? ORDER BY created_at DESC",
-                )
-                .bind(status)
-                .fetch_all(&self.pool)
-                .await?,
+                sqlx::query_as("SELECT * FROM worktrees WHERE status = ? ORDER BY created_at DESC")
+                    .bind(status)
+                    .fetch_all(&self.pool)
+                    .await?,
             )
         } else {
             Ok(
@@ -859,14 +851,12 @@ impl Storage {
 
     pub async fn set_worktree_status(&self, task_id: &str, status: &str) -> Result<()> {
         let now = Utc::now().to_rfc3339();
-        sqlx::query(
-            "UPDATE worktrees SET status = ?, updated_at = ? WHERE task_id = ?",
-        )
-        .bind(status)
-        .bind(&now)
-        .bind(task_id)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("UPDATE worktrees SET status = ?, updated_at = ? WHERE task_id = ?")
+            .bind(status)
+            .bind(&now)
+            .bind(task_id)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 
@@ -978,12 +968,11 @@ impl Storage {
         if days == 0 {
             return Ok(0);
         }
-        let result = sqlx::query(
-            "DELETE FROM tool_call_events WHERE created_at < datetime('now', ?)",
-        )
-        .bind(format!("-{days} days"))
-        .execute(&self.pool)
-        .await?;
+        let result =
+            sqlx::query("DELETE FROM tool_call_events WHERE created_at < datetime('now', ?)")
+                .bind(format!("-{days} days"))
+                .execute(&self.pool)
+                .await?;
         Ok(result.rows_affected())
     }
 
@@ -994,14 +983,12 @@ impl Storage {
     /// `model = None` restores auto-routing; `model = Some(id)` pins a specific model.
     pub async fn set_model_override(&self, session_id: &str, model: Option<&str>) -> Result<()> {
         let now = Utc::now().to_rfc3339();
-        sqlx::query(
-            "UPDATE sessions SET model_override = ?, updated_at = ? WHERE id = ?",
-        )
-        .bind(model)
-        .bind(&now)
-        .bind(session_id)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("UPDATE sessions SET model_override = ?, updated_at = ? WHERE id = ?")
+            .bind(model)
+            .bind(&now)
+            .bind(session_id)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 
@@ -1032,13 +1019,11 @@ impl Storage {
         .await?;
         // Fetch by (session_id, path) in case the ON CONFLICT branch ran.
         Ok(
-            sqlx::query_as(
-                "SELECT * FROM session_contexts WHERE session_id = ? AND path = ?",
-            )
-            .bind(session_id)
-            .bind(path)
-            .fetch_one(&self.pool)
-            .await?,
+            sqlx::query_as("SELECT * FROM session_contexts WHERE session_id = ? AND path = ?")
+                .bind(session_id)
+                .bind(path)
+                .fetch_one(&self.pool)
+                .await?,
         )
     }
 

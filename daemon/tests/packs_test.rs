@@ -49,7 +49,11 @@ files = ["rules/example.md"]
 
     // Create a listed file so the installer can copy it.
     std::fs::create_dir_all(pack_dir.join("rules")).unwrap();
-    std::fs::write(pack_dir.join("rules").join("example.md"), "# Example rule\n").unwrap();
+    std::fs::write(
+        pack_dir.join("rules").join("example.md"),
+        "# Example rule\n",
+    )
+    .unwrap();
 
     pack_dir
 }
@@ -105,7 +109,10 @@ async fn test_pack_storage_install_list_remove() {
         .unwrap();
 
     let packs_after = storage.list_installed().await.unwrap();
-    assert!(packs_after.is_empty(), "pack list should be empty after remove");
+    assert!(
+        packs_after.is_empty(),
+        "pack list should be empty after remove"
+    );
 }
 
 #[tokio::test]
@@ -170,10 +177,7 @@ version = "^1.0.0"
     assert_eq!(manifest.files.len(), 2);
     assert_eq!(manifest.dependencies.len(), 1);
     assert_eq!(manifest.dependencies[0].name, "clawde-gci-base");
-    assert_eq!(
-        manifest.dependencies[0].version.as_deref(),
-        Some("^1.0.0")
-    );
+    assert_eq!(manifest.dependencies[0].version.as_deref(), Some("^1.0.0"));
 }
 
 #[test]
@@ -278,32 +282,35 @@ async fn test_installer_remove_deletes_files_and_record() {
     assert!(after.is_none(), "record should be removed from DB");
 
     // Files should be gone.
-    let install_dir = data_dir
-        .path()
-        .join("packs")
-        .join("removable-pack-0.1.0");
+    let install_dir = data_dir.path().join("packs").join("removable-pack-0.1.0");
     assert!(!install_dir.exists(), "install directory should be deleted");
 }
 
 // ─── PackSigner tests ─────────────────────────────────────────────────────────
 
 #[test]
-fn test_signer_stub_sign_and_verify() {
+fn test_signer_sign_and_verify() {
+    let (priv_hex, pub_hex) = PackSigner::generate_keypair();
     let dir = TempDir::new().unwrap();
     let pack_dir = make_local_pack(&dir, "signed-pack", "0.1.0", "skills");
 
-    // Sign (stub — no real key needed).
-    let fake_key = dir.path().join("fake.key");
-    std::fs::write(&fake_key, b"not-a-real-key").unwrap();
+    // Write the generated private key to a file.
+    let key_file = dir.path().join("signing.key");
+    std::fs::write(&key_file, &priv_hex).unwrap();
 
-    let sig = PackSigner::sign_pack(&pack_dir, &fake_key).expect("sign pack");
-    assert!(sig.starts_with("stub-sig:"), "stub signature should have prefix");
+    // Sign the pack.
+    let sig = PackSigner::sign_pack(&pack_dir, &key_file).expect("sign pack");
+    assert_eq!(
+        sig.len(),
+        128,
+        "ed25519 signature is 64 bytes = 128 hex chars"
+    );
 
-    // Verify the stub signature.
-    let valid = PackSigner::verify_signature(&pack_dir, &sig, "any-public-key").expect("verify");
-    assert!(valid, "stub signature should verify correctly");
+    // Valid key verifies correctly.
+    let valid = PackSigner::verify_signature(&pack_dir, &sig, &pub_hex).expect("verify");
+    assert!(valid, "signature should verify with correct public key");
 
-    // Verify a wrong signature fails.
-    let invalid = PackSigner::verify_signature(&pack_dir, "bad-sig", "any-public-key").expect("verify");
-    assert!(!invalid, "bad signature should not verify");
+    // Wrong signature fails.
+    let invalid = PackSigner::verify_signature(&pack_dir, "bad-sig", &pub_hex);
+    assert!(invalid.is_err(), "malformed signature should return error");
 }

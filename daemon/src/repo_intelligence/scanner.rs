@@ -196,9 +196,7 @@ fn compute_confidence(repo_path: &Path, primary: &PrimaryLanguage) -> f32 {
                 || repo_path.join("requirements.txt").exists()
         }
         PrimaryLanguage::TypeScript => repo_path.join("tsconfig.json").exists(),
-        PrimaryLanguage::Kotlin => {
-            repo_path.join("build.gradle.kts").exists()
-        }
+        PrimaryLanguage::Kotlin => repo_path.join("build.gradle.kts").exists(),
         PrimaryLanguage::Java => {
             repo_path.join("pom.xml").exists() || repo_path.join("build.gradle").exists()
         }
@@ -418,10 +416,7 @@ fn collect_source_recursive(
         return;
     };
     // Collect and sort entries for deterministic ordering
-    let mut paths: Vec<_> = entries
-        .flatten()
-        .map(|e| e.path())
-        .collect();
+    let mut paths: Vec<_> = entries.flatten().map(|e| e.path()).collect();
     paths.sort();
     for path in paths {
         if files.len() >= limit {
@@ -465,7 +460,10 @@ mod tests {
     fn detects_typescript_from_tsconfig() {
         let tmp = TempDir::new().unwrap();
         std::fs::write(tmp.path().join("tsconfig.json"), b"{}").unwrap();
-        assert_eq!(detect_primary_language(tmp.path()), PrimaryLanguage::TypeScript);
+        assert_eq!(
+            detect_primary_language(tmp.path()),
+            PrimaryLanguage::TypeScript
+        );
     }
 
     #[test]
@@ -485,14 +483,21 @@ mod tests {
     #[test]
     fn detects_ruby_from_gemfile() {
         let tmp = TempDir::new().unwrap();
-        std::fs::write(tmp.path().join("Gemfile"), b"source 'https://rubygems.org'\n").unwrap();
+        std::fs::write(
+            tmp.path().join("Gemfile"),
+            b"source 'https://rubygems.org'\n",
+        )
+        .unwrap();
         assert_eq!(detect_primary_language(tmp.path()), PrimaryLanguage::Ruby);
     }
 
     #[test]
     fn unknown_for_empty_dir() {
         let tmp = TempDir::new().unwrap();
-        assert_eq!(detect_primary_language(tmp.path()), PrimaryLanguage::Unknown);
+        assert_eq!(
+            detect_primary_language(tmp.path()),
+            PrimaryLanguage::Unknown
+        );
     }
 
     #[test]

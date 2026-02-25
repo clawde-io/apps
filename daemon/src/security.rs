@@ -3,11 +3,11 @@
 //!
 //! Guards against path traversal, unsafe file access, and other security risks.
 
-use std::path::{Path, PathBuf};
 use anyhow::{bail, Result};
+use std::path::{Path, PathBuf};
 
 /// Validate that `path` is within `base_dir` (no traversal attacks).
-/// 
+///
 /// Resolves symlinks and canonicalizes both paths before comparing.
 /// Returns the canonicalized safe path on success.
 ///
@@ -17,7 +17,10 @@ use anyhow::{bail, Result};
 pub fn safe_path(base_dir: &Path, relative_path: &Path) -> Result<PathBuf> {
     // If relative_path is absolute, reject it
     if relative_path.is_absolute() {
-        bail!("path traversal: absolute path not allowed: {}", relative_path.display());
+        bail!(
+            "path traversal: absolute path not allowed: {}",
+            relative_path.display()
+        );
     }
 
     // Join base + relative
@@ -336,7 +339,10 @@ mod tests {
         let key = "A".repeat(44); // 44 base64 chars → REDACTED
         let input = format!("curl -H 'Authorization: Bearer {}'", key);
         let result = sanitize_tool_input(&input);
-        assert!(result.contains("[REDACTED]"), "long token should be redacted: {result}");
+        assert!(
+            result.contains("[REDACTED]"),
+            "long token should be redacted: {result}"
+        );
         assert!(!result.contains(&key), "original key should not appear");
     }
 
@@ -355,7 +361,10 @@ mod tests {
         // Should not bail for non-overlapping paths
         // (note: canonicalize will fail for non-existent paths, so normalize_path is used)
         let result = check_repo_path_safety(repo_path, data_dir);
-        assert!(result.is_ok(), "non-overlapping paths should be ok: {result:?}");
+        assert!(
+            result.is_ok(),
+            "non-overlapping paths should be ok: {result:?}"
+        );
     }
 
     #[test]

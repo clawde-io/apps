@@ -108,7 +108,10 @@ mod tests {
 
     #[test]
     fn daily_count_fields() {
-        let dc = DailyCount { date: "2026-02-25".to_string(), count: 42 };
+        let dc = DailyCount {
+            date: "2026-02-25".to_string(),
+            count: 42,
+        };
         assert_eq!(dc.date, "2026-02-25");
         assert_eq!(dc.count, 42);
     }
@@ -122,9 +125,10 @@ mod tests {
             lines_written: 2000,
             ai_assist_percent: 85.5,
             languages: langs,
-            sessions_per_day: vec![
-                DailyCount { date: "2026-02-25".to_string(), count: 3 },
-            ],
+            sessions_per_day: vec![DailyCount {
+                date: "2026-02-25".to_string(),
+                count: 3,
+            }],
         };
         let json = serde_json::to_string(&pa).unwrap();
         let back: PersonalAnalytics = serde_json::from_str(&json).unwrap();

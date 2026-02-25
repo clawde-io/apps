@@ -79,7 +79,7 @@ fn validate_abs_path(path: &str, name: &str) -> Result<()> {
 /// `lsp.start` — spawn (or reconnect to) the LSP server for `language` at
 /// `workspaceRoot`, perform the LSP `initialize` handshake, and return the
 /// process id and language.
-pub async fn lsp_start(params: Value, ctx: &AppContext) -> Result<Value> {
+pub async fn lsp_start(params: Value, _ctx: &AppContext) -> Result<Value> {
     let p: LspStartParams = serde_json::from_value(params)?;
     validate_abs_path(&p.workspace_root, "workspaceRoot")?;
 
@@ -102,7 +102,7 @@ pub async fn lsp_start(params: Value, ctx: &AppContext) -> Result<Value> {
 
 /// `lsp.stop` — send the LSP `shutdown` + `exit` sequence and remove the
 /// process from the pool.
-pub async fn lsp_stop(params: Value, ctx: &AppContext) -> Result<Value> {
+pub async fn lsp_stop(params: Value, _ctx: &AppContext) -> Result<Value> {
     let p: LspStopParams = serde_json::from_value(params)?;
     validate_abs_path(&p.workspace_root, "workspaceRoot")?;
 
@@ -110,10 +110,8 @@ pub async fn lsp_stop(params: Value, ctx: &AppContext) -> Result<Value> {
     let language = p.language.clone();
     let workspace_root = p.workspace_root.clone();
 
-    tokio::task::spawn_blocking(move || {
-        proxy.stop_server(&language, Path::new(&workspace_root))
-    })
-    .await??;
+    tokio::task::spawn_blocking(move || proxy.stop_server(&language, Path::new(&workspace_root)))
+        .await??;
 
     Ok(json!({ "stopped": true, "language": p.language }))
 }
@@ -122,7 +120,7 @@ pub async fn lsp_stop(params: Value, ctx: &AppContext) -> Result<Value> {
 /// diagnostics that are published synchronously.
 ///
 /// The LSP server must have been started via `lsp.start` first.
-pub async fn lsp_diagnostics(params: Value, ctx: &AppContext) -> Result<Value> {
+pub async fn lsp_diagnostics(params: Value, _ctx: &AppContext) -> Result<Value> {
     let p: LspDiagnosticsParams = serde_json::from_value(params)?;
     validate_abs_path(&p.workspace_root, "workspaceRoot")?;
     validate_abs_path(&p.file, "file")?;
@@ -150,7 +148,7 @@ pub async fn lsp_diagnostics(params: Value, ctx: &AppContext) -> Result<Value> {
 ///
 /// The file must have been opened previously (via `lsp.diagnostics` or
 /// a prior `lsp.completions` call on the same file).
-pub async fn lsp_completions(params: Value, ctx: &AppContext) -> Result<Value> {
+pub async fn lsp_completions(params: Value, _ctx: &AppContext) -> Result<Value> {
     let p: LspCompletionsParams = serde_json::from_value(params)?;
     validate_abs_path(&p.workspace_root, "workspaceRoot")?;
     validate_abs_path(&p.file, "file")?;
@@ -178,7 +176,7 @@ pub async fn lsp_completions(params: Value, ctx: &AppContext) -> Result<Value> {
 
 /// `lsp.listServers` — return a list of all currently running LSP server
 /// processes managed by this daemon instance.
-pub async fn lsp_list_servers(_params: Value, ctx: &AppContext) -> Result<Value> {
+pub async fn lsp_list_servers(_params: Value, _ctx: &AppContext) -> Result<Value> {
     let proxy = lsp_proxy();
 
     let servers = tokio::task::spawn_blocking(move || proxy.list_servers()).await??;

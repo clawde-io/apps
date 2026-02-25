@@ -12,6 +12,15 @@ import 'package:clawd_core/clawd_core.dart';
 
 /// Immutable state for the current arena session.
 class ArenaSessionState {
+  const ArenaSessionState({
+    required this.arenaSessionId,
+    required this.sessionAId,
+    required this.sessionBId,
+    required this.providerA,
+    required this.providerB,
+    this.votedWinner,
+  });
+
   /// Arena session identifier returned by `arena.createSession`.
   final String arenaSessionId;
 
@@ -30,15 +39,6 @@ class ArenaSessionState {
   /// Winning provider name after the user votes.  `null` = not yet voted.
   final String? votedWinner;
 
-  const ArenaSessionState({
-    required this.arenaSessionId,
-    required this.sessionAId,
-    required this.sessionBId,
-    required this.providerA,
-    required this.providerB,
-    this.votedWinner,
-  });
-
   /// Whether the user has already cast a vote for this arena session.
   bool get hasVoted => votedWinner != null;
 
@@ -54,12 +54,6 @@ class ArenaSessionState {
 
 /// A single leaderboard entry aggregated from arena votes.
 class LeaderboardEntry {
-  final String provider;
-  final String taskType;
-  final int wins;
-  final int total;
-  final double winRate;
-
   const LeaderboardEntry({
     required this.provider,
     required this.taskType,
@@ -78,6 +72,12 @@ class LeaderboardEntry {
             (json['winRate'] as num?)?.toDouble() ??
             0.0,
       );
+
+  final String provider;
+  final String taskType;
+  final int wins;
+  final int total;
+  final double winRate;
 }
 
 // ─── Providers ────────────────────────────────────────────────────────────────

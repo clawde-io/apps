@@ -129,8 +129,8 @@ pub struct TeCheckpoint {
     pub current_action: String,
     pub current_file: Option<String>,
     pub partial_work: Option<String>,
-    pub next_steps: String,       // JSON array
-    pub remaining_items: String,  // JSON array
+    pub next_steps: String,      // JSON array
+    pub remaining_items: String, // JSON array
     pub key_discoveries: Option<String>,
     pub decisions_made: Option<String>,
     pub gotchas: Option<String>,

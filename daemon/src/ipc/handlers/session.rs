@@ -76,10 +76,7 @@ pub async fn create(params: Value, ctx: &AppContext) -> Result<Value> {
     }
 
     // DC.T41: check for data-dir overlap and .clawd/ injection
-    security::check_repo_path_safety(
-        std::path::Path::new(&p.repo_path),
-        &ctx.config.data_dir,
-    )?;
+    security::check_repo_path_safety(std::path::Path::new(&p.repo_path), &ctx.config.data_dir)?;
 
     // Validate permission scope names if provided
     if let Some(ref perms) = p.permissions {
@@ -203,9 +200,7 @@ pub async fn set_mode(params: Value, ctx: &AppContext) -> Result<Value> {
         .ok_or_else(|| anyhow::anyhow!("SESSION_NOT_FOUND: {}", p.session_id))?;
 
     let previous_mode = session.mode.clone();
-    ctx.storage
-        .set_session_mode(&p.session_id, &p.mode)
-        .await?;
+    ctx.storage.set_session_mode(&p.session_id, &p.mode).await?;
 
     ctx.broadcaster.broadcast(
         "session.modeChanged",

@@ -35,6 +35,7 @@ impl PackType {
     }
 
     /// Parse from a string; returns an error for unknown variants.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> anyhow::Result<Self> {
         match s {
             "skills" => Ok(PackType::Skills),
@@ -97,13 +98,23 @@ impl PackManifest {
     /// Load and parse a `pack.toml` from the given pack directory.
     pub fn load_from_dir(pack_dir: &std::path::Path) -> anyhow::Result<Self> {
         let manifest_path = pack_dir.join("pack.toml");
-        let raw = std::fs::read_to_string(&manifest_path)
-            .map_err(|e| anyhow::anyhow!("cannot read pack.toml at {}: {}", manifest_path.display(), e))?;
-        let manifest: PackManifest = toml::from_str(&raw)
-            .map_err(|e| anyhow::anyhow!("invalid pack.toml: {}", e))?;
+        let raw = std::fs::read_to_string(&manifest_path).map_err(|e| {
+            anyhow::anyhow!(
+                "cannot read pack.toml at {}: {}",
+                manifest_path.display(),
+                e
+            )
+        })?;
+        let manifest: PackManifest =
+            toml::from_str(&raw).map_err(|e| anyhow::anyhow!("invalid pack.toml: {}", e))?;
         // Validate that the version string is valid semver.
-        semver::Version::parse(&manifest.version)
-            .map_err(|e| anyhow::anyhow!("pack version '{}' is not valid semver: {}", manifest.version, e))?;
+        semver::Version::parse(&manifest.version).map_err(|e| {
+            anyhow::anyhow!(
+                "pack version '{}' is not valid semver: {}",
+                manifest.version,
+                e
+            )
+        })?;
         Ok(manifest)
     }
 }
@@ -213,9 +224,15 @@ type    = "skills"
 
     #[test]
     fn pack_dep_optional_version() {
-        let dep = PackDep { name: "some-pack".to_string(), version: None };
+        let dep = PackDep {
+            name: "some-pack".to_string(),
+            version: None,
+        };
         assert!(dep.version.is_none());
-        let dep2 = PackDep { name: "other".to_string(), version: Some("^1.0.0".to_string()) };
+        let dep2 = PackDep {
+            name: "other".to_string(),
+            version: Some("^1.0.0".to_string()),
+        };
         assert_eq!(dep2.version.as_deref(), Some("^1.0.0"));
     }
 }

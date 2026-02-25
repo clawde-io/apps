@@ -103,18 +103,17 @@ pub async fn budget_status(params: Value, ctx: &AppContext) -> Result<Value> {
         .and_then(|v| v.as_f64())
         .or_else(|| {
             let budget = ctx.config.model_intelligence.monthly_budget_usd;
-            if budget > 0.0 { Some(budget) } else { None }
+            if budget > 0.0 {
+                Some(budget)
+            } else {
+                None
+            }
         });
 
     let (cap_val, pct_val, warning, exceeded) = match cap {
         Some(c) if c > 0.0 => {
             let pct = (monthly_spend / c * 100.0).min(9999.9);
-            (
-                Value::from(c),
-                Value::from(pct),
-                pct >= 80.0,
-                pct >= 100.0,
-            )
+            (Value::from(c), Value::from(pct), pct >= 80.0, pct >= 100.0)
         }
         _ => (Value::Null, Value::Null, false, false),
     };

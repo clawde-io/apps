@@ -21,11 +21,7 @@ pub async fn tool_call_audit(params: Value, ctx: &AppContext) -> Result<Value> {
 
     let events = ctx
         .storage
-        .list_tool_call_events(
-            p.session_id.as_deref(),
-            limit,
-            p.before.as_deref(),
-        )
+        .list_tool_call_events(p.session_id.as_deref(), limit, p.before.as_deref())
         .await?;
 
     let count = events.len();

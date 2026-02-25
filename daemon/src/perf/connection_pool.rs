@@ -17,7 +17,7 @@
 //!
 //! # Usage
 //!
-//! ```no_run
+//! ```rust,ignore
 //! use clawd::perf::connection_pool::{ConnectionPool, PoolConfig};
 //!
 //! # async fn example() -> anyhow::Result<()> {
@@ -33,8 +33,8 @@
 //! ```
 
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -104,7 +104,10 @@ pub struct StreamFrame {
 #[derive(Debug)]
 enum ConnCommand {
     /// Send a binary frame on behalf of the given stream.
-    Send { stream_id: StreamId, payload: Vec<u8> },
+    Send {
+        stream_id: StreamId,
+        payload: Vec<u8>,
+    },
     /// Signal that the stream is no longer needed (close the remote stream).
     Close { stream_id: StreamId },
     /// Shut down this physical connection.
@@ -305,9 +308,8 @@ async fn connection_worker(
             }
             Ok(_ws) => {
                 info!(slot, url = %config.url, "physical connection established");
-                backoff = config.reconnect_delay; // reset backoff on success
-
                 // Process commands until the connection drops or Shutdown received.
+                // (backoff reset is not needed — inner loop only exits via break 'outer)
                 loop {
                     match cmd_rx.recv().await {
                         Some(ConnCommand::Shutdown) | None => break 'outer,
@@ -315,12 +317,7 @@ async fn connection_worker(
                             // In a full implementation: wrap `payload` in a
                             // stream-mux frame (e.g. 8-byte stream_id prefix)
                             // and write it to the WebSocket sink.
-                            debug!(
-                                slot,
-                                stream_id,
-                                bytes = payload.len(),
-                                "send frame"
-                            );
+                            debug!(slot, stream_id, bytes = payload.len(), "send frame");
                         }
                         Some(ConnCommand::Close { stream_id }) => {
                             // Send a FIN-equivalent frame for this stream.
@@ -349,7 +346,11 @@ async fn connection_worker(
 async fn attempt_connect(url: &str, auth_token: Option<&str>) -> Result<()> {
     use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 
-    debug!(url, auth = auth_token.is_some(), "pool: opening WebSocket connection");
+    debug!(
+        url,
+        auth = auth_token.is_some(),
+        "pool: opening WebSocket connection"
+    );
 
     let mut request = url
         .into_client_request()

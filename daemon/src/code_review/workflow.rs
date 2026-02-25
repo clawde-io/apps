@@ -80,7 +80,5 @@ pub async fn run_review(repo_path: &Path, config: &ReviewConfig) -> Result<Revie
 }
 
 fn build_summary(grade: &Grade, errors: usize, warnings: usize) -> String {
-    format!(
-        "Grade {grade}: {errors} error(s), {warnings} warning(s) found."
-    )
+    format!("Grade {grade}: {errors} error(s), {warnings} warning(s) found.")
 }

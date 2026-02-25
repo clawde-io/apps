@@ -8,7 +8,7 @@
 //! - Bootstrapping project-level AI config files (VISION.md + FEATURES.md stubs)
 //! - RPC handlers for all provider onboarding RPCs
 
-pub mod scanner;
-pub mod gci_generator;
 pub mod aid_bootstrapper;
+pub mod gci_generator;
 pub mod handlers;
+pub mod scanner;

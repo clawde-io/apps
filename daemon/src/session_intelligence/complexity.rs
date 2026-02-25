@@ -92,11 +92,8 @@ pub fn classify_prompt(prompt: &str) -> TaskComplexity {
     }
 
     // Score based on accumulated signals.
-    let complexity_score: usize = (char_count / 300)
-        + code_blocks * 2
-        + numbered_steps
-        + design_terms * 2
-        + file_refs;
+    let complexity_score: usize =
+        (char_count / 300) + code_blocks * 2 + numbered_steps + design_terms * 2 + file_refs;
 
     if char_count > 1500 || complexity_score >= 6 {
         TaskComplexity::DeepReasoning
@@ -194,7 +191,9 @@ fn count_design_terms(lower: &str) -> usize {
 
 fn count_file_references(lower: &str) -> usize {
     // Count `.rs`, `.dart`, `.ts`, `.tsx`, `.go` etc. file extension mentions.
-    let extensions = [".rs", ".dart", ".ts", ".tsx", ".go", ".py", ".yaml", ".toml", ".json"];
+    let extensions = [
+        ".rs", ".dart", ".ts", ".tsx", ".go", ".py", ".yaml", ".toml", ".json",
+    ];
     extensions
         .iter()
         .map(|ext| count_occurrences(lower, ext))

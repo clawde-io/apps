@@ -113,10 +113,7 @@ fn drift_report_internal(repo_path: &Path) -> Vec<RepoDriftItem> {
         repo_path.join("pyproject.toml"),
         repo_path.join("tsconfig.json"),
     ];
-    let latest_config_mtime = config_candidates
-        .iter()
-        .filter_map(|p| mtime(p))
-        .max();
+    let latest_config_mtime = config_candidates.iter().filter_map(|p| mtime(p)).max();
 
     if let Some(config_mtime) = latest_config_mtime {
         for (artifact, name) in &[
@@ -169,7 +166,10 @@ mod tests {
     fn empty_repo_has_low_score() {
         let tmp = TempDir::new().unwrap();
         let score = drift_score(tmp.path());
-        assert!(score < 60, "expected low score for repo with no artifacts, got {score}");
+        assert!(
+            score < 60,
+            "expected low score for repo with no artifacts, got {score}"
+        );
     }
 
     #[test]

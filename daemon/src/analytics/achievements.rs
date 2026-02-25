@@ -51,11 +51,7 @@ pub fn all_definitions() -> Vec<(&'static str, &'static str, &'static str)> {
             "Getting Warmed Up",
             "Completed 10 AI sessions.",
         ),
-        (
-            SESSIONS_100,
-            "Century",
-            "Completed 100 AI sessions.",
-        ),
+        (SESSIONS_100, "Century", "Completed 100 AI sessions."),
         (
             SESSIONS_500,
             "Power User",

@@ -6,31 +6,31 @@ use chrono::Utc;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
-use super::model::{Dependency, DepType, RepoNode, TopologyGraph};
+use super::model::{DepType, Dependency, RepoNode, TopologyGraph};
 
 // ─── Raw DB row ───────────────────────────────────────────────────────────────
 
 #[derive(sqlx::FromRow)]
 struct DepRow {
-    id:            String,
-    from_repo:     String,
-    to_repo:       String,
-    dep_type:      String,
-    confidence:    f64,
+    id: String,
+    from_repo: String,
+    to_repo: String,
+    dep_type: String,
+    confidence: f64,
     auto_detected: i64,
-    created_at:    String,
+    created_at: String,
 }
 
 impl From<DepRow> for Dependency {
     fn from(r: DepRow) -> Dependency {
         Dependency {
-            id:            r.id,
-            from_repo:     r.from_repo,
-            to_repo:       r.to_repo,
-            dep_type:      DepType::from_str(&r.dep_type),
-            confidence:    r.confidence,
+            id: r.id,
+            from_repo: r.from_repo,
+            to_repo: r.to_repo,
+            dep_type: DepType::from_str(&r.dep_type),
+            confidence: r.confidence,
             auto_detected: r.auto_detected != 0,
-            created_at:    r.created_at,
+            created_at: r.created_at,
         }
     }
 }
@@ -55,12 +55,12 @@ impl TopologyStorage {
     pub async fn add_dependency(
         &self,
         from_repo: &str,
-        to_repo:   &str,
-        dep_type:  &DepType,
+        to_repo: &str,
+        dep_type: &DepType,
         confidence: f64,
         auto_detected: bool,
     ) -> Result<Dependency> {
-        let id  = Uuid::new_v4().to_string();
+        let id = Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
         let dep_type_str = dep_type.as_str();
         let auto_int: i64 = if auto_detected { 1 } else { 0 };
@@ -86,13 +86,12 @@ impl TopologyStorage {
 
         // Re-read so that the returned row reflects the actual stored values
         // (in case the ON CONFLICT branch ran and preserved the old id).
-        let row: DepRow = sqlx::query_as(
-            "SELECT * FROM repo_dependencies WHERE from_repo = ? AND to_repo = ?",
-        )
-        .bind(from_repo)
-        .bind(to_repo)
-        .fetch_one(&self.pool)
-        .await?;
+        let row: DepRow =
+            sqlx::query_as("SELECT * FROM repo_dependencies WHERE from_repo = ? AND to_repo = ?")
+                .bind(from_repo)
+                .bind(to_repo)
+                .fetch_one(&self.pool)
+                .await?;
 
         Ok(row.into())
     }
@@ -114,11 +113,10 @@ impl TopologyStorage {
     /// orphan repos (registered but with no edges) are not included here — the
     /// caller is responsible for merging with the repo registry if needed.
     pub async fn get_topology(&self) -> Result<TopologyGraph> {
-        let rows: Vec<DepRow> = sqlx::query_as(
-            "SELECT * FROM repo_dependencies ORDER BY created_at ASC",
-        )
-        .fetch_all(&self.pool)
-        .await?;
+        let rows: Vec<DepRow> =
+            sqlx::query_as("SELECT * FROM repo_dependencies ORDER BY created_at ASC")
+                .fetch_all(&self.pool)
+                .await?;
 
         let edges: Vec<Dependency> = rows.into_iter().map(Into::into).collect();
 
@@ -165,11 +163,7 @@ impl TopologyStorage {
         }
 
         // DFS for each starting node.
-        let nodes: Vec<String> = graph
-            .nodes
-            .iter()
-            .map(|n| n.path.clone())
-            .collect();
+        let nodes: Vec<String> = graph.nodes.iter().map(|n| n.path.clone()).collect();
 
         for start in &nodes {
             let mut visited: Vec<String> = Vec::new();
@@ -185,10 +179,10 @@ impl TopologyStorage {
 // ─── DFS helper ───────────────────────────────────────────────────────────────
 
 fn dfs_find_cycle(
-    node:    &str,
-    adj:     &std::collections::HashMap<String, Vec<String>>,
-    path:    &mut Vec<String>,
-    cycles:  &mut Vec<String>,
+    node: &str,
+    adj: &std::collections::HashMap<String, Vec<String>>,
+    path: &mut Vec<String>,
+    cycles: &mut Vec<String>,
 ) {
     if let Some(pos) = path.iter().position(|p| p == node) {
         // Found a back-edge — record the cycle.

@@ -96,11 +96,10 @@ impl BrowserError {
     pub fn no_browser() -> Self {
         Self {
             code: "no_browser".to_string(),
-            message:
-                "No headless browser found on PATH. Install Chromium or Chrome and ensure \
+            message: "No headless browser found on PATH. Install Chromium or Chrome and ensure \
                  one of these binaries is available: chromium, chrome, google-chrome, \
                  chromium-browser."
-                    .to_string(),
+                .to_string(),
         }
     }
 

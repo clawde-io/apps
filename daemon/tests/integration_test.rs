@@ -73,6 +73,7 @@ async fn start_test_daemon() -> (String, Arc<AppContext>) {
         version_watcher: Arc::new(clawd::doctor::version_watcher::VersionWatcher::new(
             Arc::new(clawd::ipc::event::EventBroadcaster::new()),
         )),
+        ide_bridge: clawd::ide::new_shared_bridge(),
     });
 
     let ctx_server = ctx.clone();

@@ -240,9 +240,7 @@ mod tests {
         // system + sentinel + recent
         assert_eq!(compressed.len(), 3);
         assert!(compressed.iter().any(|m| m.content.contains("omitted")));
-        assert!(compressed
-            .iter()
-            .any(|m| m.content == "recent message"));
+        assert!(compressed.iter().any(|m| m.content == "recent message"));
     }
 
     #[test]
@@ -260,23 +258,14 @@ mod tests {
 
     #[test]
     fn test_compress_noop_when_few_messages() {
-        let messages = vec![
-            msg("system", "sys", false),
-            msg("user", "hello", false),
-        ];
+        let messages = vec![msg("system", "sys", false), msg("user", "hello", false)];
         let compressed = compress_messages(&messages, 10);
         assert_eq!(compressed.len(), messages.len());
     }
 
     #[test]
     fn test_model_limit_from_provider() {
-        assert_eq!(
-            ModelLimit::from_provider("claude").max_tokens(),
-            200_000
-        );
-        assert_eq!(
-            ModelLimit::from_provider("cursor").max_tokens(),
-            64_000
-        );
+        assert_eq!(ModelLimit::from_provider("claude").max_tokens(), 200_000);
+        assert_eq!(ModelLimit::from_provider("cursor").max_tokens(), 64_000);
     }
 }

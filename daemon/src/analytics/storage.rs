@@ -10,7 +10,9 @@ use chrono::Utc;
 use sqlx::SqlitePool;
 use std::collections::HashMap;
 
-use super::model::{Achievement, DailyCount, PersonalAnalytics, ProviderBreakdown, SessionAnalytics};
+use super::model::{
+    Achievement, DailyCount, PersonalAnalytics, ProviderBreakdown, SessionAnalytics,
+};
 
 /// Analytics query + write layer.
 pub struct AnalyticsStorage {
@@ -71,13 +73,12 @@ impl AnalyticsStorage {
             .collect();
 
         // Total session count in the window.
-        let total_sessions: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM sessions WHERE created_at >= ?",
-        )
-        .bind(from)
-        .fetch_one(&self.pool)
-        .await
-        .context("total session count")?;
+        let total_sessions: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM sessions WHERE created_at >= ?")
+                .bind(from)
+                .fetch_one(&self.pool)
+                .await
+                .context("total session count")?;
 
         // Total sessions with at least one AI message (provider is not empty).
         let ai_sessions: i64 = sqlx::query_scalar(
@@ -125,13 +126,15 @@ impl AnalyticsStorage {
             if provider.is_empty() {
                 continue;
             }
-            map.entry(provider.clone()).or_insert(ProviderBreakdown {
-                provider,
-                sessions: 0,
-                tokens: 0,
-                cost_usd: 0.0,
-                win_rate: None,
-            }).sessions = count as u64;
+            map.entry(provider.clone())
+                .or_insert(ProviderBreakdown {
+                    provider,
+                    sessions: 0,
+                    tokens: 0,
+                    cost_usd: 0.0,
+                    win_rate: None,
+                })
+                .sessions = count as u64;
         }
 
         // Token totals per provider from token_usage table (if it exists).

@@ -191,11 +191,7 @@ pub fn convert_to_clawd_config(vscode_settings: &Value) -> DaemonConfig {
                 // Can be a plain number or { column: N, color: "..." }
                 v.as_u64()
                     .map(|n| n as u32)
-                    .or_else(|| {
-                        v.get("column")
-                            .and_then(|c| c.as_u64())
-                            .map(|n| n as u32)
-                    })
+                    .or_else(|| v.get("column").and_then(|c| c.as_u64()).map(|n| n as u32))
             })
             .collect();
         if !rulers.is_empty() {
@@ -228,10 +224,7 @@ pub fn convert_to_clawd_config(vscode_settings: &Value) -> DaemonConfig {
         }
     }
     // Also handle the flat key form used in workspace settings
-    if let Some(v) = obj
-        .get("editor.minimap.enabled")
-        .and_then(|v| v.as_bool())
-    {
+    if let Some(v) = obj.get("editor.minimap.enabled").and_then(|v| v.as_bool()) {
         cfg.minimap = Some(v);
     }
 

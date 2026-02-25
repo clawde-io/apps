@@ -71,10 +71,7 @@ pub async fn apply_wal_tuning(pool: &SqlitePool) -> Result<()> {
     sqlx::query(&cache_pragma).execute(&mut *conn).await?;
 
     // Enable write-ahead log checkpointing control.
-    let wal_pragma = format!(
-        "PRAGMA wal_autocheckpoint = {}",
-        WAL_AUTOCHECKPOINT_PAGES
-    );
+    let wal_pragma = format!("PRAGMA wal_autocheckpoint = {}", WAL_AUTOCHECKPOINT_PAGES);
     sqlx::query(&wal_pragma).execute(&mut *conn).await?;
 
     // Memory-mapped I/O — safe to set; falls back silently if unsupported.
@@ -120,9 +117,7 @@ pub async fn checkpoint_wal(pool: &SqlitePool, mode: &str) -> Result<WalCheckpoi
     }
 
     let pragma = format!("PRAGMA wal_checkpoint({})", mode);
-    let row: (i64, i64, i64) = sqlx::query_as(&pragma)
-        .fetch_one(pool)
-        .await?;
+    let row: (i64, i64, i64) = sqlx::query_as(&pragma).fetch_one(pool).await?;
 
     let result = WalCheckpointResult {
         busy: row.0 != 0,
@@ -159,9 +154,7 @@ pub struct WalCheckpointResult {
 /// or an error listing the first problems found.
 pub async fn integrity_check(pool: &SqlitePool, max_errors: i64) -> Result<()> {
     let pragma = format!("PRAGMA integrity_check({})", max_errors.max(1));
-    let rows: Vec<(String,)> = sqlx::query_as(&pragma)
-        .fetch_all(pool)
-        .await?;
+    let rows: Vec<(String,)> = sqlx::query_as(&pragma).fetch_all(pool).await?;
 
     let issues: Vec<String> = rows
         .into_iter()
@@ -222,7 +215,11 @@ mod tests {
         // itself may be a no-op, but the PRAGMA should execute without error.
         for mode in ["PASSIVE", "FULL", "RESTART", "TRUNCATE"] {
             let result = checkpoint_wal(&pool, mode).await;
-            assert!(result.is_ok(), "checkpoint_wal({mode}) failed: {:?}", result);
+            assert!(
+                result.is_ok(),
+                "checkpoint_wal({mode}) failed: {:?}",
+                result
+            );
         }
     }
 

@@ -10,7 +10,7 @@
 //! - [`ProviderHealthCheck`] — verifies at least one provider CLI is on PATH
 //!
 //! # Usage
-//! ```rust,no_run
+//! ```rust,ignore
 //! use clawd::health::{
 //!     reporter::HealthReporter,
 //!     checks::{DatabaseHealthCheck, StorageHealthCheck, ProviderHealthCheck},

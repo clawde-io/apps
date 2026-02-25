@@ -47,12 +47,10 @@ impl ProjectStorage {
     }
 
     pub async fn get(&self, id: &str) -> Result<Option<Project>> {
-        Ok(
-            sqlx::query_as("SELECT * FROM projects WHERE id = ?")
-                .bind(id)
-                .fetch_optional(&self.pool)
-                .await?,
-        )
+        Ok(sqlx::query_as("SELECT * FROM projects WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?)
     }
 
     pub async fn update(&self, id: &str, params: UpdateProjectParams) -> Result<Project> {
@@ -119,38 +117,35 @@ impl ProjectStorage {
         }
 
         // Check for duplicate
-        let existing: Option<(String,)> =
-            sqlx::query_as("SELECT project_id FROM project_repos WHERE project_id = ? AND repo_path = ?")
-                .bind(project_id)
-                .bind(repo_path)
-                .fetch_optional(&self.pool)
-                .await?;
+        let existing: Option<(String,)> = sqlx::query_as(
+            "SELECT project_id FROM project_repos WHERE project_id = ? AND repo_path = ?",
+        )
+        .bind(project_id)
+        .bind(repo_path)
+        .fetch_optional(&self.pool)
+        .await?;
         if existing.is_some() {
             anyhow::bail!("REPO_ALREADY_IN_PROJECT: {}", repo_path);
         }
 
         let now = unixepoch();
-        sqlx::query(
-            "INSERT INTO project_repos (project_id, repo_path, added_at) VALUES (?, ?, ?)",
-        )
-        .bind(project_id)
-        .bind(repo_path)
-        .bind(now)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("INSERT INTO project_repos (project_id, repo_path, added_at) VALUES (?, ?, ?)")
+            .bind(project_id)
+            .bind(repo_path)
+            .bind(now)
+            .execute(&self.pool)
+            .await?;
 
         Ok(())
     }
 
     pub async fn remove_repo(&self, project_id: &str, repo_path: &str) -> Result<bool> {
-        let rows = sqlx::query(
-            "DELETE FROM project_repos WHERE project_id = ? AND repo_path = ?",
-        )
-        .bind(project_id)
-        .bind(repo_path)
-        .execute(&self.pool)
-        .await?
-        .rows_affected();
+        let rows = sqlx::query("DELETE FROM project_repos WHERE project_id = ? AND repo_path = ?")
+            .bind(project_id)
+            .bind(repo_path)
+            .execute(&self.pool)
+            .await?
+            .rows_affected();
         Ok(rows > 0)
     }
 
@@ -159,11 +154,12 @@ impl ProjectStorage {
             Some(p) => p,
             None => return Ok(None),
         };
-        let repos: Vec<ProjectRepo> =
-            sqlx::query_as("SELECT * FROM project_repos WHERE project_id = ? ORDER BY added_at ASC")
-                .bind(id)
-                .fetch_all(&self.pool)
-                .await?;
+        let repos: Vec<ProjectRepo> = sqlx::query_as(
+            "SELECT * FROM project_repos WHERE project_id = ? ORDER BY added_at ASC",
+        )
+        .bind(id)
+        .fetch_all(&self.pool)
+        .await?;
         Ok(Some(ProjectWithRepos { project, repos }))
     }
 
@@ -379,7 +375,10 @@ mod tests {
         // Adding same repo again should fail
         let dup = s.add_repo(&p.id, repo_path).await;
         assert!(dup.is_err());
-        assert!(dup.unwrap_err().to_string().contains("REPO_ALREADY_IN_PROJECT"));
+        assert!(dup
+            .unwrap_err()
+            .to_string()
+            .contains("REPO_ALREADY_IN_PROJECT"));
 
         // Remove the repo
         let removed = s.remove_repo(&p.id, repo_path).await.unwrap();

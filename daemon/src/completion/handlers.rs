@@ -37,7 +37,9 @@ pub async fn suggest_completion(params: Value, ctx: &AppContext) -> Result<Value
         .session_manager
         .get(&req.session_id)
         .await
-        .map_err(|_| anyhow::anyhow!("SESSION_NOT_FOUND: session '{}' not found", req.session_id))?;
+        .map_err(|_| {
+            anyhow::anyhow!("SESSION_NOT_FOUND: session '{}' not found", req.session_id)
+        })?;
 
     debug!(
         session_id = %req.session_id,
@@ -122,29 +124,29 @@ fn detect_language(file_path: &str) -> &'static str {
         .unwrap_or("");
 
     match ext {
-        "rs"                       => "Rust",
-        "ts" | "tsx"               => "TypeScript",
-        "js" | "jsx" | "mjs"      => "JavaScript",
-        "dart"                     => "Dart",
-        "py"                       => "Python",
-        "go"                       => "Go",
-        "java"                     => "Java",
-        "kt" | "kts"               => "Kotlin",
-        "swift"                    => "Swift",
-        "c" | "h"                  => "C",
+        "rs" => "Rust",
+        "ts" | "tsx" => "TypeScript",
+        "js" | "jsx" | "mjs" => "JavaScript",
+        "dart" => "Dart",
+        "py" => "Python",
+        "go" => "Go",
+        "java" => "Java",
+        "kt" | "kts" => "Kotlin",
+        "swift" => "Swift",
+        "c" | "h" => "C",
         "cpp" | "cc" | "cxx" | "hpp" => "C++",
-        "cs"                       => "C#",
-        "rb"                       => "Ruby",
-        "php"                      => "PHP",
-        "html" | "htm"             => "HTML",
-        "css" | "scss" | "sass"    => "CSS",
-        "sql"                      => "SQL",
-        "sh" | "bash"              => "Shell",
-        "toml"                     => "TOML",
-        "yaml" | "yml"             => "YAML",
-        "json"                     => "JSON",
-        "md" | "mdx"               => "Markdown",
-        _                          => "plaintext",
+        "cs" => "C#",
+        "rb" => "Ruby",
+        "php" => "PHP",
+        "html" | "htm" => "HTML",
+        "css" | "scss" | "sass" => "CSS",
+        "sql" => "SQL",
+        "sh" | "bash" => "Shell",
+        "toml" => "TOML",
+        "yaml" | "yml" => "YAML",
+        "json" => "JSON",
+        "md" | "mdx" => "Markdown",
+        _ => "plaintext",
     }
 }
 

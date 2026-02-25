@@ -46,7 +46,9 @@ pub async fn approve(params: Value, ctx: &AppContext) -> Result<Value> {
 
         // Security config gating (DC.T40)
         let sanitized = security::sanitize_tool_input(&tool_call.input);
-        if let Err(e) = security::check_tool_call(&tool_call.name, &tool_call.input, &ctx.config.security) {
+        if let Err(e) =
+            security::check_tool_call(&tool_call.name, &tool_call.input, &ctx.config.security)
+        {
             warn!(
                 session_id = %p.session_id,
                 tool = %tool_call.name,
@@ -63,24 +65,30 @@ pub async fn approve(params: Value, ctx: &AppContext) -> Result<Value> {
                 }),
             );
             // Log to audit trail
-            let _ = ctx.storage.create_tool_call_event(
-                &p.session_id,
-                &tool_call.name,
-                Some(&sanitized),
-                "rejected",
-                Some(&e.to_string()),
-            ).await;
+            let _ = ctx
+                .storage
+                .create_tool_call_event(
+                    &p.session_id,
+                    &tool_call.name,
+                    Some(&sanitized),
+                    "rejected",
+                    Some(&e.to_string()),
+                )
+                .await;
             return Err(e);
         }
 
         // Log approved call to audit trail (DC.T43)
-        let _ = ctx.storage.create_tool_call_event(
-            &p.session_id,
-            &tool_call.name,
-            Some(&sanitized),
-            "user",
-            None,
-        ).await;
+        let _ = ctx
+            .storage
+            .create_tool_call_event(
+                &p.session_id,
+                &tool_call.name,
+                Some(&sanitized),
+                "user",
+                None,
+            )
+            .await;
     }
 
     ctx.session_manager
@@ -96,13 +104,16 @@ pub async fn reject(params: Value, ctx: &AppContext) -> Result<Value> {
     // Log rejection to audit trail (DC.T43)
     if let Ok(Some(tool_call)) = ctx.storage.get_tool_call(&p.tool_call_id).await {
         let sanitized = security::sanitize_tool_input(&tool_call.input);
-        let _ = ctx.storage.create_tool_call_event(
-            &p.session_id,
-            &tool_call.name,
-            Some(&sanitized),
-            "rejected",
-            Some("user rejected"),
-        ).await;
+        let _ = ctx
+            .storage
+            .create_tool_call_event(
+                &p.session_id,
+                &tool_call.name,
+                Some(&sanitized),
+                "rejected",
+                Some("user rejected"),
+            )
+            .await;
     }
 
     ctx.session_manager

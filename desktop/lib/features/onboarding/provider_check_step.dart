@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:clawd_ui/clawd_ui.dart';
 
-import 'providers_onboarding_providers.dart';
+import 'package:clawde/features/onboarding/providers_onboarding_providers.dart';
 
 /// Provider detection step — full-width widget used in [OnboardingScreen].
 class ProviderCheckStep extends ConsumerWidget {
@@ -295,15 +295,15 @@ class _InstallHint extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: ClawdTheme.surfaceBorder),
       ),
-      child: Row(
+      child: const Row(
         children: [
-          const Icon(Icons.info_outline, size: 14, color: Colors.white38),
-          const SizedBox(width: 8),
+          Icon(Icons.info_outline, size: 14, color: Colors.white38),
+          SizedBox(width: 8),
           Expanded(
             child: Text(
               'Don\'t see a provider? Install its CLI and restart ClawDE. '
               'ClawDE works with one provider — you don\'t need all three.',
-              style: const TextStyle(fontSize: 12, color: Colors.white38),
+              style: TextStyle(fontSize: 12, color: Colors.white38),
             ),
           ),
         ],

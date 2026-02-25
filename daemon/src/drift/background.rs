@@ -27,7 +27,10 @@ pub fn spawn(storage: Arc<Storage>, broadcaster: Arc<EventBroadcaster>) {
 }
 
 /// Run a drift scan for all registered projects (or just the daemon data dir).
-async fn run_scan_all(storage: &Arc<Storage>, broadcaster: &Arc<EventBroadcaster>) -> anyhow::Result<()> {
+async fn run_scan_all(
+    storage: &Arc<Storage>,
+    broadcaster: &Arc<EventBroadcaster>,
+) -> anyhow::Result<()> {
     // Scan the daemon's own source tree as a primary target.
     // In a real deployment the daemon knows all registered project paths via
     // the projects table; here we use a best-effort scan of the data dir.

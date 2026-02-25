@@ -2,7 +2,6 @@
 ///
 /// This is the post-response hook in the pre-send pipeline (doc 61).
 /// Maximum one auto-upgrade per message to prevent runaway cost.
-
 use super::model_router::ModelSelection;
 use super::RunnerOutput;
 use crate::config::ModelIntelligenceConfig;
@@ -128,12 +127,8 @@ fn model_tier(model: &str) -> u8 {
     }
 }
 
-fn provider_for_model(model: &str) -> String {
-    if model.to_lowercase().starts_with("claude") {
-        "claude".to_string()
-    } else {
-        "claude".to_string()
-    }
+fn provider_for_model(_model: &str) -> String {
+    "claude".to_string()
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -252,6 +247,9 @@ mod tests {
             ..Default::default()
         };
         let sel = upgrade_model(&sonnet_selection(), &cfg, 0);
-        assert!(sel.is_none(), "sonnet capped at sonnet should block upgrade");
+        assert!(
+            sel.is_none(),
+            "sonnet capped at sonnet should block upgrade"
+        );
     }
 }

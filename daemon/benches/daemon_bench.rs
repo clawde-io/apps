@@ -102,7 +102,8 @@ fn redact_secrets(input: &str) -> String {
 
 fn bench_secret_redaction(c: &mut Criterion) {
     let clean_line = "Writing file src/session.rs with 200 lines of Rust code.";
-    let dirty_line = "Error: API_KEY=sk-abcdef12345 Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig password=hunter2";
+    let dirty_line =
+        "Error: API_KEY=sk-abcdef12345 Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig password=hunter2";
     let long_clean = "a".repeat(4096);
 
     c.bench_function("redact_clean_line", |b| {
@@ -193,5 +194,10 @@ fn bench_rate_limiter(c: &mut Criterion) {
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
-criterion_group!(benches, bench_rpc_parse, bench_secret_redaction, bench_rate_limiter);
+criterion_group!(
+    benches,
+    bench_rpc_parse,
+    bench_secret_redaction,
+    bench_rate_limiter
+);
 criterion_main!(benches);

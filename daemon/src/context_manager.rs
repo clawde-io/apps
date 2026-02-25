@@ -137,9 +137,7 @@ impl ContextManager {
                 // TODO: F44.3.4 — add summary snapshot here instead
                 debug!(
                     session_id,
-                    total_tokens,
-                    budget,
-                    "context window full — truncating older messages"
+                    total_tokens, budget, "context window full — truncating older messages"
                 );
                 break;
             }

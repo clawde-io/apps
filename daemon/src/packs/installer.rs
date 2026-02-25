@@ -44,7 +44,11 @@ impl PackInstaller {
         data_dir: &Path,
     ) -> Result<InstalledPack> {
         let resolved_version = version.unwrap_or("latest");
-        debug!(name, version = resolved_version, "pack.install from registry");
+        debug!(
+            name,
+            version = resolved_version,
+            "pack.install from registry"
+        );
 
         // TODO(registry): Replace this stub with an actual HTTP GET to
         //   `{REGISTRY_BASE}/{name}/{resolved_version}`
@@ -57,9 +61,9 @@ impl PackInstaller {
             .join(format!("{name}-{resolved_version}"));
 
         // Ensure the directory exists so subsequent operations are safe.
-        tokio::fs::create_dir_all(&install_path).await.with_context(|| {
-            format!("failed to create install dir {}", install_path.display())
-        })?;
+        tokio::fs::create_dir_all(&install_path)
+            .await
+            .with_context(|| format!("failed to create install dir {}", install_path.display()))?;
 
         // Write a stub pack.toml so the directory is a valid pack.
         let stub_manifest = format!(
@@ -69,7 +73,12 @@ impl PackInstaller {
         if !manifest_path.exists() {
             tokio::fs::write(&manifest_path, stub_manifest)
                 .await
-                .with_context(|| format!("failed to write stub manifest at {}", manifest_path.display()))?;
+                .with_context(|| {
+                    format!(
+                        "failed to write stub manifest at {}",
+                        manifest_path.display()
+                    )
+                })?;
         }
 
         let pack = PackStorage::new_pack(
@@ -83,7 +92,11 @@ impl PackInstaller {
         );
 
         self.storage.add_installed(&pack).await?;
-        info!(name, version = resolved_version, "pack installed (registry stub)");
+        info!(
+            name,
+            version = resolved_version,
+            "pack installed (registry stub)"
+        );
         Ok(pack)
     }
 
@@ -137,9 +150,11 @@ impl PackInstaller {
         // that can't be cleaned up via the API.
         let install_path = PathBuf::from(&record.install_path);
         if install_path.exists() {
-            tokio::fs::remove_dir_all(&install_path).await.with_context(|| {
-                format!("failed to remove pack files at {}", install_path.display())
-            })?;
+            tokio::fs::remove_dir_all(&install_path)
+                .await
+                .with_context(|| {
+                    format!("failed to remove pack files at {}", install_path.display())
+                })?;
         } else {
             // Files may have been deleted manually — log and continue.
             tracing::warn!(path = %install_path.display(), "pack directory not found on disk during remove");
@@ -165,9 +180,9 @@ impl PackInstaller {
 /// treated as literal relative paths.  If `manifest.files` is empty, the
 /// entire source directory is mirrored.
 async fn copy_pack_files(src_dir: &Path, dest_dir: &Path, manifest: &PackManifest) -> Result<()> {
-    tokio::fs::create_dir_all(dest_dir).await.with_context(|| {
-        format!("failed to create pack dest dir {}", dest_dir.display())
-    })?;
+    tokio::fs::create_dir_all(dest_dir)
+        .await
+        .with_context(|| format!("failed to create pack dest dir {}", dest_dir.display()))?;
 
     // Always copy the manifest itself.
     let src_manifest = src_dir.join("pack.toml");
@@ -185,15 +200,15 @@ async fn copy_pack_files(src_dir: &Path, dest_dir: &Path, manifest: &PackManifes
             let dst = dest_dir.join(file_path);
 
             if let Some(parent) = dst.parent() {
-                tokio::fs::create_dir_all(parent).await.with_context(|| {
-                    format!("failed to create parent dir {}", parent.display())
-                })?;
+                tokio::fs::create_dir_all(parent)
+                    .await
+                    .with_context(|| format!("failed to create parent dir {}", parent.display()))?;
             }
 
             if src.is_file() {
-                tokio::fs::copy(&src, &dst).await.with_context(|| {
-                    format!("failed to copy pack file {}", src.display())
-                })?;
+                tokio::fs::copy(&src, &dst)
+                    .await
+                    .with_context(|| format!("failed to copy pack file {}", src.display()))?;
             }
         }
     }

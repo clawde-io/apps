@@ -113,12 +113,7 @@ fn find_features_md(project_path: &Path) -> Option<PathBuf> {
         project_path.join("docs/FEATURES.md"),
         project_path.join(".docs/FEATURES.md"),
     ];
-    for c in candidates {
-        if c.exists() {
-            return Some(c);
-        }
-    }
-    None
+    candidates.into_iter().find(|c| c.exists())
 }
 
 /// Collect all source file contents (*.rs, *.dart, *.ts, *.tsx) up to depth 10.
@@ -181,12 +176,7 @@ fn parse_done_features(content: &str) -> Vec<String> {
             .to_string();
 
         // Strip inline markdown: remove **, *, `, [, ]
-        let name = name
-            .replace("**", "")
-            .replace('*', "")
-            .replace('`', "")
-            .replace('[', "")
-            .replace(']', "");
+        let name = name.replace("**", "").replace(['*', '`', '[', ']'], "");
 
         let name = name.trim().to_string();
         if !name.is_empty() && name.len() > 2 {
@@ -216,7 +206,9 @@ fn derive_identifiers(feature: &str) -> Vec<String> {
             let mut c = w.chars();
             match c.next() {
                 None => String::new(),
-                Some(f) => f.to_uppercase().collect::<String>() + c.as_str().to_lowercase().as_str(),
+                Some(f) => {
+                    f.to_uppercase().collect::<String>() + c.as_str().to_lowercase().as_str()
+                }
             }
         })
         .collect::<Vec<_>>()

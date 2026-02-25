@@ -48,10 +48,7 @@ impl DriftEnforcer {
     ///
     /// `expected_files` comes from `AePlan.files_expected`.
     /// `actual_files`   comes from the git diff of the session's working tree.
-    pub fn check_file_drift(
-        expected_files: &[PathBuf],
-        actual_files: &[PathBuf],
-    ) -> DriftResult {
+    pub fn check_file_drift(expected_files: &[PathBuf], actual_files: &[PathBuf]) -> DriftResult {
         let mut cosmetic: Vec<PathBuf> = Vec::new();
         let mut structural: Vec<String> = Vec::new();
 
@@ -62,10 +59,7 @@ impl DriftEnforcer {
                 if is_cosmetic_path(actual) {
                     cosmetic.push(actual.clone());
                 } else {
-                    structural.push(format!(
-                        "Unexpected file modified: {}",
-                        actual.display()
-                    ));
+                    structural.push(format!("Unexpected file modified: {}", actual.display()));
                 }
             }
         }
