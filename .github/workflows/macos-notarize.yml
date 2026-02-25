@@ -32,9 +32,9 @@ jobs:
 
       - name: Import signing certificate
         run: |
-          echo "${{ secrets.APPLE_DEVELOPER_CERT_BASE64 }}" | base64 --decode > cert.p12
+          echo "${{ secrets.APPLE_DEVELOPER_CERT_BASE64 || '' }}" | base64 --decode > cert.p12
           security create-keychain -p "" build.keychain
-          security import cert.p12 -k build.keychain -P "${{ secrets.APPLE_DEVELOPER_CERT_PASSWORD }}" -T /usr/bin/codesign
+          security import cert.p12 -k build.keychain -P "${{ secrets.APPLE_DEVELOPER_CERT_PASSWORD || '' }}" -T /usr/bin/codesign
           security set-keychain-settings -t 3600 -u build.keychain
           security list-keychains -s build.keychain
           security default-keychain -s build.keychain
@@ -49,7 +49,7 @@ jobs:
 
       - name: Code-sign binary
         run: |
-          codesign --sign "Developer ID Application: ClawDE (${{ secrets.APPLE_TEAM_ID }})" \
+          codesign --sign \"Developer ID Application: ClawDE (${{ secrets.APPLE_TEAM_ID || '' }})\" \
             --options runtime \
             --timestamp \
             --force \
@@ -76,13 +76,13 @@ jobs:
 
       - name: Notarize with Apple Notary Service
         run: |
-          echo "${{ secrets.APPLE_NOTARY_KEY_BASE64 }}" | base64 --decode > notary_key.p8
+          echo "${{ secrets.APPLE_NOTARY_KEY_BASE64 || '' }}" | base64 --decode > notary_key.p8
 
           # Submit for notarization
           xcrun notarytool submit ClawDE.app \
             --key notary_key.p8 \
-            --key-id "${{ secrets.APPLE_NOTARY_KEY_ID }}" \
-            --issuer "${{ secrets.APPLE_NOTARY_KEY_ISSUER_ID }}" \
+            --key-id "${{ secrets.APPLE_NOTARY_KEY_ID || '' }}" \
+            --issuer "${{ secrets.APPLE_NOTARY_KEY_ISSUER_ID || '' }}" \
             --wait \
             --output-format plist
 
