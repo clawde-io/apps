@@ -24,6 +24,7 @@ allow = [
     "Zlib",
     "OpenSSL",
     "Unicode-3.0",
+    "CDLA-Permissive-2.0",
 ]
 
 # Packages that don't have a recognized license but are acceptable
