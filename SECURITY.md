@@ -6,7 +6,7 @@ If you discover a security vulnerability in ClawDE, report it privately.
 
 **Do not** open a public GitHub issue for security vulnerabilities.
 
-**Report to:** security@clawde.io
+**Report to:** <security@clawde.io>
 
 Include in your report:
 - Description of the vulnerability
