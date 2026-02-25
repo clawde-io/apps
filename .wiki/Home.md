@@ -17,6 +17,11 @@ ClawDE is an AI-first developer environment that runs on your machine. One alway
 - Works with **Claude Code, Codex, Cursor, and Aider** — one interface for all
 - **Desktop app** for macOS, Windows, and Linux
 - **Mobile companion** for iOS and Android — monitor and reply from anywhere
+- **Multi-account switching** — hit a rate limit, daemon rotates to the next account automatically
+- **Task worktrees** — each AI task gets its own git branch; accept or reject changes before they land
+- **GCI mode system** — session modes (LEARN, STORM, FORGE, CRUNCH) injected automatically into context
+- **Provider detection** — daemon knows which AI CLIs are installed and auto-routes sessions
+- **Coding standards injection** — language-specific style guides added to context on session open
 - **Free forever** for local use — no subscription required to run on your own machine
 - **Open source** — Rust daemon + Flutter apps, MIT licensed
 

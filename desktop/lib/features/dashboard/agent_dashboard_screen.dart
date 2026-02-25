@@ -4,6 +4,8 @@ import 'package:clawd_core/clawd_core.dart';
 import 'package:clawd_proto/clawd_proto.dart';
 import 'package:clawd_ui/clawd_ui.dart';
 
+import 'package:clawde/features/tasks/task_diff_review.dart';
+
 class AgentDashboardScreen extends ConsumerStatefulWidget {
   const AgentDashboardScreen({super.key});
 
@@ -15,6 +17,8 @@ class AgentDashboardScreen extends ConsumerStatefulWidget {
 class _AgentDashboardScreenState
     extends ConsumerState<AgentDashboardScreen> {
   bool _showActivity = true;
+  // Task ID whose worktree diff is shown in the right panel (null = hidden).
+  String? _diffTaskId;
 
   @override
   Widget build(BuildContext context) {
@@ -60,6 +64,12 @@ class _AgentDashboardScreenState
                         onTaskTap: (task) {
                           ref.read(selectedTaskIdProvider.notifier).state =
                               task.id;
+                          setState(() => _diffTaskId = null);
+                        },
+                        onDiffTap: (task) {
+                          setState(() => _diffTaskId = task.id);
+                          ref.read(selectedTaskIdProvider.notifier).state =
+                              null;
                         },
                       ),
                     ),
@@ -67,8 +77,23 @@ class _AgentDashboardScreenState
                 ),
               ),
 
-              // ── Right panel: task detail OR activity feed ─────────────
-              if (selectedTask != null)
+              // ── Right panel: diff review OR task detail OR activity feed ─
+              if (_diffTaskId != null)
+                SizedBox(
+                  width: 480,
+                  child: Column(
+                    children: [
+                      const VerticalDivider(thickness: 1, width: 1),
+                      Expanded(
+                        child: TaskDiffReview(
+                          taskId: _diffTaskId!,
+                          onDone: () => setState(() => _diffTaskId = null),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else if (selectedTask != null)
                 SizedBox(
                   width: 320,
                   child: Column(

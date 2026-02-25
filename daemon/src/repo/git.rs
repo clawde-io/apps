@@ -242,6 +242,27 @@ pub fn read_file_diff(repo: &Repository, path: &str, staged: bool) -> Result<Fil
         .context(format!("no diff found for path: {}", path))
 }
 
+// ─── File listing ────────────────────────────────────────────────────────────
+
+/// Returns all file paths currently tracked in the git index (HEAD + staged additions).
+/// Paths are relative to the repository work-tree root, sorted lexicographically.
+pub fn list_tracked_files(repo: &Repository) -> Result<Vec<String>> {
+    let mut index = repo.index()?;
+    // Read the HEAD tree into the index so we get a complete picture even before
+    // any staging has happened.
+    if let Ok(head) = repo.head() {
+        if let Ok(tree) = head.peel_to_tree() {
+            let _ = index.read_tree(&tree); // best-effort
+        }
+    }
+    let mut paths: Vec<String> = index
+        .iter()
+        .map(|e| String::from_utf8_lossy(&e.path).into_owned())
+        .collect();
+    paths.sort();
+    Ok(paths)
+}
+
 fn parse_diff(diff: git2::Diff) -> Result<Vec<FileDiff>> {
     let mut result: Vec<FileDiff> = Vec::new();
 

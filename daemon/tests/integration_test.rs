@@ -1,7 +1,7 @@
 use clawd::{
-    account::AccountRegistry, config::DaemonConfig, ipc::event::EventBroadcaster,
-    repo::RepoRegistry, scheduler, session::SessionManager, storage::Storage, tasks::TaskStorage,
-    telemetry, update, worktree, AppContext,
+    account::AccountRegistry, config::DaemonConfig, intelligence::token_tracker::TokenTracker,
+    ipc::event::EventBroadcaster, repo::RepoRegistry, scheduler, session::SessionManager,
+    storage::Storage, tasks::TaskStorage, telemetry, update, worktree, AppContext,
 };
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
@@ -21,6 +21,7 @@ async fn start_test_daemon() -> (String, Arc<AppContext>) {
         Some(port),
         Some(data_dir.clone()),
         Some("warn".to_string()),
+        None,
         None,
     ));
     let storage = Arc::new(Storage::new(&data_dir).await.unwrap());
@@ -42,6 +43,7 @@ async fn start_test_daemon() -> (String, Arc<AppContext>) {
         Arc::clone(&account_pool),
         Arc::clone(&rate_limit_tracker),
     ));
+    let token_tracker = TokenTracker::new(storage.clone());
     let ctx = Arc::new(AppContext {
         config,
         storage,
@@ -66,6 +68,11 @@ async fn start_test_daemon() -> (String, Arc<AppContext>) {
         fallback_engine,
         scheduler_queue: Arc::new(scheduler::queue::SchedulerQueue::new()),
         orchestrator: Arc::new(clawd::agents::orchestrator::Orchestrator::new()),
+        token_tracker,
+        metrics: Arc::new(clawd::metrics::DaemonMetrics::new()),
+        version_watcher: Arc::new(clawd::doctor::version_watcher::VersionWatcher::new(
+            Arc::new(clawd::ipc::event::EventBroadcaster::new()),
+        )),
     });
 
     let ctx_server = ctx.clone();

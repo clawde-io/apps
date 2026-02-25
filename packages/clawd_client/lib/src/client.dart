@@ -163,6 +163,10 @@ class ClawdClient {
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _subscription;
   bool _disposed = false;
+  /// True once [connect] has successfully established a channel at least once.
+  /// Used to distinguish a fresh (never-connected) client from a reconnecting
+  /// one: queuing only makes sense for the latter.
+  bool _hasEverConnected = false;
   int _idCounter = 0;
   final Map<int, Completer<dynamic>> _pending = {};
   final StreamController<Map<String, dynamic>> _pushEvents =
@@ -265,6 +269,7 @@ class ClawdClient {
   Future<void> _connectWebSocket(String wsUrl, ClawdConnectionMode mode) async {
     final channel = _channelFactory(Uri.parse(wsUrl));
     _channel = channel;
+    _hasEverConnected = true;
     _subscription = channel.stream.listen(
       (raw) => _processMessage(raw),
       onDone: _onDisconnect,
@@ -344,7 +349,7 @@ class ClawdClient {
 
   Future<T> call<T>(String method, [Map<String, dynamic>? params]) async {
     if (_channel == null) {
-      if (queueWhenOffline && !_disposed) {
+      if (queueWhenOffline && _hasEverConnected && !_disposed) {
         // Queue the call and return a future that resolves when drained.
         final completer = Completer<dynamic>();
         _callQueue.add(_QueuedCall(
@@ -700,6 +705,115 @@ class ClawdClient {
     });
   }
 
+  // ─── Session mode API ──────────────────────────────────────────────────────
+
+  /// Set the GCI mode for a session (NORMAL / LEARN / STORM / FORGE / CRUNCH).
+  Future<void> setSessionMode(String sessionId, String mode) async {
+    await call<Map<String, dynamic>>('session.setMode', {
+      'session_id': sessionId,
+      'mode': mode,
+    });
+  }
+
+  // ─── Worktree API ──────────────────────────────────────────────────────────
+
+  /// Create a git worktree for the given task and repo.
+  Future<WorktreeInfo> createWorktree({
+    required String taskId,
+    required String taskTitle,
+    required String repoPath,
+  }) async {
+    final result = await call<Map<String, dynamic>>('worktrees.create', {
+      'task_id': taskId,
+      'task_title': taskTitle,
+      'repo_path': repoPath,
+    });
+    return WorktreeInfo.fromJson(result);
+  }
+
+  /// List all worktrees known to the daemon.
+  Future<List<WorktreeInfo>> listWorktrees() async {
+    final result = await call<Map<String, dynamic>>('worktrees.list', {});
+    final list = result['worktrees'] as List<dynamic>? ?? [];
+    return list
+        .map((e) => WorktreeInfo.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Get a unified diff for the task worktree vs its base branch.
+  Future<WorktreeDiff> worktreeDiff(String taskId) async {
+    final result =
+        await call<Map<String, dynamic>>('worktrees.diff', {'task_id': taskId});
+    return WorktreeDiff.fromJson(result);
+  }
+
+  /// Stage all changes and create a commit in the task worktree.
+  Future<String> commitWorktree(String taskId, String message) async {
+    final result = await call<Map<String, dynamic>>('worktrees.commit', {
+      'task_id': taskId,
+      'message': message,
+    });
+    return result['sha'] as String? ?? '';
+  }
+
+  /// Mark the worktree as accepted and merge to main.
+  Future<void> acceptWorktree(String taskId) async {
+    await call<Map<String, dynamic>>(
+        'worktrees.accept', {'task_id': taskId});
+  }
+
+  /// Reject (abandon) the task worktree, removing the branch.
+  Future<void> rejectWorktree(String taskId, {String? reason}) async {
+    await call<Map<String, dynamic>>('worktrees.reject', {
+      'task_id': taskId,
+      if (reason != null) 'reason': reason,
+    });
+  }
+
+  /// Hard-delete the task worktree and its branch.
+  Future<void> deleteWorktree(String taskId) async {
+    await call<Map<String, dynamic>>(
+        'worktrees.delete', {'task_id': taskId});
+  }
+
+  /// Merge a Done worktree to main (alias for accept flow).
+  Future<void> mergeWorktree(String taskId) async {
+    await call<Map<String, dynamic>>(
+        'worktrees.merge', {'task_id': taskId});
+  }
+
+  /// Remove all merged/abandoned worktrees from disk and the registry.
+  Future<int> cleanupWorktrees() async {
+    final result =
+        await call<Map<String, dynamic>>('worktrees.cleanup', {});
+    return (result['removed'] as num?)?.toInt() ?? 0;
+  }
+
+  // ─── License API ───────────────────────────────────────────────────────────
+
+  /// Get the cached license info (tier, features).
+  Future<Map<String, dynamic>> getLicense() async {
+    return call<Map<String, dynamic>>('license.get', {});
+  }
+
+  /// Refresh the license from the server and return the updated info.
+  Future<Map<String, dynamic>> checkLicense() async {
+    return call<Map<String, dynamic>>('license.check', {});
+  }
+
+  /// Get just the license tier string (free / personal_remote / cloud_basic …).
+  Future<String> getLicenseTier() async {
+    final result = await call<Map<String, dynamic>>('license.tier', {});
+    return result['tier'] as String? ?? 'free';
+  }
+
+  // ─── System Resources API ──────────────────────────────────────────────────
+
+  /// Get current RAM usage and session tier counts from `system.resources`.
+  Future<Map<String, dynamic>> systemResources() async {
+    return call<Map<String, dynamic>>('system.resources', {});
+  }
+
   // ─── AFS API ───────────────────────────────────────────────────────────────
 
   /// Scaffold a .claude/ directory tree at the given path.
@@ -717,6 +831,209 @@ class ClawdClient {
   /// Register a project path for AFS file watching.
   Future<void> afsRegister(String repoPath) async {
     await call<Map<String, dynamic>>('afs.register', {'repo_path': repoPath});
+  }
+
+  // ─── Session Intelligence API ──────────────────────────────────────────────
+
+  /// Returns the health state for a session.
+  ///
+  /// Returns a map with keys: healthScore, totalTurns, needsRefresh, etc.
+  /// Returns null if the daemon doesn't support `session.health` yet.
+  Future<Map<String, dynamic>?> sessionHealth(String sessionId) async {
+    try {
+      return await call<Map<String, dynamic>>(
+          'session.health', {'sessionId': sessionId});
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Returns the split proposal for a prompt.
+  ///
+  /// Returns a map with keys: complexity, shouldSplit, proposal (nullable).
+  /// Returns null if the daemon doesn't support `session.splitProposed` yet.
+  Future<Map<String, dynamic>?> sessionSplitProposed(String prompt) async {
+    try {
+      return await call<Map<String, dynamic>>(
+          'session.splitProposed', {'prompt': prompt});
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Returns the active coding standards for a session.
+  /// Returns an empty list if the daemon doesn't support this RPC yet.
+  Future<List<String>> sessionStandards(String sessionId) async {
+    try {
+      final result = await call<List<dynamic>>(
+          'session.standards', {'sessionId': sessionId});
+      return result.cast<String>();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Returns the detected provider knowledge contexts for a session.
+  /// Returns an empty list if the daemon doesn't support this RPC yet.
+  Future<List<String>> sessionProviderKnowledge(String sessionId) async {
+    try {
+      final result = await call<List<dynamic>>(
+          'session.providerKnowledge', {'sessionId': sessionId});
+      return result.cast<String>();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  // ─── Token Usage API (Sprint H, MI.T14/T16) ───────────────────────────────
+
+  /// Returns token + cost totals for a session.
+  ///
+  /// Keys: sessionId, inputTokens, outputTokens, estimatedCostUsd, messageCount.
+  /// Returns null when the daemon doesn't support this RPC yet.
+  Future<Map<String, dynamic>?> tokenSessionUsage(String sessionId) async {
+    try {
+      return await call<Map<String, dynamic>>(
+          'token.sessionUsage', {'sessionId': sessionId});
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Returns usage broken down by model over a date range.
+  ///
+  /// [from] and [to] are optional ISO-8601 strings; defaults to current month.
+  /// Returns a list of maps with keys: modelId, inputTokens, outputTokens,
+  /// estimatedCostUsd, messageCount.
+  Future<List<Map<String, dynamic>>> tokenTotalUsage({
+    String? from,
+    String? to,
+  }) async {
+    try {
+      final params = <String, dynamic>{};
+      if (from != null) params['from'] = from;
+      if (to != null) params['to'] = to;
+      final result = await call<List<dynamic>>('token.totalUsage', params);
+      return result.cast<Map<String, dynamic>>();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Returns monthly spend vs optional budget cap.
+  ///
+  /// Keys: monthlySpendUsd, cap (null if none), pct (null if none),
+  /// warning (bool), exceeded (bool).
+  Future<Map<String, dynamic>?> tokenBudgetStatus({double? monthlyCap}) async {
+    try {
+      final params = <String, dynamic>{};
+      if (monthlyCap != null) params['monthlyCap'] = monthlyCap;
+      return await call<Map<String, dynamic>>('token.budgetStatus', params);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ─── Model Intelligence API (Sprint H) ────────────────────────────────────
+
+  /// Pin a model to a session, bypassing auto-routing (MI.T12).
+  ///
+  /// Pass `model = null` to restore auto-routing.
+  /// Returns the updated modelOverride value.
+  Future<String?> setSessionModel(String sessionId, String? model) async {
+    final result = await call<Map<String, dynamic>>(
+        'session.setModel', {'sessionId': sessionId, 'model': model});
+    return result['modelOverride'] as String?;
+  }
+
+  /// Add a path to the session's repo-context registry (MI.T11).
+  ///
+  /// Returns the created/updated context entry map.
+  Future<Map<String, dynamic>?> addRepoContext(
+    String sessionId,
+    String path, {
+    int priority = 5,
+  }) async {
+    try {
+      return await call<Map<String, dynamic>>('session.addRepoContext', {
+        'sessionId': sessionId,
+        'path': path,
+        'priority': priority,
+      });
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// List all repo-context entries for a session, highest-priority first (MI.T11).
+  Future<List<Map<String, dynamic>>> listRepoContexts(String sessionId) async {
+    try {
+      final result = await call<Map<String, dynamic>>(
+          'session.listRepoContexts', {'sessionId': sessionId});
+      final items = result['contexts'] as List<dynamic>? ?? [];
+      return items.cast<Map<String, dynamic>>();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Remove a repo-context entry by its ID (MI.T11).
+  Future<void> removeRepoContext(String id) async {
+    await call<Map<String, dynamic>>('session.removeRepoContext', {'id': id});
+  }
+
+  // ─── Doctor RPC helpers ────────────────────────────────────────────────────
+
+  /// Run a doctor scan on `projectPath`.
+  ///
+  /// `scope` is one of `"all"`, `"afs"`, `"docs"`, `"release"` (default `"all"`).
+  Future<Map<String, dynamic>> doctorScan(
+    String projectPath, {
+    String scope = 'all',
+  }) async {
+    return call<Map<String, dynamic>>('doctor.scan', {
+      'project_path': projectPath,
+      'scope': scope,
+    });
+  }
+
+  /// Attempt auto-fix for the given finding codes.
+  ///
+  /// Pass an empty list to fix all fixable findings.
+  Future<Map<String, dynamic>> doctorFix(
+    String projectPath, {
+    List<String> codes = const [],
+  }) async {
+    return call<Map<String, dynamic>>('doctor.fix', {
+      'project_path': projectPath,
+      'codes': codes,
+    });
+  }
+
+  /// Approve the release plan for `version` in `projectPath`.
+  Future<void> doctorApproveRelease(String projectPath, String version) async {
+    await call<Map<String, dynamic>>('doctor.approveRelease', {
+      'project_path': projectPath,
+      'version': version,
+    });
+  }
+
+  /// Install the pre-tag git hook in `projectPath`.
+  Future<void> doctorHookInstall(String projectPath) async {
+    await call<Map<String, dynamic>>('doctor.hookInstall', {
+      'project_path': projectPath,
+    });
+  }
+
+  /// Returns the current drift items detected by the daemon.
+  /// Returns an empty list if the daemon doesn't support this RPC yet.
+  Future<List<String>> driftList() async {
+    try {
+      final result = await call<List<dynamic>>('drift.list', {});
+      return result.cast<String>();
+    } catch (_) {
+      return const [];
+    }
   }
 
   // ─── Internal ─────────────────────────────────────────────────────────────

@@ -1,0 +1,65 @@
+# Homebrew formula for clawd — AI development daemon for ClawDE
+# This template is maintained at apps/scripts/clawd.rb.template
+# The homebrew-tap.yml workflow copies it to clawde-io/homebrew-clawde and
+# substitutes VERSION_PLACEHOLDER + SHA placeholders on every release.
+#
+# Template substitution keys:
+#   VERSION_PLACEHOLDER   → version string without 'v' prefix (e.g. 0.2.0)
+#   SHA_PLACEHOLDER       → SHA256 of aarch64-apple-darwin binary  # macos
+#   SHA_PLACEHOLDER       → SHA256 of x86_64-apple-darwin binary   # macos-intel
+#   SHA_PLACEHOLDER       → SHA256 of x86_64-unknown-linux-gnu     # linux
+
+class Clawd < Formula
+  desc "AI development daemon for ClawDE"
+  homepage "https://clawde.io"
+  license "MIT"
+  version "VERSION_PLACEHOLDER"
+
+  on_macos do
+    on_arm do
+      url "https://github.com/clawde-io/apps/releases/download/vVERSION_PLACEHOLDER/clawd-aarch64-apple-darwin"
+      sha256 "SHA_PLACEHOLDER" # macos
+    end
+    on_intel do
+      url "https://github.com/clawde-io/apps/releases/download/vVERSION_PLACEHOLDER/clawd-x86_64-apple-darwin"
+      sha256 "SHA_PLACEHOLDER" # macos-intel
+    end
+  end
+
+  on_linux do
+    url "https://github.com/clawde-io/apps/releases/download/vVERSION_PLACEHOLDER/clawd-x86_64-unknown-linux-gnu"
+    sha256 "SHA_PLACEHOLDER" # linux
+  end
+
+  def install
+    bin.install "clawd"
+  end
+
+  service do
+    run [opt_bin/"clawd", "start"]
+    keep_alive true
+    log_path var/"log/clawd.log"
+    error_log_path var/"log/clawd.log"
+    environment_variables HOME: Dir.home
+  end
+
+  def caveats
+    <<~EOS
+      clawd is now installed. To start as a background service:
+        brew services start clawd
+
+      Or start manually:
+        clawd start
+
+      Run diagnostics:
+        clawd doctor
+
+      Documentation: https://clawde.io/docs
+    EOS
+  end
+
+  test do
+    output = shell_output("#{bin}/clawd --version")
+    assert_match "clawd", output
+  end
+end

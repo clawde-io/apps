@@ -76,6 +76,7 @@ fn try_advertise(daemon_id: &str, port: u16) -> anyhow::Result<MdnsGuard> {
     let mut props = std::collections::HashMap::new();
     props.insert("version".to_owned(), env!("CARGO_PKG_VERSION").to_owned());
     props.insert("daemon_id".to_owned(), daemon_id.to_owned());
+    props.insert("port".to_owned(), port.to_string());
 
     let service_info = ServiceInfo::new(
         "_clawde._tcp.local.",

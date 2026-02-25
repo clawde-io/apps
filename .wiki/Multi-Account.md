@@ -65,6 +65,80 @@ Over JSON-RPC:
 
 Response includes `activeAccount` and `rateLimited` fields.
 
+## account.* RPC API
+
+Manage accounts programmatically via the JSON-RPC 2.0 API.
+
+### account.list
+
+Returns all configured accounts in priority order.
+
+```json
+{ "jsonrpc": "2.0", "id": 1, "method": "account.list", "params": {} }
+```
+
+```json
+{
+  "accounts": [
+    { "id": "acc-001", "name": "primary", "provider": "claude", "priority": 0 },
+    { "id": "acc-002", "name": "backup", "provider": "claude", "priority": 1 }
+  ]
+}
+```
+
+### account.create
+
+Add a new account. The `credentials_path` is the directory where the provider CLI stores its auth (optional — defaults to the CLI's standard location).
+
+```json
+{
+  "jsonrpc": "2.0", "id": 2, "method": "account.create",
+  "params": { "name": "backup", "provider": "claude", "credentials_path": "/home/user/.claude-backup" }
+}
+```
+
+### account.delete
+
+```json
+{
+  "jsonrpc": "2.0", "id": 3, "method": "account.delete",
+  "params": { "account_id": "acc-002" }
+}
+```
+
+### account.setPriority
+
+Set the priority order for account rotation. Lower number = tried first.
+
+```json
+{
+  "jsonrpc": "2.0", "id": 4, "method": "account.setPriority",
+  "params": { "account_id": "acc-002", "priority": 0 }
+}
+```
+
+### account.history
+
+View recent limit events and switch history for an account.
+
+```json
+{
+  "jsonrpc": "2.0", "id": 5, "method": "account.history",
+  "params": { "account_id": "acc-001", "limit": 20 }
+}
+```
+
+Returns a list of events with `event_type` (`limited` / `switched` / `priority_changed`) and timestamps.
+
+## Push events
+
+| Event | When |
+| --- | --- |
+| `session.accountLimited` | The active account hit a rate limit |
+| `session.accountSwitched` | The daemon switched to a different account |
+
+Both events include `session_id`, `from_account`, and `to_account` fields.
+
 ## Cloud tier
 
 Cloud tier users don't configure accounts. The ClawDE relay provisions AI capacity from

@@ -6,6 +6,7 @@
 
 **Getting started**
 - [[Getting-Started]]
+- [[Packages|Install & Distribution]]
 - [[Configuration]]
 - [[Upgrading]]
 - [[FAQ]]
@@ -21,10 +22,13 @@
 - [[Features]]
 - [[Features/Daemon|Daemon internals]]
 - [[Features/Session-Manager|Session manager]]
+- [[Features/Mode-System|Mode system]]
 - [[Features/Repo-Intelligence|Repo intelligence]]
 - [[Features/Projects|Projects]]
 - [[Features/Remote-Access|Remote access]]
 - [[Features/Desktop-App|Desktop app]]
+- [[Features/Provider-Knowledge|Provider knowledge]]
+- [[Features/Coding-Standards|Coding standards]]
 - [[Roadmap]]
 
 **Contributing**

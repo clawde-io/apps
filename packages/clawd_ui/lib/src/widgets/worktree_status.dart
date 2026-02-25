@@ -25,7 +25,7 @@ final _worktreeStatusProvider =
 
 /// Shows a summary of the git worktree associated with a task:
 /// branch name, changed file count, merge status,
-/// and quick [Merge] / [Abandon] action buttons (stubs for now).
+/// and quick [Merge] / [Abandon] action buttons.
 class WorktreeStatusWidget extends ConsumerWidget {
   final String taskId;
   const WorktreeStatusWidget({required this.taskId, super.key});
@@ -118,24 +118,39 @@ class WorktreeStatusWidget extends ConsumerWidget {
               ),
               const SizedBox(height: 10),
 
-              // Action buttons
+              // Action buttons — wired to worktrees.accept / worktrees.reject RPCs.
               Row(
                 children: [
-                  if (status.pendingMerge)
-                    // Disabled until worktrees.merge/abandon RPCs are implemented
+                  if (status.pendingMerge) ...[
                     _ActionButton(
                       label: 'Merge',
                       icon: Icons.merge,
                       color: Colors.green,
-                      onTap: null,
+                      onTap: () {
+                        ref
+                            .read(daemonProvider.notifier)
+                            .client
+                            .acceptWorktree(taskId)
+                            .then((_) =>
+                                ref.invalidate(_worktreeStatusProvider(taskId)))
+                            .ignore();
+                      },
                     ),
-                  if (status.pendingMerge) const SizedBox(width: 8),
-                  // Disabled until worktrees.merge/abandon RPCs are implemented
+                    const SizedBox(width: 8),
+                  ],
                   _ActionButton(
                     label: 'Abandon',
                     icon: Icons.delete_outline,
                     color: Colors.red,
-                    onTap: null,
+                    onTap: () {
+                      ref
+                          .read(daemonProvider.notifier)
+                          .client
+                          .rejectWorktree(taskId)
+                          .then((_) =>
+                              ref.invalidate(_worktreeStatusProvider(taskId)))
+                          .ignore();
+                    },
                   ),
                 ],
               ),

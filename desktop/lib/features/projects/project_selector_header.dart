@@ -162,6 +162,10 @@ class ProjectSelectorHeader extends ConsumerWidget {
                   maxLines: 1,
                 ),
               ),
+              if (active?.rootPath case final path?) ...[
+                DoctorBadge(projectPath: path),
+                const SizedBox(width: 2),
+              ],
               const Icon(Icons.arrow_drop_down, size: 14, color: Colors.white38),
             ],
           ),

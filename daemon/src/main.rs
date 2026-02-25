@@ -1,12 +1,14 @@
-mod doctor;
+use clawd::doctor;
 
 use anyhow::{Context as _, Result};
 use clap::{Parser, Subcommand};
+use clawd::cli::client::{read_auth_token, DaemonClient};
 use clawd::{
     account::AccountRegistry,
     auth,
     config::DaemonConfig,
     identity,
+    intelligence::token_tracker::TokenTracker,
     ipc::event::EventBroadcaster,
     license, mdns, relay,
     repo::RepoRegistry,
@@ -47,6 +49,10 @@ struct Args {
     /// Maximum concurrent sessions (0 = unlimited)
     #[arg(long, env = "CLAWD_MAX_SESSIONS")]
     max_sessions: Option<usize>,
+
+    /// Bind address for the WebSocket server (default: 127.0.0.1; use 0.0.0.0 for LAN access)
+    #[arg(long, env = "CLAWD_BIND")]
+    bind_address: Option<String>,
 
     /// Write logs to this file path (rotated daily). Optional.
     #[arg(long, env = "CLAWD_LOG_FILE")]
@@ -97,6 +103,14 @@ enum Command {
     Init {
         /// Project path to initialize (default: current directory)
         path: Option<std::path::PathBuf>,
+        /// Force a specific stack template instead of auto-detecting.
+        ///
+        /// Valid values: rust-cli, nextjs, react-spa, flutter-app, nself-backend, generic
+        ///
+        /// If omitted, the stack is auto-detected from marker files (Cargo.toml,
+        /// pubspec.yaml, next.config.*, vite.config.*, .env.nself).
+        #[arg(long, value_name = "STACK")]
+        template: Option<String>,
     },
     /// Manage agent tasks.
     ///
@@ -175,6 +189,18 @@ enum Command {
     /// Examples:
     ///   clawd pair
     Pair,
+    /// Manage the daemon auth token.
+    ///
+    /// Show or display the auth token used to authenticate clients.
+    ///
+    /// Examples:
+    ///   clawd token show
+    ///   clawd token qr
+    ///   clawd token qr --relay
+    Token {
+        #[command(subcommand)]
+        cmd: TokenCmd,
+    },
     /// Manage projects (workspaces containing multiple repos).
     ///
     /// Projects group multiple git repositories under one workspace.
@@ -186,6 +212,124 @@ enum Command {
     ///   clawd project add-repo my-project /path/to/repo
     #[command(subcommand)]
     Project(ProjectCommands),
+    /// Show daemon status (running, version, active sessions).
+    ///
+    /// Connects to the running daemon and prints a summary line.
+    /// Exits 0 if healthy, 1 if stopped or unresponsive.
+    ///
+    /// Examples:
+    ///   clawd status
+    ///   clawd status --json
+    Status {
+        /// Output as JSON for scripting
+        #[arg(long)]
+        json: bool,
+    },
+    /// View daemon log file.
+    ///
+    /// Prints the last N lines from the daemon log. Use --follow to tail live output.
+    ///
+    /// Examples:
+    ///   clawd logs
+    ///   clawd logs -f
+    ///   clawd logs --lines 100
+    ///   clawd logs --filter warn
+    Logs {
+        /// Follow log output in real time (like tail -f)
+        #[arg(long, short)]
+        follow: bool,
+        /// Number of lines to show (0 = all)
+        #[arg(long, short = 'n', default_value = "50")]
+        lines: u64,
+        /// Minimum log level to show: trace, debug, info, warn, error
+        #[arg(long)]
+        filter: Option<String>,
+    },
+    /// Manage AI provider accounts.
+    ///
+    /// Add, list, or remove provider accounts (claude, codex, etc.).
+    /// Requires the daemon to be running.
+    ///
+    /// Examples:
+    ///   clawd account add --provider claude --credentials ~/.config/claude/credentials
+    ///   clawd account list
+    ///   clawd account remove <account-id>
+    Account {
+        #[command(subcommand)]
+        cmd: AccountCmd,
+    },
+}
+
+#[derive(Subcommand)]
+enum TokenCmd {
+    /// Print the daemon auth token to stdout.
+    ///
+    /// The token is stored at {data_dir}/auth_token. Use this to retrieve
+    /// the token for connecting remote clients or the mobile app.
+    ///
+    /// Examples:
+    ///   clawd token show
+    Show,
+    /// Display a QR code encoding the daemon endpoint and auth token.
+    ///
+    /// Generates a QR code that encodes a `clawd://connect` URL. Scan with
+    /// the ClawDE mobile app to pair without manual token entry.
+    ///
+    /// Warning: The QR code contains your auth token. Only share with trusted devices.
+    ///
+    /// Examples:
+    ///   clawd token qr
+    ///   clawd token qr --relay
+    Qr {
+        /// Include relay=1 in the QR payload so the app connects via relay
+        #[arg(long)]
+        relay: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum AccountCmd {
+    /// Add a provider account.
+    ///
+    /// Examples:
+    ///   clawd account add --provider claude --credentials ~/.config/claude/credentials
+    ///   clawd account add --provider claude --credentials /path/creds --name "Work"
+    Add {
+        /// Provider name (e.g. claude, codex)
+        #[arg(long)]
+        provider: String,
+        /// Path to credentials file
+        #[arg(long)]
+        credentials: std::path::PathBuf,
+        /// Optional display name for this account
+        #[arg(long)]
+        name: Option<String>,
+        /// Optional priority (lower = preferred; default 0)
+        #[arg(long)]
+        priority: Option<i64>,
+    },
+    /// List all configured accounts.
+    ///
+    /// Examples:
+    ///   clawd account list
+    ///   clawd account list --json
+    List {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Remove an account.
+    ///
+    /// Examples:
+    ///   clawd account remove <account-id>
+    ///   clawd account remove <account-id> --yes
+    Remove {
+        /// Account ID to remove
+        id: String,
+        /// Skip confirmation prompt
+        #[arg(long, short = 'y')]
+        yes: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -527,7 +671,9 @@ async fn main() -> Result<()> {
     // ── Logging setup ────────────────────────────────────────────────────────
     // Init once — must happen before any tracing calls.
     let log_level = args.log.as_deref().unwrap_or("info").to_owned();
-    let _file_guard = setup_logging(&log_level, args.log_file.as_deref());
+    let log_format = std::env::var("CLAWD_LOG_FORMAT")
+        .unwrap_or_else(|_| "pretty".to_string());
+    let _file_guard = setup_logging(&log_level, args.log_file.as_deref(), &log_format);
 
     let quiet = args.quiet;
     match args.command {
@@ -536,18 +682,18 @@ async fn main() -> Result<()> {
             ServiceAction::Uninstall => service::uninstall()?,
             ServiceAction::Status => service::status()?,
         },
-        Some(Command::Init { path }) => {
+        Some(Command::Init { path, template }) => {
             let path = match path {
                 Some(p) => p,
                 None => std::env::current_dir().context("failed to determine current directory")?,
             };
-            run_init(&path, quiet).await?;
+            run_init(&path, template.as_deref(), quiet).await?;
         }
         Some(Command::Tasks { action }) => {
             run_tasks(action, args.data_dir, quiet).await?;
         }
         Some(Command::Update { check, apply }) => {
-            run_update(check, apply, quiet).await?;
+            run_update(check, apply, quiet, args.data_dir).await?;
         }
         Some(Command::Start) => service::start()?,
         Some(Command::Stop) => service::stop()?,
@@ -565,14 +711,34 @@ async fn main() -> Result<()> {
             println!("Or run the daemon and use: clawd pair --daemon");
             println!("(Requires daemon to be running to generate a one-time PIN)");
         }
+        Some(Command::Token { cmd }) => {
+            let config = DaemonConfig::new(None, args.data_dir, Some("error".to_string()), None, None);
+            match cmd {
+                TokenCmd::Show => run_token_show(&config)?,
+                TokenCmd::Qr { relay } => run_token_qr(&config, relay)?,
+            }
+        }
         Some(Command::Project(cmd)) => {
             let _ = cmd; // suppress unused warning — full RPC wiring is a future task
             eprintln!("project commands require the daemon to be running.");
             eprintln!("Start the daemon with: clawd start");
             std::process::exit(1);
         }
+        Some(Command::Status { json }) => {
+            let config = DaemonConfig::new(None, args.data_dir, Some("error".to_string()), None, None);
+            let exit_code = run_status(&config, json).await;
+            std::process::exit(exit_code);
+        }
+        Some(Command::Logs { follow, lines, filter }) => {
+            let config = DaemonConfig::new(None, args.data_dir, Some("error".to_string()), None, None);
+            run_logs(&config, follow, lines, filter.as_deref())?;
+        }
+        Some(Command::Account { cmd }) => {
+            let config = DaemonConfig::new(None, args.data_dir, Some("error".to_string()), None, None);
+            run_account(&config, cmd).await?;
+        }
         None | Some(Command::Serve) => {
-            run_server(args.port, args.data_dir, args.log, args.max_sessions).await?;
+            run_server(args.port, args.data_dir, args.log, args.max_sessions, args.bind_address).await?;
         }
     }
 
@@ -583,13 +749,19 @@ async fn main() -> Result<()> {
 /// If `log_file` is set, logs go to both stdout and a daily-rolling file.
 /// Returns a `WorkerGuard` that must stay alive for the process lifetime.
 ///
+/// `log_format` may be `"pretty"` (default, human-readable compact format) or
+/// `"json"` (structured JSON for log aggregators like Loki/Elasticsearch).
+///
 /// If the log directory cannot be created, falls back to stdout-only logging
 /// with a warning — never panics.
 fn setup_logging(
     log_level: &str,
     log_file: Option<&std::path::Path>,
+    log_format: &str,
 ) -> Option<tracing_appender::non_blocking::WorkerGuard> {
-    use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+    use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+
+    let use_json = log_format == "json";
 
     if let Some(path) = log_file {
         let dir = path.parent().unwrap_or_else(|| std::path::Path::new("."));
@@ -604,37 +776,120 @@ fn setup_logging(
                 "warn: could not create log directory '{}': {e} — falling back to stdout",
                 dir.display()
             );
-            tracing_subscriber::fmt()
-                .with_env_filter(log_level)
-                .compact()
-                .init();
+            if use_json {
+                tracing_subscriber::fmt().json().with_env_filter(log_level).init();
+            } else {
+                tracing_subscriber::fmt().with_env_filter(log_level).compact().init();
+            }
             return None;
         }
 
         let appender = tracing_appender::rolling::daily(dir, filename);
         let (non_blocking, guard) = tracing_appender::non_blocking(appender);
 
-        tracing_subscriber::registry()
-            .with(tracing_subscriber::EnvFilter::new(log_level))
-            .with(tracing_subscriber::fmt::layer().compact())
-            .with(tracing_subscriber::fmt::layer().with_writer(non_blocking))
-            .init();
+        if use_json {
+            tracing_subscriber::registry()
+                .with(EnvFilter::new(log_level))
+                .with(fmt::layer().json())
+                .with(fmt::layer().json().with_writer(non_blocking))
+                .init();
+        } else {
+            tracing_subscriber::registry()
+                .with(EnvFilter::new(log_level))
+                .with(fmt::layer().compact())
+                .with(fmt::layer().with_writer(non_blocking))
+                .init();
+        }
 
         Some(guard)
-    } else {
-        tracing_subscriber::fmt()
-            .with_env_filter(log_level)
-            .compact()
-            .init();
+    } else if use_json {
+        tracing_subscriber::fmt().json().with_env_filter(log_level).init();
         None
+    } else {
+        tracing_subscriber::fmt().with_env_filter(log_level).compact().init();
+        None
+    }
+}
+
+// ── Panic hook + crash log (DC.T51) ───────────────────────────────────────────
+
+/// Install a custom panic hook that writes panic info + backtrace to `{data_dir}/crash.log`.
+///
+/// The crash log is checked and removed on the next startup (`check_crash_log`).
+/// This works alongside the rollback sentinel — the sentinel handles binary corruption;
+/// the crash log captures application-level panics.
+fn install_panic_hook(data_dir: std::path::PathBuf) {
+    let original = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        // Call the original hook first (prints to stderr).
+        original(info);
+
+        let crash_path = data_dir.join("crash.log");
+        let msg = info
+            .payload()
+            .downcast_ref::<&str>()
+            .copied()
+            .or_else(|| info.payload().downcast_ref::<String>().map(|s| s.as_str()))
+            .unwrap_or("unknown panic");
+
+        let location = info
+            .location()
+            .map(|l| format!("{}:{}", l.file(), l.line()))
+            .unwrap_or_else(|| "unknown location".to_string());
+
+        let backtrace = std::backtrace::Backtrace::capture();
+        let content = format!(
+            "clawd panic at {location}\n\
+             message: {msg}\n\
+             version: {}\n\
+             backtrace:\n{backtrace:#}\n",
+            env!("CARGO_PKG_VERSION")
+        );
+
+        // Best-effort write — if this fails, we can't do much.
+        let _ = std::fs::write(&crash_path, &content);
+    }));
+}
+
+/// Check for a crash log from the previous run, log it at error level, then delete it.
+///
+/// Called early in `run_serve()` after logging is initialized.
+fn check_crash_log(data_dir: &std::path::Path) {
+    let crash_path = data_dir.join("crash.log");
+    match std::fs::read_to_string(&crash_path) {
+        Ok(content) => {
+            tracing::error!(
+                crash_report = %content.trim(),
+                "previous daemon run ended with a panic — see crash report above"
+            );
+            let _ = std::fs::remove_file(&crash_path);
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => {
+            tracing::warn!(err = %e, "could not read crash.log");
+        }
     }
 }
 
 // ── clawd init ────────────────────────────────────────────────────────────────
 
-async fn run_init(path: &std::path::Path, quiet: bool) -> Result<()> {
+async fn run_init(path: &std::path::Path, template: Option<&str>, quiet: bool) -> Result<()> {
+    use clawd::init_templates::{detect_stack, template_for, Stack};
     use tokio::fs;
 
+    // Determine stack — override or auto-detect.
+    let stack = if let Some(t) = template {
+        t.parse::<Stack>().unwrap_or_else(|_| {
+            if !quiet {
+                eprintln!("warn: unknown template '{}' — using generic", t);
+            }
+            Stack::Generic
+        })
+    } else {
+        detect_stack(path)
+    };
+
+    let tmpl = template_for(stack);
     let claude_dir = path.join(".claude");
     let mut created: Vec<String> = Vec::new();
 
@@ -650,6 +905,7 @@ async fn run_init(path: &std::path::Path, quiet: bool) -> Result<()> {
         ".claude/docs",
         ".claude/archive/inbox",
         ".claude/inbox",
+        ".claude/ideas",
         ".claude/temp",
     ] {
         let full = path.join(dir);
@@ -661,8 +917,14 @@ async fn run_init(path: &std::path::Path, quiet: bool) -> Result<()> {
 
     let claude_md = claude_dir.join("CLAUDE.md");
     if !claude_md.exists() {
-        fs::write(&claude_md, clawd::ipc::handlers::afs::CLAUDE_MD_TEMPLATE).await?;
+        fs::write(&claude_md, tmpl.claude_md).await?;
         created.push(".claude/CLAUDE.md".to_string());
+    }
+
+    let decisions_md = claude_dir.join("memory/decisions.md");
+    if !decisions_md.exists() {
+        fs::write(&decisions_md, tmpl.decisions_md).await?;
+        created.push(".claude/memory/decisions.md".to_string());
     }
 
     let active_md = claude_dir.join("tasks/active.md");
@@ -677,26 +939,49 @@ async fn run_init(path: &std::path::Path, quiet: bool) -> Result<()> {
         created.push(".claude/settings.json".to_string());
     }
 
-    // Ensure .claude/ is in .gitignore
+    // Ensure .claude/ is in .gitignore (D64.T22)
     let gitignore = path.join(".gitignore");
+    let mut gitignore_updated = false;
     if gitignore.exists() {
         let content = fs::read_to_string(&gitignore).await.unwrap_or_default();
-        if !content.contains(".claude/") {
-            let updated = format!("{}\n# AI agent directories\n.claude/\n", content.trim_end());
+        let missing_entry = !content.contains(".claude/");
+        let missing_stack = !tmpl.gitignore_additions.is_empty()
+            && !content.contains(tmpl.gitignore_additions.trim());
+        if missing_entry || missing_stack {
+            let mut updated = content.trim_end().to_string();
+            if missing_entry {
+                updated.push_str("\n\n# AI agent directories\n.claude/\n");
+            }
+            if missing_stack && !tmpl.gitignore_additions.trim().is_empty() {
+                updated.push_str(tmpl.gitignore_additions);
+            }
             fs::write(&gitignore, updated).await?;
+            gitignore_updated = true;
         }
     } else {
-        fs::write(&gitignore, ".claude/\n").await?;
+        let mut content = ".claude/\n".to_string();
+        if !tmpl.gitignore_additions.trim().is_empty() {
+            content.push_str(tmpl.gitignore_additions);
+        }
+        fs::write(&gitignore, content).await?;
         created.push(".gitignore".to_string());
+        gitignore_updated = true;
     }
 
     if !quiet {
-        if created.is_empty() {
+        if created.is_empty() && !gitignore_updated {
             println!("Already initialized: {}", path.display());
         } else {
-            println!("Initialized AFS at: {}", path.display());
+            println!(
+                "Initialized AFS at: {} (stack: {})",
+                path.display(),
+                stack
+            );
             for item in &created {
-                println!("  created  {item}");
+                println!("  created   {item}");
+            }
+            if gitignore_updated {
+                println!("  updated   .gitignore");
             }
         }
     }
@@ -705,43 +990,380 @@ async fn run_init(path: &std::path::Path, quiet: bool) -> Result<()> {
 
 // ── clawd update ──────────────────────────────────────────────────────────────
 
-async fn run_update(check_only: bool, apply_only: bool, quiet: bool) -> Result<()> {
+async fn run_update(
+    check_only: bool,
+    apply_only: bool,
+    quiet: bool,
+    data_dir: Option<std::path::PathBuf>,
+) -> Result<()> {
     let config = Arc::new(DaemonConfig::new(
         None,
-        None,
+        data_dir,
         Some("error".to_string()),
         None,
+        None,
     ));
+
+    // If daemon is running, route through it so it controls the update lifecycle.
+    if !apply_only {
+        if let Ok(token) = read_auth_token(&config.data_dir) {
+            let client = DaemonClient::new(config.port, token);
+            if client.is_reachable().await {
+                if !quiet {
+                    println!("Checking for updates...");
+                }
+                match client
+                    .call_once("daemon.checkUpdate", serde_json::json!({}))
+                    .await
+                {
+                    Ok(result) => {
+                        let available = result["available"].as_bool().unwrap_or(false);
+                        let latest = result["latest"].as_str().unwrap_or("?");
+                        let current = result["current"].as_str().unwrap_or("?");
+                        if !available {
+                            if !quiet {
+                                println!("clawd {current} is up to date (latest: {latest}).");
+                            }
+                            return Ok(());
+                        }
+                        if !quiet {
+                            println!("Update available: {current} -> {latest}");
+                        }
+                        if check_only {
+                            return Ok(());
+                        }
+                        if !quiet {
+                            println!("Applying update via daemon...");
+                        }
+                        let _ = client
+                            .call_once("daemon.applyUpdate", serde_json::json!({}))
+                            .await;
+                        if !quiet {
+                            println!("Update initiated — daemon will restart when complete.");
+                        }
+                        return Ok(());
+                    }
+                    Err(_) => {
+                        // daemon doesn't support checkUpdate RPC — fall through to in-process
+                    }
+                }
+            }
+        }
+    }
+
+    // In-process path: daemon not running or token not found
     let broadcaster = Arc::new(EventBroadcaster::new());
     let updater = update::Updater::new(config, broadcaster);
 
     if apply_only {
-        // Apply a previously staged update (downloaded in a prior run)
         match updater.apply_if_ready().await? {
-            true => { if !quiet { println!("Update applied — restarting."); } }
-            false => { if !quiet { println!("No pending update to apply."); } }
+            true => {
+                if !quiet {
+                    println!("Update applied — restarting.");
+                }
+            }
+            false => {
+                if !quiet {
+                    println!("No pending update to apply.");
+                }
+            }
         }
         return Ok(());
     }
 
+    if !quiet {
+        println!("Checking for updates...");
+    }
     let (current, latest, available) = updater.check().await?;
     if !available {
-        if !quiet { println!("clawd {current} is up to date (latest: {latest})."); }
+        if !quiet {
+            println!("clawd {current} is up to date (latest: {latest}).");
+        }
         return Ok(());
     }
 
-    if !quiet { println!("Update available: {current} -> {latest}"); }
+    if !quiet {
+        println!("Update available: {current} -> {latest}");
+    }
 
     if check_only {
         return Ok(());
     }
 
-    if !quiet { println!("Downloading..."); }
+    if !quiet {
+        println!("Downloading...");
+    }
     updater.check_and_download().await?;
-    if !quiet { println!("Download complete. Applying update..."); }
+    if !quiet {
+        println!("Download complete. Applying update...");
+    }
     match updater.apply_if_ready().await? {
-        true => { if !quiet { println!("Update applied — restarting."); } }
-        false => { if !quiet { println!("Update downloaded but could not be applied yet."); } }
+        true => {
+            if !quiet {
+                println!("Update applied — restarting.");
+            }
+        }
+        false => {
+            if !quiet {
+                println!("Update downloaded but could not be applied yet.");
+            }
+        }
+    }
+
+    Ok(())
+}
+
+// ── clawd status ──────────────────────────────────────────────────────────────
+
+/// Returns exit code: 0 = healthy, 1 = stopped/unresponsive.
+async fn run_status(config: &DaemonConfig, json: bool) -> i32 {
+    let token = match read_auth_token(&config.data_dir) {
+        Ok(t) => t,
+        Err(_) => {
+            if json {
+                println!(r#"{{"status":"not_installed"}}"#);
+            } else {
+                println!("clawd: not installed (run `clawd service install`)");
+            }
+            return 1;
+        }
+    };
+
+    let client = DaemonClient::new(config.port, token);
+    match client.call_once("daemon.status", serde_json::json!({})).await {
+        Ok(result) => {
+            let version = result["version"].as_str().unwrap_or("?");
+            let sessions = result["activeSessions"].as_u64().unwrap_or(0);
+            let uptime_secs = result["uptime"].as_u64().unwrap_or(0);
+            let uptime_str = format_uptime(uptime_secs);
+
+            if json {
+                println!("{}", serde_json::to_string(&result).unwrap_or_default());
+            } else {
+                println!("clawd {version} — Running ({sessions} active sessions, uptime {uptime_str})");
+            }
+            0
+        }
+        Err(_) => {
+            if json {
+                println!(r#"{{"status":"not_running"}}"#);
+            } else {
+                println!("clawd: not running");
+            }
+            1
+        }
+    }
+}
+
+/// Format uptime seconds as "2h 14m" or "45m 3s".
+fn format_uptime(secs: u64) -> String {
+    let h = secs / 3600;
+    let m = (secs % 3600) / 60;
+    let s = secs % 60;
+    if h > 0 {
+        format!("{h}h {m}m")
+    } else if m > 0 {
+        format!("{m}m {s}s")
+    } else {
+        format!("{s}s")
+    }
+}
+
+// ── clawd logs ────────────────────────────────────────────────────────────────
+
+fn run_logs(
+    config: &DaemonConfig,
+    follow: bool,
+    lines: u64,
+    filter: Option<&str>,
+) -> Result<()> {
+    use std::fs::File;
+    use std::io::{Read, Seek, SeekFrom};
+
+    // Resolve log path: CLAWD_LOG_FILE env → default {data_dir}/clawd.log
+    let log_path = std::env::var("CLAWD_LOG_FILE")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| config.data_dir.join("clawd.log"));
+
+    // Validate: must be within data_dir or an absolute path explicitly set
+    if !log_path.exists() {
+        anyhow::bail!(
+            "log file not found: {}\n  Start the daemon first: clawd start",
+            log_path.display()
+        );
+    }
+
+    let content = std::fs::read_to_string(&log_path)
+        .with_context(|| format!("cannot read log file: {}", log_path.display()))?;
+
+    let all_lines: Vec<&str> = content.lines().collect();
+
+    let min_level = filter.map(|f| f.to_ascii_lowercase());
+
+    // Apply level filter (heuristic: check for level strings in each line)
+    let filtered: Vec<&&str> = if let Some(ref level) = min_level {
+        let levels = log_level_order(level);
+        all_lines
+            .iter()
+            .filter(|line| {
+                let l = line.to_ascii_lowercase();
+                levels.iter().any(|lvl| l.contains(lvl))
+            })
+            .collect()
+    } else {
+        all_lines.iter().collect()
+    };
+
+    // Print last N lines (0 = all)
+    let start = if lines == 0 || lines as usize >= filtered.len() {
+        0
+    } else {
+        filtered.len() - lines as usize
+    };
+
+    for line in &filtered[start..] {
+        println!("{line}");
+    }
+
+    if !follow {
+        return Ok(());
+    }
+
+    // Follow mode: poll file every 250ms, print new content as it appears
+    let mut file = File::open(&log_path)
+        .with_context(|| format!("cannot open log file: {}", log_path.display()))?;
+    let mut pos = file
+        .seek(SeekFrom::End(0))
+        .context("cannot seek log file")?;
+
+    loop {
+        std::thread::sleep(std::time::Duration::from_millis(250));
+
+        // Handle log rotation: if file shrunk, reopen from start
+        let meta = std::fs::metadata(&log_path);
+        let new_size = meta.map(|m| m.len()).unwrap_or(0);
+        if new_size < pos {
+            if let Ok(f) = File::open(&log_path) {
+                file = f;
+                pos = 0;
+            }
+        }
+
+        file.seek(SeekFrom::Start(pos))
+            .context("cannot seek log file")?;
+        let mut buf = String::new();
+        file.read_to_string(&mut buf)
+            .context("cannot read log file")?;
+
+        if !buf.is_empty() {
+            let should_print = if let Some(ref level) = min_level {
+                let levels = log_level_order(level);
+                levels.iter().any(|lvl| buf.to_ascii_lowercase().contains(lvl))
+            } else {
+                true
+            };
+            if should_print {
+                print!("{buf}");
+            }
+            pos += buf.len() as u64;
+        }
+    }
+}
+
+/// Return all log levels at or above `min_level` (for line filtering).
+fn log_level_order(min_level: &str) -> Vec<&'static str> {
+    match min_level {
+        "error" => vec!["error"],
+        "warn" | "warning" => vec!["warn", "error"],
+        "info" => vec!["info", "warn", "error"],
+        "debug" => vec!["debug", "info", "warn", "error"],
+        _ => vec!["trace", "debug", "info", "warn", "error"],
+    }
+}
+
+// ── clawd account ─────────────────────────────────────────────────────────────
+
+async fn run_account(config: &DaemonConfig, cmd: AccountCmd) -> Result<()> {
+    let token = read_auth_token(&config.data_dir)?;
+    let client = DaemonClient::new(config.port, token);
+
+    match cmd {
+        AccountCmd::Add {
+            provider,
+            credentials,
+            name,
+            priority,
+        } => {
+            // Validate credentials path
+            if !credentials.exists() {
+                anyhow::bail!("credentials file not found: {}", credentials.display());
+            }
+            let creds_path = credentials
+                .canonicalize()
+                .context("cannot resolve credentials path")?;
+
+            let mut params = serde_json::json!({
+                "provider": provider,
+                "credentials_path": creds_path.to_string_lossy(),
+            });
+            if let Some(n) = name {
+                params["name"] = serde_json::json!(n);
+            }
+            if let Some(p) = priority {
+                params["priority"] = serde_json::json!(p);
+            }
+
+            let result = client.call_once("account.create", params).await?;
+            let id = result["id"].as_str().unwrap_or("?");
+            println!("Account added: {id}");
+        }
+
+        AccountCmd::List { json } => {
+            let result = client.call_once("account.list", serde_json::json!({})).await?;
+            let accounts = result.as_array().cloned().unwrap_or_default();
+
+            if json {
+                println!("{}", serde_json::to_string(&accounts)?);
+                return Ok(());
+            }
+
+            if accounts.is_empty() {
+                println!("No accounts configured.");
+                return Ok(());
+            }
+
+            // Plain ASCII table
+            println!("{:<36}  {:<20}  {:<12}  {:<8}  Status", "ID", "Name", "Provider", "Priority");
+            println!("{}", "-".repeat(90));
+            for acc in &accounts {
+                let id = acc["id"].as_str().unwrap_or("-");
+                let name = acc["name"].as_str().unwrap_or("-");
+                let provider = acc["provider"].as_str().unwrap_or("-");
+                let priority = acc["priority"].as_i64().unwrap_or(0);
+                let status = acc["status"].as_str().unwrap_or("-");
+                println!(
+                    "{id:<36}  {name:<20}  {provider:<12}  {priority:<8}  {status}"
+                );
+            }
+        }
+
+        AccountCmd::Remove { id, yes } => {
+            if !yes {
+                use std::io::Write;
+                print!("Remove account {id}? [y/N] ");
+                std::io::stdout().flush().ok();
+                let mut input = String::new();
+                std::io::stdin().read_line(&mut input).ok();
+                if !matches!(input.trim().to_ascii_lowercase().as_str(), "y" | "yes") {
+                    println!("Aborted.");
+                    return Ok(());
+                }
+            }
+            client
+                .call_once("account.delete", serde_json::json!({ "id": id }))
+                .await?;
+            println!("Account removed: {id}");
+        }
     }
 
     Ok(())
@@ -751,7 +1373,7 @@ async fn run_update(check_only: bool, apply_only: bool, quiet: bool) -> Result<(
 
 /// Open the task DB for CLI commands (no server — just storage access).
 async fn open_task_storage(data_dir: Option<std::path::PathBuf>) -> Result<TaskStorage> {
-    let config = DaemonConfig::new(None, data_dir, Some("error".to_string()), None);
+    let config = DaemonConfig::new(None, data_dir, Some("error".to_string()), None, None);
     let storage = Storage::new(&config.data_dir).await?;
     Ok(TaskStorage::new(storage.pool().clone()))
 }
@@ -1072,11 +1694,65 @@ fn rand_u64() -> u64 {
     (ns as u64).wrapping_mul(1_000_003).wrapping_add(pid)
 }
 
+// ── clawd token show ──────────────────────────────────────────────────────────
+
+fn run_token_show(config: &DaemonConfig) -> Result<()> {
+    let token_path = config.data_dir.join("auth_token");
+    match std::fs::read_to_string(&token_path) {
+        Ok(token) => {
+            println!("{}", token.trim());
+            Ok(())
+        }
+        Err(_) => {
+            eprintln!("error: auth token not found at {}", token_path.display());
+            eprintln!("       Is the daemon running? Start it with: clawd start");
+            std::process::exit(1);
+        }
+    }
+}
+
+// ── clawd token qr ────────────────────────────────────────────────────────────
+
+fn run_token_qr(config: &DaemonConfig, use_relay: bool) -> Result<()> {
+    use std::net::{IpAddr, Ipv4Addr};
+
+    let token_path = config.data_dir.join("auth_token");
+    let token = match std::fs::read_to_string(&token_path) {
+        Ok(t) => t.trim().to_string(),
+        Err(_) => {
+            eprintln!("error: auth token not found at {}", token_path.display());
+            eprintln!("       Is the daemon running? Start it with: clawd start");
+            std::process::exit(1);
+        }
+    };
+
+    let ip = local_ip_address::local_ip().unwrap_or_else(|_| {
+        eprintln!("warning: could not detect local IP — using 127.0.0.1");
+        IpAddr::V4(Ipv4Addr::LOCALHOST)
+    });
+
+    let relay_suffix = if use_relay { "&relay=1" } else { "" };
+    let payload = format!(
+        "clawd://connect?host={}&port={}&token={}{}",
+        ip, config.port, token, relay_suffix
+    );
+
+    eprintln!("Warning: This QR code contains your auth token. Only share with trusted devices.");
+
+    let code = qrcode::QrCode::new(payload.as_bytes())
+        .map_err(|e| anyhow::anyhow!("failed to generate QR code: {e}"))?;
+    let image = code.render::<qrcode::render::unicode::Dense1x2>().build();
+    println!("{}", image);
+
+    Ok(())
+}
+
 async fn run_server(
     port: Option<u16>,
     data_dir: Option<std::path::PathBuf>,
     log: Option<String>,
     max_sessions: Option<usize>,
+    bind_address: Option<String>,
 ) -> Result<()> {
     // Warn when a non-default port is used (dev-only scenario per F55.5.01).
     if let Some(p) = port {
@@ -1089,13 +1765,27 @@ async fn run_server(
     }
     info!(version = env!("CARGO_PKG_VERSION"), "clawd starting");
 
-    let config = Arc::new(DaemonConfig::new(port, data_dir, log, max_sessions));
+    let config = Arc::new(DaemonConfig::new(port, data_dir, log, max_sessions, bind_address));
     info!(
         data_dir = %config.data_dir.display(),
         port = config.port,
         max_sessions = config.max_sessions,
         "config loaded"
     );
+
+    // ── Panic hook: write crash.log on panic (DC.T51) ────────────────────────
+    install_panic_hook(config.data_dir.clone());
+    // If previous run panicked, log the crash report and delete it.
+    check_crash_log(&config.data_dir);
+
+    // ── Rollback-on-crash detection (DC.T29) ─────────────────────────────────
+    // If the previous binary crashed immediately after applying an update, restore
+    // the backup automatically before proceeding.
+    if update::check_and_rollback(&config.data_dir) {
+        warn!("previous update was rolled back — running on restored binary");
+    }
+    // Delete the sentinel so a clean shutdown doesn't trigger rollback next time.
+    update::delete_rollback_sentinel(&config.data_dir);
 
     // ── Provider CLI availability check ──────────────────────────────────────
     for binary in &["claude", "codex"] {
@@ -1115,7 +1805,18 @@ async fn run_server(
         }
     }
 
-    let storage = Arc::new(Storage::new(&config.data_dir).await?);
+    let storage = Arc::new(
+        Storage::new_with_slow_query(
+            &config.data_dir,
+            config.observability.slow_query_threshold_ms,
+        )
+        .await?,
+    );
+
+    // ── Apply SQLite WAL tuning (Sprint Z — Z.3) ─────────────────────────────
+    if let Err(e) = clawd::perf::wal_tuning::apply_wal_tuning(&storage.pool()).await {
+        warn!(err = %e, "SQLite WAL tuning failed (non-fatal)");
+    }
 
     let daemon_id = match identity::get_or_create(&storage).await {
         Ok(id) => {
@@ -1219,9 +1920,14 @@ async fn run_server(
             std::process::exit(1);
         }
     };
+    // Warn if auth_token file has incorrect permissions (DC.T42).
+    auth::check_token_permissions(&config.data_dir);
 
     // ── Task storage (shared pool from main storage) ──────────────────────────
     let task_storage = Arc::new(TaskStorage::new(storage.pool().clone()));
+
+    // ── Token tracker (Phase 61 MI.T05) ──────────────────────────────────────
+    let token_tracker = TokenTracker::new(storage.clone());
 
     // ── Phase 43c/43m: worktree manager + scheduler components ───────────────
     let worktree_manager =
@@ -1235,6 +1941,13 @@ async fn run_server(
     ));
     let scheduler_queue = std::sync::Arc::new(clawd::scheduler::queue::SchedulerQueue::new());
 
+    // ── Version bump watcher (D64.T16) ───────────────────────────────────────
+    let version_watcher = std::sync::Arc::new(
+        clawd::doctor::version_watcher::VersionWatcher::new(broadcaster.clone()),
+    );
+
+    // Retain a handle for post-shutdown WAL checkpoint (Sprint Z).
+    let storage_for_shutdown = storage.clone();
     let ctx = Arc::new(AppContext {
         config: config.clone(),
         storage,
@@ -1255,7 +1968,14 @@ async fn run_server(
         fallback_engine,
         scheduler_queue,
         orchestrator: std::sync::Arc::new(clawd::agents::orchestrator::Orchestrator::new()),
+        token_tracker,
+        metrics: std::sync::Arc::new(clawd::metrics::DaemonMetrics::new()),
+        version_watcher: version_watcher.clone(),
+        ide_bridge: clawd::ide::new_shared_bridge(),
     });
+
+    // ── Spawn version bump watcher (D64.T16) ─────────────────────────────────
+    version_watcher.spawn();
 
     // ── Spawn task background jobs ────────────────────────────────────────────
     {
@@ -1271,6 +1991,9 @@ async fn run_server(
         let ts = task_storage.clone();
         tokio::spawn(clawd::tasks::jobs::run_activity_log_pruner(ts, 30));
     }
+
+    // ── Background drift scanner (V02.T25) ───────────────────────────────────
+    clawd::drift::background::spawn(ctx.storage.clone(), broadcaster.clone());
 
     // ── mDNS advertisement ────────────────────────────────────────────────────
     // Non-blocking: if mDNS fails (e.g. system restriction), daemon continues.
@@ -1296,5 +2019,14 @@ async fn run_server(
         relay::spawn_if_enabled(config, &lic, daemon_id, ctx.clone()).await;
     }
 
-    clawd::ipc::run(ctx).await
+    let run_result = clawd::ipc::run(ctx).await;
+
+    // ── WAL checkpoint on clean shutdown (Sprint Z — Z.3) ────────────────────
+    if let Err(e) =
+        clawd::perf::wal_tuning::checkpoint_wal(&storage_for_shutdown.pool(), "TRUNCATE").await
+    {
+        tracing::warn!(err = %e, "WAL checkpoint on shutdown failed (non-fatal)");
+    }
+
+    run_result
 }

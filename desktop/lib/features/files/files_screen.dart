@@ -5,6 +5,7 @@ import 'package:clawd_ui/clawd_ui.dart';
 import 'package:clawde/features/repo/repo_context_provider.dart';
 import 'package:clawde/features/files/widgets/file_tree.dart';
 import 'package:clawde/features/files/widgets/file_viewer.dart';
+import 'package:clawde/features/repo_intelligence/repo_intelligence_panel.dart';
 
 class FilesScreen extends ConsumerStatefulWidget {
   const FilesScreen({super.key});
@@ -112,6 +113,8 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                     },
                   ),
                 ),
+                // Repo Intelligence panel (RI.T19–T20)
+                const RepoIntelligencePanel(),
               ],
             ),
           ),

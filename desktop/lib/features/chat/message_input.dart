@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -186,7 +188,44 @@ class _MentionMessageInputState extends ConsumerState<MentionMessageInput> {
     if (isLoading) return;
     _controller.clear();
     _removeOverlay();
-    ref.read(messageListProvider(widget.sessionId).notifier).send(text);
+    _checkComplexityAndSend(text);
+  }
+
+  /// Checks prompt complexity via the daemon and optionally shows a split
+  /// proposal dialog (SI.T16) before sending the message.
+  ///
+  /// Falls back to sending immediately when the RPC is unavailable or the
+  /// prompt is not complex (Simple / Moderate).
+  Future<void> _checkComplexityAndSend(String text) async {
+    final client = ref.read(daemonProvider.notifier).client;
+    final proposal = await client.sessionSplitProposed(text);
+
+    final shouldSplit = proposal?['shouldSplit'] as bool? ?? false;
+    if (!shouldSplit || !mounted) {
+      // Simple / Moderate — send directly.
+      unawaited(ref.read(messageListProvider(widget.sessionId).notifier).send(text));
+      return;
+    }
+
+    // Complex / DeepReasoning — show the split proposal dialog.
+    final proposalData = proposal!['proposal'] as Map<String, dynamic>?;
+    final complexity = proposal['complexity'] as String? ?? 'Complex';
+    final reason = proposalData?['reason'] as String? ??
+        'This prompt contains multiple tasks that could be broken down.';
+    final rawSubtasks = proposalData?['subtasks'] as List<dynamic>? ?? const [];
+    final subtasks = rawSubtasks.cast<String>();
+
+    if (!mounted) return;
+    final result = await showSplitProposalDialog(
+      context: context,
+      complexity: complexity,
+      reason: reason,
+      subtasks: subtasks,
+    );
+
+    if (result == SplitProposalResult.dismissed) return;
+    // sendAsIs — user confirmed, proceed with the original message.
+    unawaited(ref.read(messageListProvider(widget.sessionId).notifier).send(text));
   }
 
   Widget _buildOverlay() {

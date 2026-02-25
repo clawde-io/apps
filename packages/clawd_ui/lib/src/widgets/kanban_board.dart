@@ -10,12 +10,14 @@ class KanbanBoard extends StatelessWidget {
     required this.tasksByStatus,
     this.selectedTaskId,
     this.onTaskTap,
+    this.onDiffTap,
     this.columnWidth = 260,
   });
 
   final Map<String, List<AgentTask>> tasksByStatus;
   final String? selectedTaskId;
   final void Function(AgentTask)? onTaskTap;
+  final void Function(AgentTask)? onDiffTap;
   final double columnWidth;
 
   static const List<TaskStatus> _columnOrder = [
@@ -49,6 +51,7 @@ class KanbanBoard extends StatelessWidget {
             tasks: tasksByStatus[key] ?? [],
             selectedTaskId: selectedTaskId,
             onTaskTap: onTaskTap,
+            onDiffTap: onDiffTap,
             maxWidth: columnWidth,
           );
         }).toList(),

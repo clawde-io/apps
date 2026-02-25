@@ -31,7 +31,7 @@ final _errorSessionCountProvider = Provider<int>((ref) {
 
 /// Thin 28px status bar at the bottom of the app window.
 /// Shows daemon connection status, active session count, pending tool calls,
-/// error count, and app version.
+/// error count, RAM usage (V02.T11), and app version.
 class StatusBar extends ConsumerWidget {
   const StatusBar({super.key});
 
@@ -47,6 +47,8 @@ class StatusBar extends ConsumerWidget {
     final pendingToolCalls = ref.watch(_totalPendingToolCallsProvider);
     final errorCount = ref.watch(_errorSessionCountProvider);
     final connectionMode = ref.watch(connectionModeProvider);
+    // V02.T11 — resource stats (null when daemon unreachable or still loading)
+    final resourceStats = ref.watch(resourceStatsProvider).valueOrNull;
 
     return Container(
       height: 28,
@@ -69,6 +71,11 @@ class StatusBar extends ConsumerWidget {
                   : ClawdTheme.error,
             ),
           ),
+          // V02.T11 — RAM usage indicator
+          if (resourceStats != null) ...[
+            const SizedBox(width: 12),
+            _RamIndicator(ram: resourceStats.ram, sessions: resourceStats.sessions),
+          ],
           // Pending tool calls badge
           if (pendingToolCalls > 0) ...[
             const SizedBox(width: 12),
@@ -142,6 +149,58 @@ class StatusBar extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 12),
+        ],
+      ),
+    );
+  }
+}
+
+/// V02.T11 — Compact RAM usage pill + session tier counts.
+class _RamIndicator extends StatelessWidget {
+  const _RamIndicator({required this.ram, required this.sessions});
+  final ResourceRam ram;
+  final ResourceSessionCounts sessions;
+
+  Color get _color {
+    if (ram.usedPercent >= 90) return ClawdTheme.error;
+    if (ram.usedPercent >= 75) return ClawdTheme.warning;
+    return Colors.white38;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _color;
+    return Tooltip(
+      message: 'RAM: ${ram.usedMb} / ${ram.totalGb} used\n'
+          'Daemon: ${ram.daemonMb}\n'
+          'Sessions: ${sessions.active} active · ${sessions.warm} warm · ${sessions.cold} cold',
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Mini progress bar
+          Container(
+            width: 28,
+            height: 5,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(3),
+              color: Colors.white12,
+            ),
+            child: FractionallySizedBox(
+              widthFactor: (ram.usedPercent / 100).clamp(0.0, 1.0),
+              alignment: Alignment.centerLeft,
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(3),
+                  color: color,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '${ram.usedPercent}%',
+            style: TextStyle(fontSize: 10, color: color),
+          ),
         ],
       ),
     );

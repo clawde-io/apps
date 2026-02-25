@@ -1,0 +1,54 @@
+name: Update Homebrew Tap
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-tap:
+    name: Update Formula
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout homebrew-clawde tap
+        uses: actions/checkout@v4
+        with:
+          repository: clawde-io/homebrew-clawde
+          token: ${{ secrets.TAP_GITHUB_TOKEN }}
+
+      - name: Fetch release SHAs and update formula
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          BASE_URL="https://github.com/clawde-io/apps/releases/download/${VERSION}"
+
+          echo "Updating formula for ${VERSION}..."
+
+          SHA_MACOS=$(curl -fsSL "${BASE_URL}/clawd-aarch64-apple-darwin.sha256" | awk '{print $1}')
+          SHA_MACOS_INTEL=$(curl -fsSL "${BASE_URL}/clawd-x86_64-apple-darwin.sha256" | awk '{print $1}')
+          SHA_LINUX=$(curl -fsSL "${BASE_URL}/clawd-x86_64-unknown-linux-gnu.sha256" | awk '{print $1}')
+
+          if [ -z "${SHA_MACOS}" ] || [ -z "${SHA_MACOS_INTEL}" ] || [ -z "${SHA_LINUX}" ]; then
+            echo "ERROR: One or more SHA files could not be fetched"
+            exit 1
+          fi
+
+          echo "SHA macOS (aarch64): ${SHA_MACOS}"
+          echo "SHA macOS (x86_64):  ${SHA_MACOS_INTEL}"
+          echo "SHA Linux (x86_64):  ${SHA_LINUX}"
+
+          # Strip leading 'v' for the version field in the formula
+          VER="${VERSION#v}"
+
+          sed -i "s/version \"[^\"]*\"/version \"${VER}\"/" Formula/clawd.rb
+          sed -i "s/sha256 \"[^\"]*\" # macos$/sha256 \"${SHA_MACOS}\" # macos/" Formula/clawd.rb
+          sed -i "s/sha256 \"[^\"]*\" # macos-intel$/sha256 \"${SHA_MACOS_INTEL}\" # macos-intel/" Formula/clawd.rb
+          sed -i "s/sha256 \"[^\"]*\" # linux$/sha256 \"${SHA_LINUX}\" # linux/" Formula/clawd.rb
+
+      - name: Commit and push updated formula
+        run: |
+          git config user.email "bot@clawde.io"
+          git config user.name "ClawDE Bot"
+          git add Formula/clawd.rb
+          git diff --staged --quiet && echo "No changes to commit" && exit 0
+          git commit -m "chore: bump clawd to ${{ github.event.release.tag_name }}"
+          git push

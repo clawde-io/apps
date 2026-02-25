@@ -14,6 +14,7 @@ class MessageList extends ConsumerStatefulWidget {
 
 class _MessageListState extends ConsumerState<MessageList> {
   final _scrollController = ScrollController();
+  bool _loadingMore = false;
 
   @override
   void initState() {
@@ -25,6 +26,9 @@ class _MessageListState extends ConsumerState<MessageList> {
       final nextCount = next.valueOrNull?.length ?? 0;
       if (nextCount > prevCount) _scrollToBottom();
     });
+
+    // V02.T14 — scroll-up triggers loadMore (infinite scroll up for history).
+    _scrollController.addListener(_onScroll);
   }
 
   @override
@@ -43,6 +47,19 @@ class _MessageListState extends ConsumerState<MessageList> {
         );
       }
     });
+  }
+
+  /// V02.T14 — fire loadMore when within 200px of the top.
+  Future<void> _onScroll() async {
+    if (_loadingMore) return;
+    if (!_scrollController.hasClients) return;
+    if (_scrollController.position.pixels <= 200) {
+      setState(() => _loadingMore = true);
+      await ref
+          .read(messageListProvider(widget.sessionId).notifier)
+          .loadMore();
+      if (mounted) setState(() => _loadingMore = false);
+    }
   }
 
   @override
@@ -66,11 +83,53 @@ class _MessageListState extends ConsumerState<MessageList> {
             subtitle: 'Send a message below',
           );
         }
-        return ListView.builder(
-          controller: _scrollController,
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          itemCount: messages.length,
-          itemBuilder: (context, i) => ChatBubble(message: messages[i]),
+        return Stack(
+          children: [
+            ListView.builder(
+              controller: _scrollController,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: messages.length,
+              itemBuilder: (context, i) => ChatBubble(message: messages[i]),
+            ),
+            // V02.T14 — "loading older messages" indicator at top
+            if (_loadingMore)
+              Positioned(
+                top: 8,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 1.5,
+                            color: Colors.white54,
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'Loading older messages...',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.white54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
         );
       },
     );

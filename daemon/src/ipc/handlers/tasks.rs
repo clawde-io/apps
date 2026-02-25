@@ -137,6 +137,35 @@ pub async fn claim(params: Value, ctx: &AppContext) -> Result<Value> {
         }),
     );
 
+    // WI.T10: Auto-create worktree on task claim (if repo_path is a valid git repo).
+    if !task.repo_path.is_empty() {
+        let repo_path = std::path::Path::new(&task.repo_path);
+        if repo_path.exists() && ctx.worktree_manager.get(task_id).await.is_none() {
+            match ctx
+                .worktree_manager
+                .create(task_id, &task.title, repo_path)
+                .await
+            {
+                Ok(wt) => {
+                    ctx.storage
+                        .create_worktree(
+                            task_id,
+                            &wt.worktree_path.to_string_lossy(),
+                            &wt.branch,
+                            &task.repo_path,
+                        )
+                        .await
+                        .ok();
+                    tracing::info!(task_id, branch = %wt.branch, "auto-created worktree on task claim");
+                }
+                Err(e) => {
+                    // Non-fatal: task claim still succeeds even if worktree creation fails.
+                    tracing::warn!(task_id, err = %e, "worktree auto-create failed (non-fatal)");
+                }
+            }
+        }
+    }
+
     let _ = queue_serializer::flush_queue(&ctx.task_storage, &task.repo_path).await;
     Ok(json!({ "task": task, "is_resume": is_resume }))
 }
@@ -176,6 +205,44 @@ pub async fn update_status(params: Value, ctx: &AppContext) -> Result<Value> {
     let notes = sv(&params, "notes");
     let block_reason = sv(&params, "block_reason");
     let agent_id = sv(&params, "agent_id").unwrap_or("system");
+
+    // V02.T06-T08: Stub gate — check modified_files for stubs when marking done.
+    if new_status == "done" || new_status == "completed" {
+        if let Some(files_arr) = params.get("modified_files").and_then(|v| v.as_array()) {
+            let modified_files: Vec<std::path::PathBuf> = files_arr
+                .iter()
+                .filter_map(|v| v.as_str())
+                .map(std::path::PathBuf::from)
+                .collect();
+
+            if !modified_files.is_empty() {
+                let project_root = infer_project_root(&modified_files)
+                    .unwrap_or_else(|| std::path::PathBuf::from("."));
+                let config =
+                    crate::tasks::stub_gate::CompletionChecksConfig::load(&project_root);
+                let matches =
+                    crate::tasks::stub_gate::check(&modified_files, &project_root, &config);
+                if !matches.is_empty() {
+                    anyhow::bail!("{}", crate::tasks::stub_gate::format_error(&matches));
+                }
+            }
+        }
+    }
+
+    // WI.T10: Block task.complete if an active unmerged worktree exists.
+    if new_status == "done" || new_status == "completed" {
+        if let Some(wt) = ctx.worktree_manager.get(task_id).await {
+            use crate::worktree::manager::WorktreeStatus;
+            if matches!(wt.status, WorktreeStatus::Active | WorktreeStatus::Done) {
+                anyhow::bail!(
+                    "worktreeNotMerged: task '{}' has an active worktree on branch '{}' — \
+                     call worktrees.accept or worktrees.reject before marking done",
+                    task_id,
+                    wt.branch
+                );
+            }
+        }
+    }
 
     let task = ctx
         .task_storage
@@ -770,4 +837,60 @@ pub async fn list_events(params: Value, ctx: &AppContext) -> Result<Value> {
         "task_id": task_id,
         "from_seq": from_seq,
     }))
+}
+
+/// `tasks.progressEstimate` — V02.T17.
+///
+/// Returns avg time per task from history, % complete, and an ETA in minutes.
+///
+/// Params: `{ repo_path?: String }`
+/// Returns: `{ done, pending, in_progress, total, pct_complete, avg_minutes_per_task, eta_minutes }`
+pub async fn progress_estimate(params: Value, ctx: &AppContext) -> Result<Value> {
+    let repo_path = sv(&params, "repo_path");
+    let summary = ctx.task_storage.summary(repo_path).await?;
+
+    let done = summary["done"].as_i64().unwrap_or(0);
+    let total = summary["total"].as_i64().unwrap_or(0);
+    let pending = summary["pending"].as_i64().unwrap_or(0);
+    let in_progress = summary["in_progress"].as_i64().unwrap_or(0);
+    let avg = summary["avg_duration_minutes"].as_f64();
+
+    let pct_complete: f64 = if total > 0 {
+        (done as f64 / total as f64 * 100.0).round()
+    } else {
+        0.0
+    };
+
+    let remaining = pending + in_progress;
+    let eta_minutes: Option<f64> = avg.map(|a| (remaining as f64 * a).round());
+
+    Ok(json!({
+        "done": done,
+        "pending": pending,
+        "in_progress": in_progress,
+        "total": total,
+        "pct_complete": pct_complete,
+        "avg_minutes_per_task": avg,
+        "eta_minutes": eta_minutes,
+    }))
+}
+
+// ── Stub gate helpers ─────────────────────────────────────────────────────────
+
+/// Walk up from the first modified file's parent directories to find one that
+/// contains a `.claude/` subdirectory. Falls back to the first file's parent.
+fn infer_project_root(files: &[std::path::PathBuf]) -> Option<std::path::PathBuf> {
+    let first = files.first()?;
+    let mut dir = first.parent()?;
+    loop {
+        if dir.join(".claude").exists() {
+            return Some(dir.to_path_buf());
+        }
+        match dir.parent() {
+            Some(p) if p != dir => dir = p,
+            _ => break,
+        }
+    }
+    // Fallback: directory of the first file.
+    first.parent().map(|p| p.to_path_buf())
 }

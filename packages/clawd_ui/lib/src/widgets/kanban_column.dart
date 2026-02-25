@@ -12,6 +12,7 @@ class KanbanColumn extends StatelessWidget {
     required this.tasks,
     this.selectedTaskId,
     this.onTaskTap,
+    this.onDiffTap,
     this.maxWidth = 260,
   });
 
@@ -19,6 +20,7 @@ class KanbanColumn extends StatelessWidget {
   final List<AgentTask> tasks;
   final String? selectedTaskId;
   final void Function(AgentTask)? onTaskTap;
+  final void Function(AgentTask)? onDiffTap;
   final double maxWidth;
 
   @override
@@ -94,6 +96,8 @@ class KanbanColumn extends StatelessWidget {
                       task: tasks[i],
                       selected: tasks[i].id == selectedTaskId,
                       onTap: onTaskTap != null ? () => onTaskTap!(tasks[i]) : null,
+                      onDiffTap:
+                          onDiffTap != null ? () => onDiffTap!(tasks[i]) : null,
                     ),
                   ),
           ),

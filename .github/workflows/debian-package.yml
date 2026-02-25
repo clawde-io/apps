@@ -1,0 +1,93 @@
+name: Build Debian Package
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-deb:
+    name: Build .deb
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Linux binary from release
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          BINARY_URL="https://github.com/clawde-io/apps/releases/download/${VERSION}/clawd-x86_64-unknown-linux-gnu"
+          curl -fLo clawd "${BINARY_URL}"
+          chmod +x clawd
+          echo "Downloaded binary: $(file clawd)"
+
+      - name: Build .deb package
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          VER="${VERSION#v}"
+
+          # Create package directory tree
+          mkdir -p deb-pkg/usr/local/bin
+          mkdir -p deb-pkg/lib/systemd/user
+          mkdir -p deb-pkg/DEBIAN
+
+          cp clawd deb-pkg/usr/local/bin/
+
+          # Write systemd user unit
+          cat > deb-pkg/lib/systemd/user/clawd.service << 'UNIT'
+          [Unit]
+          Description=ClawDE AI development daemon
+          Documentation=https://clawde.io
+          After=network.target
+
+          [Service]
+          Type=simple
+          ExecStart=%h/.local/bin/clawd start
+          Restart=on-failure
+          RestartSec=5
+
+          [Install]
+          WantedBy=default.target
+          UNIT
+
+          # Write DEBIAN/control
+          cat > deb-pkg/DEBIAN/control << EOF
+          Package: clawd
+          Version: ${VER}
+          Architecture: amd64
+          Maintainer: ClawDE Team <hello@clawde.io>
+          Description: clawd — AI development daemon for ClawDE
+           The always-on local daemon that powers the ClawDE AI-first IDE.
+           Supports Claude, Codex, and Cursor providers via JSON-RPC 2.0.
+          Homepage: https://clawde.io
+          Section: devel
+          Priority: optional
+          EOF
+
+          # Write DEBIAN/postinst
+          cat > deb-pkg/DEBIAN/postinst << 'POSTINST'
+          #!/bin/sh
+          set -e
+          systemctl --user daemon-reload 2>/dev/null || true
+          echo "clawd installed. Run: clawd service install"
+          POSTINST
+          chmod +x deb-pkg/DEBIAN/postinst
+
+          # Write DEBIAN/prerm
+          cat > deb-pkg/DEBIAN/prerm << 'PRERM'
+          #!/bin/sh
+          set -e
+          systemctl --user stop clawd.service 2>/dev/null || true
+          systemctl --user disable clawd.service 2>/dev/null || true
+          PRERM
+          chmod +x deb-pkg/DEBIAN/prerm
+
+          dpkg-deb --build deb-pkg "clawd_${VER}_amd64.deb"
+          echo "Built package: clawd_${VER}_amd64.deb"
+          dpkg-deb --info "clawd_${VER}_amd64.deb"
+
+      - name: Upload .deb to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "*.deb"

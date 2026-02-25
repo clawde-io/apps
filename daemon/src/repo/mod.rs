@@ -159,4 +159,33 @@ impl RepoRegistry {
         })
         .await?
     }
+
+    /// Returns a summary of all currently registered repos — path and current branch.
+    pub async fn list(&self) -> Vec<serde_json::Value> {
+        let repos = self.repos.read().await;
+        let mut result = Vec::new();
+        for (path, entry) in repos.iter() {
+            let status = entry.last_status.read().await;
+            result.push(serde_json::json!({
+                "path": path,
+                "branch": status.branch,
+                "ahead": status.ahead,
+                "behind": status.behind,
+                "hasConflicts": status.has_conflicts,
+            }));
+        }
+        result
+    }
+
+    /// Returns all tracked file paths for a repo as a flat sorted list.
+    pub async fn list_files(&self, repo_path: &str) -> Result<Vec<String>> {
+        let path = PathBuf::from(repo_path)
+            .canonicalize()
+            .context("path does not exist")?;
+        tokio::task::spawn_blocking(move || {
+            let repo = Repository::open(&path).context("repo not found")?;
+            git::list_tracked_files(&repo)
+        })
+        .await?
+    }
 }

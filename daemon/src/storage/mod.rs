@@ -1,8 +1,8 @@
 pub mod event_log;
 
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use chrono::Utc;
-use sqlx::{sqlite::SqliteConnectOptions, SqlitePool};
+use sqlx::{sqlite::SqliteConnectOptions, ConnectOptions, SqlitePool};
 use std::{path::Path, str::FromStr};
 use uuid::Uuid;
 
@@ -39,6 +39,14 @@ pub struct SessionRow {
     pub tier_changed_at: i64,
     pub last_user_interaction_at: i64,
     pub pid: Option<i64>,
+    /// Provider that was auto-selected when `provider = 'auto'` was requested.
+    /// NULL when the provider was explicitly specified.
+    pub routed_provider: Option<String>,
+    /// GCI mode for this session: NORMAL | LEARN | STORM | FORGE | CRUNCH
+    pub mode: String,
+    /// Explicit model override set by the user via session.setModel.
+    /// NULL = auto-route; non-NULL bypasses the classifier.
+    pub model_override: Option<String>,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -49,6 +57,10 @@ pub struct MessageRow {
     pub content: String,
     pub status: String,
     pub created_at: String,
+    /// Heuristic token count (ceil(len/4)). Zero for legacy rows. (SI.T01)
+    pub token_count: i64,
+    /// Pinned messages are always included in context window. (SI.T04)
+    pub pinned: bool,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -72,6 +84,15 @@ pub struct AccountRow {
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
+pub struct AccountEventRow {
+    pub id: String,
+    pub account_id: String,
+    pub event_type: String,
+    pub metadata: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
 pub struct ToolCallRow {
     pub id: String,
     pub message_id: String,
@@ -84,6 +105,40 @@ pub struct ToolCallRow {
     pub completed_at: Option<String>,
 }
 
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct WorktreeRow {
+    pub task_id: String,
+    pub worktree_path: String,
+    pub branch: String,
+    pub repo_path: String,
+    pub status: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// Audit log row for tool call events (DC.T43).
+#[derive(Debug, Clone, sqlx::FromRow, serde::Serialize)]
+pub struct ToolCallEventRow {
+    pub id: String,
+    pub session_id: String,
+    pub tool_name: String,
+    pub sanitized_input: Option<String>,
+    pub approved_by: String,
+    pub rejection_reason: Option<String>,
+    pub created_at: String,
+}
+
+/// A file or directory added to a session's repo context registry (MI.T11).
+#[derive(Debug, Clone, sqlx::FromRow, serde::Serialize)]
+pub struct SessionContextRow {
+    pub id: String,
+    pub session_id: String,
+    pub path: String,
+    /// Priority 1 (lowest) … 10 (highest).  Low-priority items evicted first.
+    pub priority: i64,
+    pub added_at: String,
+}
+
 #[derive(Clone)]
 pub struct Storage {
     pool: SqlitePool,
@@ -91,13 +146,28 @@ pub struct Storage {
 
 impl Storage {
     pub async fn new(data_dir: &Path) -> Result<Self> {
+        Self::new_with_slow_query(data_dir, 0).await
+    }
+
+    /// Create storage with slow-query logging enabled (DC.T50).
+    ///
+    /// `slow_query_ms` is the threshold in milliseconds — queries exceeding it are
+    /// logged at WARN level. Set to 0 to disable slow-query logging.
+    pub async fn new_with_slow_query(data_dir: &Path, slow_query_ms: u64) -> Result<Self> {
         tokio::fs::create_dir_all(data_dir).await?;
         let db_path = data_dir.join("clawd.db");
-        let opts =
+        let mut opts =
             SqliteConnectOptions::from_str(&format!("sqlite://{}?mode=rwc", db_path.display()))?
                 .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
                 .synchronous(sqlx::sqlite::SqliteSynchronous::Normal)
                 .create_if_missing(true);
+
+        if slow_query_ms > 0 {
+            opts = opts.log_slow_statements(
+                log::LevelFilter::Warn,
+                std::time::Duration::from_millis(slow_query_ms),
+            );
+        }
 
         let pool = SqlitePool::connect_with(opts).await?;
         Self::migrate(&pool).await?;
@@ -111,24 +181,10 @@ impl Storage {
     }
 
     async fn migrate(pool: &SqlitePool) -> Result<()> {
-        for sql in [
-            include_str!("migrations/001_init.sql"),
-            include_str!("migrations/002_license.sql"),
-            include_str!("migrations/003_agent_tasks.sql"),
-            include_str!("migrations/004_task_events.sql"),
-            include_str!("migrations/007_threads.sql"),
-            include_str!("migrations/008_projects.sql"),
-            include_str!("migrations/009_devices.sql"),
-            include_str!("migrations/005_resource_governor.sql"),
-            include_str!("migrations/006_task_engine.sql"),
-        ] {
-            for stmt in sql.split(';') {
-                let stmt = stmt.trim();
-                if !stmt.is_empty() {
-                    sqlx::query(stmt).execute(pool).await?;
-                }
-            }
-        }
+        sqlx::migrate!("src/storage/migrations")
+            .run(pool)
+            .await
+            .context("Failed to run database migrations")?;
 
         // Idempotent column additions (ALTER TABLE IF NOT EXISTS is not
         // supported in SQLite, so we attempt the ALTER and ignore the
@@ -209,6 +265,24 @@ impl Storage {
         Ok(row.0 as u64)
     }
 
+    /// Set the `routed_provider` for a session (used when `provider = "auto"`).
+    pub async fn update_session_routed_provider(
+        &self,
+        id: &str,
+        routed_provider: &str,
+    ) -> Result<()> {
+        let now = Utc::now().to_rfc3339();
+        sqlx::query(
+            "UPDATE sessions SET routed_provider = ?, updated_at = ? WHERE id = ?",
+        )
+        .bind(routed_provider)
+        .bind(&now)
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     pub async fn update_session_status(&self, id: &str, status: &str) -> Result<()> {
         let now = Utc::now().to_rfc3339();
         sqlx::query("UPDATE sessions SET status = ?, updated_at = ? WHERE id = ?")
@@ -260,6 +334,20 @@ impl Storage {
         Ok(())
     }
 
+    /// Set the GCI mode on a session.  Valid values: NORMAL, LEARN, STORM, FORGE, CRUNCH.
+    pub async fn set_session_mode(&self, id: &str, mode: &str) -> Result<()> {
+        let now = Utc::now().to_rfc3339();
+        sqlx::query(
+            "UPDATE sessions SET mode = ?, updated_at = ? WHERE id = ?",
+        )
+        .bind(mode)
+        .bind(&now)
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     // ─── Messages ───────────────────────────────────────────────────────────
 
     pub async fn create_message(
@@ -271,9 +359,10 @@ impl Storage {
     ) -> Result<MessageRow> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
+        let token_count = crate::intelligence::context::estimate_tokens(content) as i64;
         sqlx::query(
-            "INSERT INTO messages (id, session_id, role, content, status, created_at)
-             VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO messages (id, session_id, role, content, status, created_at, token_count)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&id)
         .bind(session_id)
@@ -281,6 +370,7 @@ impl Storage {
         .bind(content)
         .bind(status)
         .bind(&now)
+        .bind(token_count)
         .execute(&self.pool)
         .await?;
         self.get_message(&id)
@@ -299,10 +389,11 @@ impl Storage {
     ) -> Result<MessageRow> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
+        let token_count = crate::intelligence::context::estimate_tokens(content) as i64;
         let mut tx = self.pool.begin().await?;
         sqlx::query(
-            "INSERT INTO messages (id, session_id, role, content, status, created_at)
-             VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO messages (id, session_id, role, content, status, created_at, token_count)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&id)
         .bind(session_id)
@@ -310,6 +401,7 @@ impl Storage {
         .bind(content)
         .bind(status)
         .bind(&now)
+        .bind(token_count)
         .execute(&mut *tx)
         .await?;
         sqlx::query(
@@ -341,6 +433,24 @@ impl Storage {
         sqlx::query("UPDATE messages SET content = ?, status = ? WHERE id = ?")
             .bind(content)
             .bind(status)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    /// Pin a message so it is always included in the context window (SI.T04).
+    pub async fn pin_message(&self, id: &str) -> Result<()> {
+        sqlx::query("UPDATE messages SET pinned = 1 WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    /// Unpin a message, allowing it to be dropped when the context window is full (SI.T04).
+    pub async fn unpin_message(&self, id: &str) -> Result<()> {
+        sqlx::query("UPDATE messages SET pinned = 0 WHERE id = ?")
             .bind(id)
             .execute(&self.pool)
             .await?;
@@ -634,6 +744,317 @@ impl Storage {
     pub async fn set_account_limited(&self, id: &str, limited_until: Option<&str>) -> Result<()> {
         sqlx::query("UPDATE accounts SET limited_until = ? WHERE id = ?")
             .bind(limited_until)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn update_account_priority(&self, id: &str, priority: i64) -> Result<()> {
+        sqlx::query("UPDATE accounts SET priority = ? WHERE id = ?")
+            .bind(priority)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn log_account_event(
+        &self,
+        account_id: &str,
+        event_type: &str,
+        metadata: Option<&str>,
+    ) -> Result<()> {
+        let id = uuid::Uuid::new_v4().to_string();
+        sqlx::query(
+            "INSERT INTO account_events (id, account_id, event_type, metadata) VALUES (?, ?, ?, ?)",
+        )
+        .bind(&id)
+        .bind(account_id)
+        .bind(event_type)
+        .bind(metadata)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn list_account_events(
+        &self,
+        account_id: Option<&str>,
+        limit: i64,
+    ) -> Result<Vec<AccountEventRow>> {
+        if let Some(aid) = account_id {
+            Ok(sqlx::query_as(
+                "SELECT * FROM account_events WHERE account_id = ? ORDER BY created_at DESC LIMIT ?",
+            )
+            .bind(aid)
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await?)
+        } else {
+            Ok(sqlx::query_as(
+                "SELECT * FROM account_events ORDER BY created_at DESC LIMIT ?",
+            )
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await?)
+        }
+    }
+
+    // ─── Worktrees ───────────────────────────────────────────────────────────
+
+    /// Insert a new worktree record.
+    pub async fn create_worktree(
+        &self,
+        task_id: &str,
+        worktree_path: &str,
+        branch: &str,
+        repo_path: &str,
+    ) -> Result<WorktreeRow> {
+        let now = Utc::now().to_rfc3339();
+        sqlx::query(
+            "INSERT INTO worktrees (task_id, worktree_path, branch, repo_path, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind(task_id)
+        .bind(worktree_path)
+        .bind(branch)
+        .bind(repo_path)
+        .bind(&now)
+        .bind(&now)
+        .execute(&self.pool)
+        .await?;
+        self.get_worktree(task_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("worktree not found after insert"))
+    }
+
+    pub async fn get_worktree(&self, task_id: &str) -> Result<Option<WorktreeRow>> {
+        Ok(
+            sqlx::query_as("SELECT * FROM worktrees WHERE task_id = ?")
+                .bind(task_id)
+                .fetch_optional(&self.pool)
+                .await?,
+        )
+    }
+
+    pub async fn list_worktrees(&self, status_filter: Option<&str>) -> Result<Vec<WorktreeRow>> {
+        if let Some(status) = status_filter {
+            Ok(
+                sqlx::query_as(
+                    "SELECT * FROM worktrees WHERE status = ? ORDER BY created_at DESC",
+                )
+                .bind(status)
+                .fetch_all(&self.pool)
+                .await?,
+            )
+        } else {
+            Ok(
+                sqlx::query_as("SELECT * FROM worktrees ORDER BY created_at DESC")
+                    .fetch_all(&self.pool)
+                    .await?,
+            )
+        }
+    }
+
+    pub async fn set_worktree_status(&self, task_id: &str, status: &str) -> Result<()> {
+        let now = Utc::now().to_rfc3339();
+        sqlx::query(
+            "UPDATE worktrees SET status = ?, updated_at = ? WHERE task_id = ?",
+        )
+        .bind(status)
+        .bind(&now)
+        .bind(task_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn delete_worktree(&self, task_id: &str) -> Result<()> {
+        sqlx::query("DELETE FROM worktrees WHERE task_id = ?")
+            .bind(task_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    /// Load all non-abandoned worktrees into memory on startup.
+    pub async fn load_worktrees(&self) -> Result<Vec<WorktreeRow>> {
+        Ok(
+            sqlx::query_as(
+                "SELECT * FROM worktrees WHERE status NOT IN ('abandoned', 'merged') ORDER BY created_at",
+            )
+            .fetch_all(&self.pool)
+            .await?,
+        )
+    }
+
+    // ─── Tool call audit log (DC.T43) ─────────────────────────────────────────
+
+    /// Insert a tool call audit event.
+    ///
+    /// `approved_by`: `"auto"` | `"user"` | `"rejected"`
+    pub async fn create_tool_call_event(
+        &self,
+        session_id: &str,
+        tool_name: &str,
+        sanitized_input: Option<&str>,
+        approved_by: &str,
+        rejection_reason: Option<&str>,
+    ) -> Result<ToolCallEventRow> {
+        let id = Uuid::new_v4().to_string();
+        let now = Utc::now().to_rfc3339();
+        sqlx::query(
+            "INSERT INTO tool_call_events
+             (id, session_id, tool_name, sanitized_input, approved_by, rejection_reason, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&id)
+        .bind(session_id)
+        .bind(tool_name)
+        .bind(sanitized_input)
+        .bind(approved_by)
+        .bind(rejection_reason)
+        .bind(&now)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(ToolCallEventRow {
+            id,
+            session_id: session_id.to_string(),
+            tool_name: tool_name.to_string(),
+            sanitized_input: sanitized_input.map(|s| s.to_string()),
+            approved_by: approved_by.to_string(),
+            rejection_reason: rejection_reason.map(|s| s.to_string()),
+            created_at: now,
+        })
+    }
+
+    /// Paginated list of tool call audit events newest-first.
+    pub async fn list_tool_call_events(
+        &self,
+        session_id: Option<&str>,
+        limit: i64,
+        before: Option<&str>,
+    ) -> Result<Vec<ToolCallEventRow>> {
+        match (session_id, before) {
+            (Some(sid), Some(cursor)) => Ok(sqlx::query_as(
+                "SELECT * FROM tool_call_events
+                 WHERE session_id = ? AND id < ?
+                 ORDER BY created_at DESC LIMIT ?",
+            )
+            .bind(sid)
+            .bind(cursor)
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await?),
+            (Some(sid), None) => Ok(sqlx::query_as(
+                "SELECT * FROM tool_call_events
+                 WHERE session_id = ? ORDER BY created_at DESC LIMIT ?",
+            )
+            .bind(sid)
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await?),
+            (None, Some(cursor)) => Ok(sqlx::query_as(
+                "SELECT * FROM tool_call_events
+                 WHERE id < ? ORDER BY created_at DESC LIMIT ?",
+            )
+            .bind(cursor)
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await?),
+            (None, None) => Ok(sqlx::query_as(
+                "SELECT * FROM tool_call_events ORDER BY created_at DESC LIMIT ?",
+            )
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await?),
+        }
+    }
+
+    /// Delete tool call events older than `days` days (daily background pruning).
+    pub async fn prune_tool_call_events(&self, days: u32) -> Result<u64> {
+        if days == 0 {
+            return Ok(0);
+        }
+        let result = sqlx::query(
+            "DELETE FROM tool_call_events WHERE created_at < datetime('now', ?)",
+        )
+        .bind(format!("-{days} days"))
+        .execute(&self.pool)
+        .await?;
+        Ok(result.rows_affected())
+    }
+
+    // ─── Model Intelligence (Sprint H) ──────────────────────────────────────
+
+    /// Set (or clear) the model override for a session (MI.T12).
+    ///
+    /// `model = None` restores auto-routing; `model = Some(id)` pins a specific model.
+    pub async fn set_model_override(&self, session_id: &str, model: Option<&str>) -> Result<()> {
+        let now = Utc::now().to_rfc3339();
+        sqlx::query(
+            "UPDATE sessions SET model_override = ?, updated_at = ? WHERE id = ?",
+        )
+        .bind(model)
+        .bind(&now)
+        .bind(session_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Add a path to the session's repo-context registry (MI.T11).
+    ///
+    /// Returns the new row.  Duplicate paths are silently updated (priority refreshed).
+    pub async fn add_repo_context(
+        &self,
+        session_id: &str,
+        path: &str,
+        priority: i64,
+    ) -> Result<SessionContextRow> {
+        let id = Uuid::new_v4().to_string();
+        let now = Utc::now().to_rfc3339();
+        sqlx::query(
+            "INSERT INTO session_contexts (id, session_id, path, priority, added_at)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT(session_id, path) DO UPDATE SET
+               priority = excluded.priority,
+               added_at = excluded.added_at",
+        )
+        .bind(&id)
+        .bind(session_id)
+        .bind(path)
+        .bind(priority)
+        .bind(&now)
+        .execute(&self.pool)
+        .await?;
+        // Fetch by (session_id, path) in case the ON CONFLICT branch ran.
+        Ok(
+            sqlx::query_as(
+                "SELECT * FROM session_contexts WHERE session_id = ? AND path = ?",
+            )
+            .bind(session_id)
+            .bind(path)
+            .fetch_one(&self.pool)
+            .await?,
+        )
+    }
+
+    /// List all context entries for a session, highest priority first (MI.T11).
+    pub async fn list_repo_contexts(&self, session_id: &str) -> Result<Vec<SessionContextRow>> {
+        Ok(sqlx::query_as(
+            "SELECT * FROM session_contexts WHERE session_id = ? ORDER BY priority DESC, added_at ASC",
+        )
+        .bind(session_id)
+        .fetch_all(&self.pool)
+        .await?)
+    }
+
+    /// Remove a single context entry by its ID (MI.T11).
+    pub async fn remove_repo_context(&self, id: &str) -> Result<()> {
+        sqlx::query("DELETE FROM session_contexts WHERE id = ?")
             .bind(id)
             .execute(&self.pool)
             .await?;

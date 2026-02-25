@@ -64,12 +64,31 @@ jobs:
         run: cargo test
         working-directory: daemon
 
-      - name: Security audit
+      - name: Security audit (cargo-audit)
         run: |
           cargo install cargo-audit --quiet 2>/dev/null || true
-          cargo audit --deny warnings
+          cargo audit --deny=unmaintained --deny=yanked
         working-directory: daemon
         continue-on-error: true
+
+      - name: Check secret logging
+        run: bash scripts/check-secret-logging.sh src
+        working-directory: daemon
+
+  # ─── Rust security policy (cargo-deny) ────────────────────────────
+  rust-deny:
+    name: Rust · cargo deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: cargo deny check
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: daemon/Cargo.toml
+          arguments: --all-features
+          command: check
+          command-arguments: advisories licenses bans sources
 
   # ─── Rust format check ────────────────────────────────────────────
   rust-fmt:

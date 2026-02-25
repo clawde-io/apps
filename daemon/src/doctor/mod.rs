@@ -1,11 +1,237 @@
 // SPDX-License-Identifier: MIT
-//! doctor.rs — pre-flight diagnostic checks for `clawd doctor`.
+//! doctor — AFS project health scanner (D64, Phase 64) + pre-flight CLI checks.
 //!
-//! This module is self-contained and does NOT require AppContext.
-//! It runs before the daemon starts, so it can catch configuration
-//! problems before they cause confusing startup failures.
+//! Two distinct responsibilities:
+//!
+//! 1. **Pre-flight CLI checks** (`run_doctor` / `print_doctor_results`):
+//!    Run before the daemon starts to catch config problems early.
+//!    Self-contained, no AppContext required.
+//!
+//! 2. **AFS project scanner** (`scan` / `fix` / `approve_release`):
+//!    Provides `doctor.scan`, `doctor.fix`, and `doctor.approveRelease` RPCs.
+//!    All checks are stateless (filesystem scan only — no DB).
 
+pub mod afs_checks;
+pub mod docs_checks;
+pub mod release_checks;
+pub mod version_watcher;
+
+use std::path::Path;
 use std::process::Command;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AFS scan/fix types and orchestration (D64)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Severity of a diagnostic finding.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DoctorSeverity {
+    Critical,
+    High,
+    Medium,
+    Low,
+    Info,
+}
+
+impl DoctorSeverity {
+    /// Score penalty for severity (subtracted from 100).
+    pub fn penalty(&self) -> i32 {
+        match self {
+            DoctorSeverity::Critical => 20,
+            DoctorSeverity::High => 10,
+            DoctorSeverity::Medium => 5,
+            DoctorSeverity::Low => 2,
+            DoctorSeverity::Info => 0,
+        }
+    }
+}
+
+/// A single diagnostic finding from `doctor.scan`.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DoctorFinding {
+    /// Short code identifying the check (e.g. `afs.missing_vision`).
+    pub code: String,
+    pub severity: DoctorSeverity,
+    pub message: String,
+    /// Path relative to project root that the finding relates to.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    /// Whether `doctor.fix` can automatically resolve this finding.
+    pub fixable: bool,
+}
+
+/// Full result of a `doctor.scan` call.
+#[derive(Debug, serde::Serialize)]
+pub struct DoctorScanResult {
+    /// Overall health score: 100 = perfect, 0 = critical issues.
+    pub score: u8,
+    pub findings: Vec<DoctorFinding>,
+}
+
+/// Result of `doctor.fix`.
+#[derive(Debug, serde::Serialize)]
+pub struct DoctorFixResult {
+    pub fixed: Vec<String>,
+    pub skipped: Vec<String>,
+}
+
+/// Scope for `doctor.scan`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ScanScope {
+    All,
+    Afs,
+    Docs,
+    Release,
+}
+
+impl ScanScope {
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "afs" => ScanScope::Afs,
+            "docs" => ScanScope::Docs,
+            "release" => ScanScope::Release,
+            _ => ScanScope::All,
+        }
+    }
+}
+
+/// Run all enabled checks and return a scored result.
+pub fn scan(project_path: &Path, scope: ScanScope) -> DoctorScanResult {
+    let mut findings: Vec<DoctorFinding> = Vec::new();
+
+    if scope == ScanScope::All || scope == ScanScope::Afs {
+        findings.extend(afs_checks::run(project_path));
+    }
+    if scope == ScanScope::All || scope == ScanScope::Docs {
+        findings.extend(docs_checks::run(project_path));
+    }
+    if scope == ScanScope::All || scope == ScanScope::Release {
+        findings.extend(release_checks::run(project_path));
+    }
+
+    let penalty: i32 = findings.iter().map(|f| f.severity.penalty()).sum();
+    let score = (100_i32 - penalty).clamp(0, 100) as u8;
+
+    DoctorScanResult { score, findings }
+}
+
+/// Apply auto-fixable repairs for the specified finding codes.
+/// Passing an empty `codes` slice fixes ALL fixable findings.
+pub fn fix(project_path: &Path, codes: &[String]) -> DoctorFixResult {
+    let scan_result = scan(project_path, ScanScope::All);
+    let mut fixed: Vec<String> = Vec::new();
+    let mut skipped: Vec<String> = Vec::new();
+
+    for finding in &scan_result.findings {
+        let matches = codes.is_empty() || codes.contains(&finding.code);
+        if !matches {
+            continue;
+        }
+        if !finding.fixable {
+            skipped.push(finding.code.clone());
+            continue;
+        }
+        let ok = apply_fix(project_path, &finding.code);
+        if ok {
+            fixed.push(finding.code.clone());
+        } else {
+            skipped.push(finding.code.clone());
+        }
+    }
+
+    DoctorFixResult { fixed, skipped }
+}
+
+/// Apply a single auto-fix identified by its code.
+fn apply_fix(project_path: &Path, code: &str) -> bool {
+    match code {
+        "afs.missing_gitignore_entry" => {
+            // Add .claude/ to .gitignore
+            let gitignore = project_path.join(".gitignore");
+            let content = std::fs::read_to_string(&gitignore).unwrap_or_default();
+            let updated = format!("{}\n# AI agent directory\n.claude/\n", content.trim_end());
+            std::fs::write(&gitignore, updated).is_ok()
+        }
+        "afs.stale_temp" => {
+            // Remove temp/ files older than 24h
+            let temp = project_path.join(".claude/temp");
+            if !temp.exists() {
+                return true;
+            }
+            let cutoff = std::time::SystemTime::now()
+                .checked_sub(std::time::Duration::from_secs(24 * 60 * 60))
+                .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+            let mut all_ok = true;
+            if let Ok(entries) = std::fs::read_dir(&temp) {
+                for entry in entries.flatten() {
+                    if let Ok(meta) = entry.metadata() {
+                        if let Ok(modified) = meta.modified() {
+                            if modified < cutoff {
+                                if std::fs::remove_file(entry.path()).is_err() {
+                                    all_ok = false;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            all_ok
+        }
+        "afs.missing_ideas_dir" => {
+            std::fs::create_dir_all(project_path.join(".claude/ideas")).is_ok()
+        }
+        "docs.missing_docs_readme" => {
+            let docs = project_path.join(".docs");
+            if !docs.exists() {
+                if std::fs::create_dir_all(&docs).is_err() {
+                    return false;
+                }
+            }
+            let readme = docs.join("README.md");
+            if readme.exists() {
+                return true;
+            }
+            std::fs::write(
+                &readme,
+                "# Project Docs\n\nThis directory contains project documentation.\n",
+            )
+            .is_ok()
+        }
+        _ => false,
+    }
+}
+
+/// Update the release plan status to `approved`.
+/// Returns true if the file was found and updated.
+pub fn approve_release(project_path: &Path, version: &str) -> bool {
+    let plan_path = project_path
+        .join(".claude/planning")
+        .join(format!("release-{version}.md"));
+
+    let content = match std::fs::read_to_string(&plan_path) {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+
+    // Update "Status: draft" → "Status: approved" (case-insensitive)
+    let updated = if content.contains("Status: draft") || content.contains("Status: Draft") {
+        content
+            .replace("Status: draft", "Status: approved")
+            .replace("Status: Draft", "Status: approved")
+    } else if !content.contains("Status: approved") {
+        // Append status if not present
+        format!("{}\n\n## Status\n\napproved\n", content.trim_end())
+    } else {
+        return true; // already approved
+    };
+
+    std::fs::write(&plan_path, updated).is_ok()
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Pre-flight CLI checks (existing — used by `clawd doctor` subcommand)
+// ═══════════════════════════════════════════════════════════════════════════════
 
 /// The result of a single diagnostic check.
 pub struct CheckResult {
@@ -76,11 +302,16 @@ fn check_claude_authenticated() -> CheckResult {
             let stderr = String::from_utf8_lossy(&out.stderr).to_lowercase();
             let combined = format!("{stdout}{stderr}");
             // Claude CLI outputs "Logged in" when authenticated
-            let authenticated = combined.contains("logged in") && !combined.contains("not logged in");
+            let authenticated =
+                combined.contains("logged in") && !combined.contains("not logged in");
             let detail = String::from_utf8_lossy(&out.stdout)
                 .lines()
                 .next()
-                .unwrap_or(if authenticated { "logged in" } else { "not logged in" })
+                .unwrap_or(if authenticated {
+                    "logged in"
+                } else {
+                    "not logged in"
+                })
                 .trim()
                 .to_string();
             CheckResult {
@@ -257,7 +488,9 @@ fn check_relay_reachable() -> CheckResult {
                 Err(e) => CheckResult {
                     name: "Relay reachable",
                     passed: false,
-                    detail: format!("cannot reach api.clawde.io (check internet connection): {e}"),
+                    detail: format!(
+                        "cannot reach api.clawde.io (check internet connection): {e}"
+                    ),
                 },
             }
         }
@@ -304,12 +537,7 @@ fn available_disk_bytes(path: &std::path::Path) -> Option<u64> {
     #[cfg(unix)]
     {
         use std::ffi::CString;
-        let path_cstr = CString::new(
-            path.to_str()
-                .unwrap_or("/")
-                .as_bytes(),
-        )
-        .ok()?;
+        let path_cstr = CString::new(path.to_str().unwrap_or("/").as_bytes()).ok()?;
         let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
         let ret = unsafe { libc::statvfs(path_cstr.as_ptr(), &mut stat) };
         if ret == 0 {
@@ -342,11 +570,7 @@ pub fn print_doctor_results(results: &[CheckResult]) {
     println!("{}", "─".repeat(60));
 
     for r in results {
-        let (symbol, color) = if r.passed {
-            ("✓", GREEN)
-        } else {
-            ("✗", RED)
-        };
+        let (symbol, color) = if r.passed { ("✓", GREEN) } else { ("✗", RED) };
         println!(
             "  {color}{symbol}{RESET}  {:<30}  {}",
             r.name, r.detail

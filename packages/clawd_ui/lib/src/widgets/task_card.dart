@@ -1,25 +1,38 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:clawd_proto/clawd_proto.dart';
+import 'package:clawd_core/clawd_core.dart';
 
 import 'task_status_badge.dart';
 import 'agent_chip.dart';
 
 /// Compact task card for Kanban column display.
-class TaskCard extends StatelessWidget {
+class TaskCard extends ConsumerWidget {
   const TaskCard({
     super.key,
     required this.task,
     this.onTap,
+    this.onDiffTap,
     this.selected = false,
   });
 
   final AgentTask task;
   final VoidCallback? onTap;
+
+  /// Called when the ∆ diff badge is tapped. If null, no badge is shown
+  /// even when a worktree exists.
+  final VoidCallback? onDiffTap;
   final bool selected;
 
   @override
-  Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final sevColor = _severityColor(task.severity);
+
+    // Watch worktree status to show diff badge (null = no worktree).
+    final worktreeAsync =
+        onDiffTap != null ? ref.watch(worktreeProvider(task.id)) : null;
+    final hasActiveWorktree = worktreeAsync?.valueOrNull?.status == 'active';
 
     return GestureDetector(
       onTap: onTap,
@@ -65,6 +78,31 @@ class TaskCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  // ∆ diff badge — shown when an active worktree exists.
+                  if (hasActiveWorktree)
+                    GestureDetector(
+                      onTap: onDiffTap,
+                      child: Container(
+                        margin: const EdgeInsets.only(left: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.orangeAccent.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                              color:
+                                  Colors.orangeAccent.withValues(alpha: 0.4)),
+                        ),
+                        child: const Text(
+                          '∆',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.orangeAccent,
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
               const SizedBox(height: 6),

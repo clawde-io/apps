@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:clawd_proto/clawd_proto.dart';
 import 'daemon_provider.dart';
@@ -6,10 +8,18 @@ import 'daemon_provider.dart';
 /// Appends/updates messages on `session.messageCreated` and
 /// `session.messageUpdated` push events.
 /// Supports ME-03 pagination via [loadMore].
+///
+/// V02.T13: incoming messageUpdated events are debounced to 80 ms to cap
+/// rebuild rate at ~10/sec during fast streaming (avoids 50-100 redraws/sec).
+/// V02.T14: initial load fetches 50 messages (was 20) for better lazy baseline.
 class MessageListNotifier
     extends FamilyAsyncNotifier<List<Message>, String> {
   /// ID of the oldest loaded message — used as `before` cursor for loadMore.
   String? _oldestMessageId;
+
+  // V02.T13 — debounce buffer for messageUpdated events
+  final Map<String, ({String? content, String? status})> _updateBuffer = {};
+  Timer? _flushTimer;
 
   @override
   Future<List<Message>> build(String sessionId) async {
@@ -39,7 +49,10 @@ class MessageListNotifier
           final msgId = params['messageId'] as String?;
           final content = params['content'] as String?;
           final status = params['status'] as String?;
-          if (msgId != null) _updateMessage(msgId, content, status);
+          // V02.T13: buffer the update instead of applying immediately.
+          if (msgId != null) {
+            _bufferUpdate(msgId, content, status);
+          }
         }
       });
     });
@@ -51,12 +64,13 @@ class MessageListNotifier
     return messages;
   }
 
-  /// Fetches one page (20 messages) optionally before [before] cursor.
+  /// Fetches one page of messages optionally before [before] cursor.
+  /// V02.T14: page size is 50 (was 20) for better initial coverage.
   Future<List<Message>> _fetchPage({String? before}) async {
     final client = ref.read(daemonProvider.notifier).client;
     final params = <String, dynamic>{
       'sessionId': arg,
-      'limit': 20,
+      'limit': 50, // V02.T14 — increased from 20
       if (before != null) 'before': before,
     };
     final result = await client.call<List<dynamic>>(
@@ -74,17 +88,30 @@ class MessageListNotifier
     });
   }
 
-  void _updateMessage(String msgId, String? content, String? status) {
+  /// V02.T13 — Buffer a messageUpdated event and schedule a 80ms flush.
+  void _bufferUpdate(String msgId, String? content, String? status) {
+    _updateBuffer[msgId] = (content: content, status: status);
+    _flushTimer?.cancel();
+    _flushTimer = Timer(const Duration(milliseconds: 80), _flushUpdates);
+  }
+
+  /// V02.T13 — Apply all buffered updates in one state write (~10 redraws/sec).
+  void _flushUpdates() {
+    if (_updateBuffer.isEmpty) return;
+    final pending = Map<String, ({String? content, String? status})>.from(
+        _updateBuffer);
+    _updateBuffer.clear();
     state.whenData((messages) {
       state = AsyncValue.data(
         messages.map((m) {
-          if (m.id != msgId) return m;
+          final upd = pending[m.id];
+          if (upd == null) return m;
           return Message(
             id: m.id,
             sessionId: m.sessionId,
             role: m.role,
-            content: content ?? m.content,
-            status: status ?? m.status,
+            content: upd.content ?? m.content,
+            status: upd.status ?? m.status,
             createdAt: m.createdAt,
             metadata: m.metadata,
           );
@@ -104,7 +131,7 @@ class MessageListNotifier
     }
   }
 
-  /// ME-03: Load older messages and prepend them to the current list.
+  /// ME-03 + V02.T14: Load older messages and prepend them to the current list.
   Future<void> loadMore() async {
     final current = state.valueOrNull;
     if (current == null || _oldestMessageId == null) return;

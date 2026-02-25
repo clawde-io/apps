@@ -10,6 +10,7 @@ pub mod reducer;
 pub mod replay;
 pub mod schema;
 pub mod storage;
+pub mod stub_gate;
 pub mod watcher;
 
 pub use storage::TaskStorage;

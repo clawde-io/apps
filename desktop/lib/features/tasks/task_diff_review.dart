@@ -18,126 +18,208 @@ final _taskDiffProvider = FutureProvider.family<String, String>((ref, taskId) as
 });
 
 /// Opens a task's worktree diff for review.
+///
 /// Shows a unified diff in a scrollable monospace text view.
-/// [Accept All] and [Reject All] are stubs — per-hunk review is future work.
-class TaskDiffReview extends ConsumerWidget {
-  const TaskDiffReview({required this.taskId, super.key});
+/// [Accept All] squash-merges the worktree branch to main via the daemon.
+/// [Reject All] deletes the worktree branch via the daemon.
+class TaskDiffReview extends ConsumerStatefulWidget {
+  const TaskDiffReview({required this.taskId, this.onDone, super.key});
 
   final String taskId;
 
+  /// Called after a successful accept or reject so the parent can navigate
+  /// away or refresh the task list.
+  final VoidCallback? onDone;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final diffAsync = ref.watch(_taskDiffProvider(taskId));
-    final summaryAsync = ref.watch(taskSummaryProvider(taskId));
+  ConsumerState<TaskDiffReview> createState() => _TaskDiffReviewState();
+}
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // ── Header ──────────────────────────────────────────────────────────
-        Container(
-          height: 56,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          decoration: const BoxDecoration(
-            color: ClawdTheme.surfaceElevated,
-            border: Border(bottom: BorderSide(color: ClawdTheme.surfaceBorder)),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.difference_outlined, size: 16,
-                  color: ClawdTheme.clawLight),
-              const SizedBox(width: 8),
-              const Text(
-                'Diff Review',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                taskId,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontFamily: 'monospace',
-                  color: Colors.white38,
-                ),
-              ),
-              const Spacer(),
-              // Action buttons
-              _ActionButton(
-                label: 'Accept All',
-                color: Colors.green,
-                icon: Icons.check_circle_outline,
-                onTap: () => _showStubDialog(context, 'Accept All'),
-              ),
-              const SizedBox(width: 8),
-              _ActionButton(
-                label: 'Reject All',
-                color: Colors.red,
-                icon: Icons.cancel_outlined,
-                onTap: () => _showStubDialog(context, 'Reject All'),
-              ),
-            ],
-          ),
-        ),
+class _TaskDiffReviewState extends ConsumerState<TaskDiffReview> {
+  bool _loading = false;
 
-        // ── Summary stats ────────────────────────────────────────────────────
-        summaryAsync.when(
-          data: (summary) => _SummaryBar(summary: summary),
-          loading: () => const SizedBox.shrink(),
-          error: (_, __) => const SizedBox.shrink(),
-        ),
-
-        // ── Diff content ─────────────────────────────────────────────────────
-        Expanded(
-          child: diffAsync.when(
-            loading: () => const Center(
-              child: CircularProgressIndicator(color: ClawdTheme.claw),
-            ),
-            error: (e, _) => ErrorState(
-              icon: Icons.error_outline,
-              title: 'Failed to load diff',
-              description: e.toString(),
-              onRetry: () => ref.refresh(_taskDiffProvider(taskId)),
-            ),
-            data: (diff) {
-              if (diff.isEmpty) {
-                return const EmptyState(
-                  icon: Icons.difference_outlined,
-                  title: 'No diff available',
-                  subtitle: 'The worktree may not have any uncommitted changes.',
-                );
-              }
-              return _DiffView(diff: diff);
-            },
-          ),
-        ),
-      ],
-    );
+  Future<void> _accept() async {
+    final confirmed = await _confirm('Accept all changes?',
+        'The worktree branch will be squash-merged into the main branch and deleted.',
+        confirmLabel: 'Accept',
+        confirmColor: Colors.green);
+    if (!confirmed) return;
+    setState(() => _loading = true);
+    try {
+      final client = ref.read(daemonProvider.notifier).client;
+      await client.acceptWorktree(widget.taskId);
+      if (mounted) {
+        _showSnack('Changes accepted and merged.', Colors.green);
+        widget.onDone?.call();
+      }
+    } catch (e) {
+      if (mounted) _showSnack('Accept failed: $e', Colors.red);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
-  void _showStubDialog(BuildContext context, String action) {
-    showDialog<void>(
+  Future<void> _reject() async {
+    final confirmed = await _confirm('Reject all changes?',
+        'The worktree branch and all uncommitted changes will be permanently deleted.',
+        confirmLabel: 'Reject',
+        confirmColor: Colors.red);
+    if (!confirmed) return;
+    setState(() => _loading = true);
+    try {
+      final client = ref.read(daemonProvider.notifier).client;
+      await client.rejectWorktree(widget.taskId);
+      if (mounted) {
+        _showSnack('Changes rejected and worktree removed.', Colors.orange);
+        widget.onDone?.call();
+      }
+    } catch (e) {
+      if (mounted) _showSnack('Reject failed: $e', Colors.red);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<bool> _confirm(String title, String body,
+      {required String confirmLabel, required Color confirmColor}) async {
+    final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: ClawdTheme.surfaceElevated,
-        title: Text(
-          action,
-          style: const TextStyle(color: Colors.white, fontSize: 15),
-        ),
-        content: const Text(
-          'Per-hunk diff review is not yet wired to the daemon. '
-          'This stub will be replaced when worktrees.accept/reject RPCs are added.',
-          style: TextStyle(color: Colors.white70, fontSize: 13),
-        ),
+        title: Text(title,
+            style: const TextStyle(color: Colors.white, fontSize: 15)),
+        content: Text(body,
+            style: const TextStyle(color: Colors.white70, fontSize: 13)),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('OK'),
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child:
+                Text(confirmLabel, style: TextStyle(color: confirmColor)),
           ),
         ],
       ),
+    );
+    return result ?? false;
+  }
+
+  void _showSnack(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message),
+      backgroundColor: color.withValues(alpha: 0.85),
+      duration: const Duration(seconds: 3),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final diffAsync = ref.watch(_taskDiffProvider(widget.taskId));
+    final summaryAsync = ref.watch(taskSummaryProvider(widget.taskId));
+
+    return Stack(
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Header ────────────────────────────────────────────────────
+            Container(
+              height: 56,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              decoration: const BoxDecoration(
+                color: ClawdTheme.surfaceElevated,
+                border:
+                    Border(bottom: BorderSide(color: ClawdTheme.surfaceBorder)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.difference_outlined,
+                      size: 16, color: ClawdTheme.clawLight),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Diff Review',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    widget.taskId,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontFamily: 'monospace',
+                      color: Colors.white38,
+                    ),
+                  ),
+                  const Spacer(),
+                  _ActionButton(
+                    label: 'Accept All',
+                    color: Colors.green,
+                    icon: Icons.check_circle_outline,
+                    onTap: _loading ? null : _accept,
+                  ),
+                  const SizedBox(width: 8),
+                  _ActionButton(
+                    label: 'Reject All',
+                    color: Colors.red,
+                    icon: Icons.cancel_outlined,
+                    onTap: _loading ? null : _reject,
+                  ),
+                ],
+              ),
+            ),
+
+            // ── Summary stats ────────────────────────────────────────────
+            summaryAsync.when(
+              data: (summary) => _SummaryBar(summary: summary),
+              loading: () => const SizedBox.shrink(),
+              error: (_, __) => const SizedBox.shrink(),
+            ),
+
+            // ── Diff content ─────────────────────────────────────────────
+            Expanded(
+              child: diffAsync.when(
+                loading: () => const Center(
+                  child: CircularProgressIndicator(color: ClawdTheme.claw),
+                ),
+                error: (e, _) => ErrorState(
+                  icon: Icons.error_outline,
+                  title: 'Failed to load diff',
+                  description: e.toString(),
+                  onRetry: () =>
+                      ref.refresh(_taskDiffProvider(widget.taskId)),
+                ),
+                data: (diff) {
+                  if (diff.isEmpty) {
+                    return const EmptyState(
+                      icon: Icons.difference_outlined,
+                      title: 'No diff available',
+                      subtitle:
+                          'The worktree may not have any uncommitted changes.',
+                    );
+                  }
+                  return _DiffView(diff: diff);
+                },
+              ),
+            ),
+          ],
+        ),
+
+        // ── Loading overlay ──────────────────────────────────────────────
+        if (_loading)
+          const Positioned.fill(
+            child: ColoredBox(
+              color: Color(0x88000000),
+              child: Center(
+                child: CircularProgressIndicator(color: ClawdTheme.claw),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -294,36 +376,40 @@ class _ActionButton extends StatelessWidget {
     required this.label,
     required this.color,
     required this.icon,
-    required this.onTap,
+    this.onTap,
   });
   final String label;
   final Color color;
   final IconData icon;
-  final VoidCallback onTap;
+  /// Nullable — null disables the button (shown dimmed when loading).
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final disabled = onTap == null;
+    final effectiveColor =
+        disabled ? color.withValues(alpha: 0.3) : color;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(6),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
+          color: effectiveColor.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
+          border: Border.all(color: effectiveColor.withValues(alpha: 0.3)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 13, color: color),
+            Icon(icon, size: 13, color: effectiveColor),
             const SizedBox(width: 5),
             Text(
               label,
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: color,
+                color: effectiveColor,
               ),
             ),
           ],

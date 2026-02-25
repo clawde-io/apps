@@ -1,7 +1,9 @@
+pub mod accounts;
 pub mod afs;
 pub mod agents;
 pub mod approval;
 pub mod daemon;
+pub mod license;
 pub mod provider;
 pub mod repo;
 pub mod scheduler;
@@ -13,3 +15,14 @@ pub mod tool;
 pub mod worktrees;
 pub mod system;
 pub mod task_engine;
+pub mod token;
+
+pub mod audit;
+pub mod doctor;
+pub mod drift;
+pub mod standards;
+pub mod providers_handler;
+pub mod model_intelligence;
+pub mod repo_intelligence;
+pub mod session_intelligence;
+pub mod packs;

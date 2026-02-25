@@ -13,6 +13,17 @@ class SessionHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final repoName = session.repoPath.split('/').last;
 
+    // V02.T32 — standards indicator; empty until daemon supports session.standards
+    final standards =
+        ref.watch(sessionStandardsProvider(session.id)).valueOrNull ?? [];
+    // V02.T36 — provider knowledge indicator; empty until daemon supports RPC
+    final providerKnowledge =
+        ref.watch(sessionProviderKnowledgeProvider(session.id)).valueOrNull ??
+            [];
+    // SI.T15 — session health indicator; null until daemon supports session.health
+    final healthData =
+        ref.watch(sessionHealthProvider(session.id)).valueOrNull;
+
     return Container(
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -33,6 +44,49 @@ class SessionHeader extends ConsumerWidget {
           ProviderBadge(provider: session.provider),
           const SizedBox(width: 10),
           _StatusChip(status: session.status),
+          const SizedBox(width: 10),
+          // MI.T12 — model override chip + picker
+          ModelChip(
+            modelOverride: session.modelOverride,
+            onTap: () => _showModelPicker(context, ref),
+          ),
+          if (session.modelOverride != null) const SizedBox(width: 10),
+          // V02.T27 / V02.T04 — GCI mode indicator + picker
+          ModeBadge(
+            mode: session.mode,
+            onTap: () => _showModePicker(context, ref),
+          ),
+          // SI.T15 — session health indicator (hidden when healthy)
+          if (healthData != null) ...[
+            const SizedBox(width: 6),
+            HealthChip(
+              healthScore: (healthData['healthScore'] as num?)?.toInt(),
+              needsRefresh: healthData['needsRefresh'] as bool? ?? false,
+              totalTurns: (healthData['totalTurns'] as num?)?.toInt() ?? 0,
+              shortResponseCount:
+                  (healthData['shortResponseCount'] as num?)?.toInt() ?? 0,
+              toolErrorCount:
+                  (healthData['toolErrorCount'] as num?)?.toInt() ?? 0,
+              truncationCount:
+                  (healthData['truncationCount'] as num?)?.toInt() ?? 0,
+            ),
+          ],
+          if (standards.isNotEmpty) ...[
+            const SizedBox(width: 6),
+            // V02.T32 — active standards count
+            StandardsChip(
+              count: standards.length,
+              standards: standards,
+            ),
+          ],
+          if (providerKnowledge.isNotEmpty) ...[
+            const SizedBox(width: 6),
+            // V02.T36 — active provider knowledge count
+            ProviderKnowledgeChip(
+              count: providerKnowledge.length,
+              providers: providerKnowledge,
+            ),
+          ],
           const Spacer(),
           if (session.status == SessionStatus.running)
             IconButton(
@@ -57,6 +111,38 @@ class SessionHeader extends ConsumerWidget {
             },
           ),
         ],
+      ),
+    );
+  }
+
+  void _showModelPicker(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => ModelPicker(
+        current: session.modelOverride,
+        onSelect: (newModel) {
+          ref.read(daemonProvider.notifier).client.setSessionModel(
+            session.id,
+            newModel,
+          ).ignore();
+        },
+      ),
+    );
+  }
+
+  void _showModePicker(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => ModePicker(
+        current: session.mode,
+        onSelect: (newMode) {
+          ref.read(daemonProvider.notifier).client.setSessionMode(
+            session.id,
+            newMode.name.toUpperCase(),
+          ).ignore();
+        },
       ),
     );
   }

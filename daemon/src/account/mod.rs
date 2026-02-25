@@ -140,6 +140,35 @@ impl AccountRegistry {
         Ok(())
     }
 
+    /// Count accounts for a given provider that are not currently rate-limited.
+    ///
+    /// Used by `daemon.providers` to report Codex availability.
+    pub async fn count_available_accounts(&self, provider: Option<&str>) -> usize {
+        let accounts = match self.storage.list_accounts().await {
+            Ok(a) => a,
+            Err(_) => return 0,
+        };
+        let now = Utc::now();
+        accounts
+            .iter()
+            .filter(|a| {
+                // Filter by provider if specified.
+                if let Some(p) = provider {
+                    if a.provider != p {
+                        return false;
+                    }
+                }
+                // Exclude currently limited accounts.
+                if let Some(ref limited_until) = a.limited_until {
+                    if let Ok(until) = limited_until.parse::<DateTime<Utc>>() {
+                        return until <= now;
+                    }
+                }
+                true
+            })
+            .count()
+    }
+
     /// Detect rate-limit signals in provider output text.
     ///
     /// Returns `Some(cooldown_minutes)` if a limit signal is found.

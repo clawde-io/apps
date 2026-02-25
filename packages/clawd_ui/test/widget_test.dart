@@ -450,4 +450,213 @@ void main() {
       expect(find.text('Retry'), findsNothing);
     });
   });
+
+  // ── TokenUsagePanel — MI.T29 ─────────────────────────────────────────────
+
+  group('TokenUsagePanel', () {
+    testWidgets('shows formatted cost in collapsed header', (tester) async {
+      await tester.pumpWidget(_wrap(const TokenUsagePanel(
+        inputTokens: 1500,
+        outputTokens: 750,
+        estimatedCostUsd: 0.0123,
+      )));
+      await tester.pump();
+
+      // Cost string rendered in header.
+      expect(find.textContaining('0.0123'), findsOneWidget);
+      // 1500 tokens → '1.5k' (input stat label value).
+      expect(find.textContaining('1.5k'), findsOneWidget);
+    });
+
+    testWidgets('collapsed by default when no warnings', (tester) async {
+      await tester.pumpWidget(_wrap(const TokenUsagePanel(
+        inputTokens: 100,
+        outputTokens: 50,
+      )));
+      await tester.pump();
+
+      // Expanded detail rows not present when collapsed.
+      expect(find.text('Input tokens'), findsNothing);
+      expect(find.text('Session cost'), findsNothing);
+    });
+
+    testWidgets('auto-expands when budgetWarning is true', (tester) async {
+      await tester.pumpWidget(_wrap(const TokenUsagePanel(
+        budgetWarning: true,
+        monthlySpendUsd: 8.0,
+        monthlyCap: 10.0,
+      )));
+      await tester.pump();
+
+      // Detail rows visible when auto-expanded.
+      expect(find.text('Input tokens'), findsOneWidget);
+      // Warning label shown in header.
+      expect(find.text('Budget warning'), findsOneWidget);
+    });
+
+    testWidgets('shows Budget exceeded label when budgetExceeded', (tester) async {
+      await tester.pumpWidget(_wrap(const TokenUsagePanel(
+        budgetExceeded: true,
+        monthlySpendUsd: 12.0,
+        monthlyCap: 10.0,
+      )));
+      await tester.pump();
+
+      expect(find.text('Budget exceeded'), findsOneWidget);
+      // Expanded — detail rows visible too.
+      expect(find.text('Input tokens'), findsOneWidget);
+    });
+
+    testWidgets('tap header toggles expanded state', (tester) async {
+      await tester.pumpWidget(_wrap(const TokenUsagePanel(
+        inputTokens: 500,
+      )));
+      await tester.pump();
+
+      // Collapsed initially.
+      expect(find.text('Input tokens'), findsNothing);
+
+      // Tap the GestureDetector in the panel header.
+      final headerGesture = find.descendant(
+        of: find.byType(TokenUsagePanel),
+        matching: find.byType(GestureDetector),
+      ).first;
+      await tester.tap(headerGesture);
+      await tester.pump();
+
+      // Now expanded.
+      expect(find.text('Input tokens'), findsOneWidget);
+
+      // Tap again to collapse.
+      await tester.tap(headerGesture);
+      await tester.pump();
+
+      expect(find.text('Input tokens'), findsNothing);
+    });
+
+    testWidgets('shows monthly cap detail rows when monthlyCap provided', (tester) async {
+      await tester.pumpWidget(_wrap(const TokenUsagePanel(
+        budgetWarning: true,
+        monthlySpendUsd: 8.5,
+        monthlyCap: 10.0,
+      )));
+      await tester.pump();
+
+      expect(find.text('Monthly spend'), findsOneWidget);
+      expect(find.text('Monthly cap'), findsOneWidget);
+      expect(find.textContaining('10.00'), findsOneWidget);
+    });
+
+    testWidgets('no monthly detail rows when monthlyCap is null', (tester) async {
+      await tester.pumpWidget(_wrap(const TokenUsagePanel(
+        monthlySpendUsd: 5.0,
+        budgetWarning: true, // ensures expanded
+      )));
+      await tester.pump();
+
+      expect(find.text('Monthly spend'), findsNothing);
+      expect(find.text('Monthly cap'), findsNothing);
+    });
+  });
+
+  // ── ModelChip — MI.T29 ────────────────────────────────────────────────────
+
+  group('ModelChip', () {
+    testWidgets('hidden when modelOverride is null', (tester) async {
+      await tester.pumpWidget(_wrap(const ModelChip(modelOverride: null)));
+      await tester.pump();
+
+      expect(find.text('sonnet'), findsNothing);
+      expect(find.text('opus'), findsNothing);
+      expect(find.text('haiku'), findsNothing);
+    });
+
+    testWidgets('shows "sonnet" for claude-sonnet-4-6', (tester) async {
+      await tester.pumpWidget(_wrap(const ModelChip(
+        modelOverride: 'claude-sonnet-4-6',
+      )));
+      await tester.pump();
+
+      expect(find.text('sonnet'), findsOneWidget);
+    });
+
+    testWidgets('shows "opus" for claude-opus model', (tester) async {
+      await tester.pumpWidget(_wrap(const ModelChip(
+        modelOverride: 'claude-opus-4-6',
+      )));
+      await tester.pump();
+
+      expect(find.text('opus'), findsOneWidget);
+    });
+
+    testWidgets('shows "haiku" for haiku model', (tester) async {
+      await tester.pumpWidget(_wrap(const ModelChip(
+        modelOverride: 'claude-haiku-4-5-20251001',
+      )));
+      await tester.pump();
+
+      expect(find.text('haiku'), findsOneWidget);
+    });
+
+    testWidgets('onTap fires when chip is tapped', (tester) async {
+      var tapped = false;
+      await tester.pumpWidget(_wrap(ModelChip(
+        modelOverride: 'claude-sonnet-4-6',
+        onTap: () => tapped = true,
+      )));
+      await tester.pump();
+
+      await tester.tap(find.byType(InkWell));
+      expect(tapped, isTrue);
+    });
+
+    testWidgets('truncates unknown model ID longer than 10 chars', (tester) async {
+      await tester.pumpWidget(_wrap(const ModelChip(
+        modelOverride: 'gpt-4o-ultra-max',
+      )));
+      await tester.pump();
+
+      // First 10 chars of 'gpt-4o-ultra-max' = 'gpt-4o-ult' then '…'
+      expect(find.text('gpt-4o-ult\u2026'), findsOneWidget);
+    });
+
+    testWidgets('short unknown model shown as-is', (tester) async {
+      await tester.pumpWidget(_wrap(const ModelChip(
+        modelOverride: 'gpt-4o',
+      )));
+      await tester.pump();
+
+      expect(find.text('gpt-4o'), findsOneWidget);
+    });
+  });
+
+  // ── ModelIndicator — MI.T29 ───────────────────────────────────────────────
+
+  group('ModelIndicator', () {
+    testWidgets('hidden when modelOverride is null', (tester) async {
+      await tester.pumpWidget(_wrap(const ModelIndicator(modelOverride: null)));
+      await tester.pump();
+
+      expect(find.text('haiku'), findsNothing);
+      expect(find.text('sonnet'), findsNothing);
+    });
+
+    testWidgets('shows "haiku" label for haiku model', (tester) async {
+      await tester.pumpWidget(_wrap(const ModelIndicator(
+        modelOverride: 'claude-haiku-4-5-20251001',
+      )));
+      await tester.pump();
+
+      expect(find.text('haiku'), findsOneWidget);
+    });
+
+    testWidgets('shows "sonnet" label for sonnet model', (tester) async {
+      await tester.pumpWidget(_wrap(const ModelIndicator(
+        modelOverride: 'claude-sonnet-4-6',
+      )));
+      await tester.pump();
+
+      expect(find.text('sonnet'), findsOneWidget);
+    });
+  });
 }

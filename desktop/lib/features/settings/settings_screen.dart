@@ -7,10 +7,12 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:clawd_core/clawd_core.dart';
 import 'package:clawd_proto/clawd_proto.dart';
 import 'package:clawd_ui/clawd_ui.dart';
+import 'package:go_router/go_router.dart';
+import 'package:clawde/router.dart';
 import 'package:clawde/services/updater_service.dart';
 import 'package:clawde/features/settings/remote_access_settings.dart';
 
-enum _Section { connection, remoteAccess, providers, appearance, about }
+enum _Section { connection, remoteAccess, providers, models, appearance, resources, doctor, about }
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -68,7 +70,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               _Section.connection => const _ConnectionPane(),
               _Section.remoteAccess => const RemoteAccessSettings(),
               _Section.providers => const _ProvidersPane(),
+              _Section.models => const _ModelsPane(),
               _Section.appearance => const _AppearancePane(),
+              _Section.resources => const _ResourcesPane(),
+              _Section.doctor => const _DoctorPane(),
               _Section.about => const _AboutPane(),
             },
           ),
@@ -95,7 +100,10 @@ class _SectionTile extends StatelessWidget {
         _Section.connection => 'Connection',
         _Section.remoteAccess => 'Remote Access',
         _Section.providers => 'Providers',
+        _Section.models => 'Models',
         _Section.appearance => 'Appearance',
+        _Section.resources => 'Resources',
+        _Section.doctor => 'Doctor',
         _Section.about => 'About',
       };
 
@@ -103,7 +111,10 @@ class _SectionTile extends StatelessWidget {
         _Section.connection => Icons.wifi,
         _Section.remoteAccess => Icons.devices,
         _Section.providers => Icons.auto_awesome,
+        _Section.models => Icons.auto_awesome_mosaic,
         _Section.appearance => Icons.palette_outlined,
+        _Section.resources => Icons.memory,
+        _Section.doctor => Icons.health_and_safety_outlined,
         _Section.about => Icons.info_outline,
       };
 
@@ -647,6 +658,852 @@ class _AboutPaneState extends State<_AboutPane> {
             ),
           ),
         ),
+      ],
+    );
+  }
+}
+
+// ── Resources pane ────────────────────────────────────────────────────────────
+
+/// Ephemeral config state used by the resources settings sliders.
+class _ResConfig {
+  const _ResConfig({
+    required this.maxMemoryPercent,
+    required this.maxConcurrentActive,
+    required this.idleToWarmSecs,
+    required this.warmToColdSecs,
+  });
+
+  final int maxMemoryPercent;
+  final int maxConcurrentActive;
+  final int idleToWarmSecs;
+  final int warmToColdSecs;
+
+  static const p8gb = _ResConfig(
+    maxMemoryPercent: 60,
+    maxConcurrentActive: 2,
+    idleToWarmSecs: 60,
+    warmToColdSecs: 180,
+  );
+  static const p16gb = _ResConfig(
+    maxMemoryPercent: 70,
+    maxConcurrentActive: 4,
+    idleToWarmSecs: 120,
+    warmToColdSecs: 300,
+  );
+  static const p32gb = _ResConfig(
+    maxMemoryPercent: 75,
+    maxConcurrentActive: 6,
+    idleToWarmSecs: 180,
+    warmToColdSecs: 600,
+  );
+  static const p64gb = _ResConfig(
+    maxMemoryPercent: 80,
+    maxConcurrentActive: 10,
+    idleToWarmSecs: 300,
+    warmToColdSecs: 1200,
+  );
+
+  String toToml() {
+    final concStr =
+        maxConcurrentActive == 0 ? '0  # 0 = auto-calculate' : '$maxConcurrentActive';
+    return '[resources]\nmax_memory_percent = $maxMemoryPercent\nmax_concurrent_active = $concStr\nidle_to_warm_secs = $idleToWarmSecs\nwarm_to_cold_secs = $warmToColdSecs';
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is _ResConfig &&
+      maxMemoryPercent == other.maxMemoryPercent &&
+      maxConcurrentActive == other.maxConcurrentActive &&
+      idleToWarmSecs == other.idleToWarmSecs &&
+      warmToColdSecs == other.warmToColdSecs;
+
+  @override
+  int get hashCode => Object.hash(
+      maxMemoryPercent, maxConcurrentActive, idleToWarmSecs, warmToColdSecs);
+}
+
+class _ResourcesPane extends ConsumerStatefulWidget {
+  const _ResourcesPane();
+
+  @override
+  ConsumerState<_ResourcesPane> createState() => _ResourcesPaneState();
+}
+
+class _ResourcesPaneState extends ConsumerState<_ResourcesPane> {
+  _ResConfig _cfg = _ResConfig.p16gb;
+  bool _presetApplied = false;
+
+  String _fmtSecs(int s) {
+    if (s < 60) return '${s}s';
+    final m = s ~/ 60;
+    final rem = s % 60;
+    return rem == 0 ? '${m}m' : '${m}m ${rem}s';
+  }
+
+  int _roundToStep(double v, int step) => ((v / step).round() * step);
+
+  @override
+  Widget build(BuildContext context) {
+    final statsAsync = ref.watch(resourceStatsProvider);
+    final stats = statsAsync.value;
+
+    // Auto-select preset once we have RAM data.
+    if (stats != null && !_presetApplied) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _presetApplied = true;
+          final gb = stats.ram.totalBytes / 1024 / 1024 / 1024;
+          _cfg = gb < 12
+              ? _ResConfig.p8gb
+              : gb < 24
+                  ? _ResConfig.p16gb
+                  : gb < 48
+                      ? _ResConfig.p32gb
+                      : _ResConfig.p64gb;
+        });
+      });
+    }
+
+    final budgetMb = stats != null
+        ? (stats.ram.totalBytes * _cfg.maxMemoryPercent ~/ 100 ~/ 1024 ~/ 1024)
+        : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _Header(
+          title: 'Resource Governor',
+          subtitle: 'Control how much system memory the daemon and sessions use',
+        ),
+        const SizedBox(height: 20),
+
+        // Live RAM overview
+        statsAsync.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (_, __) => const Text(
+            'Resource stats unavailable — daemon may be disconnected',
+            style: TextStyle(fontSize: 12, color: Colors.white38),
+          ),
+          data: (s) => s != null
+              ? _RamOverviewCard(stats: s)
+              : const Text(
+                  'Resource stats unavailable',
+                  style: TextStyle(fontSize: 12, color: Colors.white38),
+                ),
+        ),
+
+        const SizedBox(height: 24),
+
+        // Hardware presets
+        const _Label('Hardware Preset'),
+        const SizedBox(height: 4),
+        const Text(
+          'Tune defaults for your machine size. Auto-detected from live RAM data.',
+          style: TextStyle(fontSize: 11, color: Colors.white38),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            _PresetChip(
+              label: '8 GB',
+              isSelected: _cfg == _ResConfig.p8gb,
+              onTap: () => setState(() => _cfg = _ResConfig.p8gb),
+            ),
+            const SizedBox(width: 8),
+            _PresetChip(
+              label: '16 GB',
+              isSelected: _cfg == _ResConfig.p16gb,
+              onTap: () => setState(() => _cfg = _ResConfig.p16gb),
+            ),
+            const SizedBox(width: 8),
+            _PresetChip(
+              label: '32 GB',
+              isSelected: _cfg == _ResConfig.p32gb,
+              onTap: () => setState(() => _cfg = _ResConfig.p32gb),
+            ),
+            const SizedBox(width: 8),
+            _PresetChip(
+              label: '64 GB',
+              isSelected: _cfg == _ResConfig.p64gb,
+              onTap: () => setState(() => _cfg = _ResConfig.p64gb),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 24),
+
+        // Memory limit slider
+        const _Label('Memory Limit'),
+        const SizedBox(height: 2),
+        _SliderRow(
+          label: '${_cfg.maxMemoryPercent}% of RAM',
+          extra: budgetMb != null ? '≈ $budgetMb MB budget' : null,
+          value: _cfg.maxMemoryPercent.toDouble(),
+          min: 10,
+          max: 90,
+          divisions: 16,
+          onChanged: (v) => setState(() => _cfg = _ResConfig(
+                maxMemoryPercent: v.round(),
+                maxConcurrentActive: _cfg.maxConcurrentActive,
+                idleToWarmSecs: _cfg.idleToWarmSecs,
+                warmToColdSecs: _cfg.warmToColdSecs,
+              )),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Active session limit slider
+        const _Label('Active Session Limit'),
+        const SizedBox(height: 2),
+        _SliderRow(
+          label: _cfg.maxConcurrentActive == 0
+              ? 'Auto'
+              : '${_cfg.maxConcurrentActive} sessions',
+          value: _cfg.maxConcurrentActive.toDouble(),
+          min: 0,
+          max: 16,
+          divisions: 16,
+          onChanged: (v) => setState(() => _cfg = _ResConfig(
+                maxMemoryPercent: _cfg.maxMemoryPercent,
+                maxConcurrentActive: v.round(),
+                idleToWarmSecs: _cfg.idleToWarmSecs,
+                warmToColdSecs: _cfg.warmToColdSecs,
+              )),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Idle → Warm slider
+        const _Label('Idle → Warm after'),
+        const SizedBox(height: 2),
+        _SliderRow(
+          label: _fmtSecs(_cfg.idleToWarmSecs),
+          value: _cfg.idleToWarmSecs.toDouble(),
+          min: 30,
+          max: 600,
+          divisions: 19,
+          onChanged: (v) => setState(() => _cfg = _ResConfig(
+                maxMemoryPercent: _cfg.maxMemoryPercent,
+                maxConcurrentActive: _cfg.maxConcurrentActive,
+                idleToWarmSecs: _roundToStep(v, 30),
+                warmToColdSecs: _cfg.warmToColdSecs,
+              )),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Warm → Cold slider
+        const _Label('Warm → Cold after'),
+        const SizedBox(height: 2),
+        _SliderRow(
+          label: _fmtSecs(_cfg.warmToColdSecs),
+          value: _cfg.warmToColdSecs.toDouble(),
+          min: 60,
+          max: 1800,
+          divisions: 29,
+          onChanged: (v) => setState(() => _cfg = _ResConfig(
+                maxMemoryPercent: _cfg.maxMemoryPercent,
+                maxConcurrentActive: _cfg.maxConcurrentActive,
+                idleToWarmSecs: _cfg.idleToWarmSecs,
+                warmToColdSecs: _roundToStep(v, 60),
+              )),
+        ),
+
+        const SizedBox(height: 24),
+        const Divider(),
+        const SizedBox(height: 16),
+
+        // TOML config snippet
+        const _Label('Apply to config.toml'),
+        const SizedBox(height: 4),
+        const Text(
+          "Paste this into your daemon's config.toml and restart to apply.",
+          style: TextStyle(fontSize: 11, color: Colors.white38),
+        ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0a0a0f),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: ClawdTheme.surfaceBorder),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: SelectableText(
+                  _cfg.toToml(),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                    color: Colors.white70,
+                    height: 1.6,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: _cfg.toToml()));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Config copied'),
+                      duration: Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.copy, size: 16),
+                color: Colors.white38,
+                tooltip: 'Copy',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'macOS: ~/Library/Application Support/clawd/config.toml',
+          style: TextStyle(fontSize: 10, color: Colors.white24),
+        ),
+        const Text(
+          'Linux: ~/.local/share/clawd/config.toml',
+          style: TextStyle(fontSize: 10, color: Colors.white24),
+        ),
+      ],
+    );
+  }
+}
+
+class _RamOverviewCard extends StatelessWidget {
+  const _RamOverviewCard({required this.stats});
+  final ResourceStats stats;
+
+  @override
+  Widget build(BuildContext context) {
+    final ram = stats.ram;
+    final pct = ram.usedPercent.clamp(0, 100);
+    final barColor = pct > 90
+        ? Colors.red
+        : pct > 75
+            ? Colors.orange
+            : ClawdTheme.claw;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: ClawdTheme.surfaceElevated,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: ClawdTheme.surfaceBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.memory, size: 14, color: Colors.white38),
+              const SizedBox(width: 6),
+              const Text(
+                'System RAM',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white70),
+              ),
+              const Spacer(),
+              Text(
+                '${ram.usedMb} / ${ram.totalGb}',
+                style: const TextStyle(fontSize: 11, color: Colors.white38),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: LinearProgressIndicator(
+              value: pct / 100,
+              backgroundColor: ClawdTheme.surfaceBorder,
+              valueColor: AlwaysStoppedAnimation<Color>(barColor),
+              minHeight: 6,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _ResStat('Used', ram.usedMb),
+              const SizedBox(width: 20),
+              _ResStat('Daemon', ram.daemonMb),
+              const SizedBox(width: 20),
+              _ResStat(
+                'Sessions',
+                '${stats.sessions.active}A · ${stats.sessions.warm}W · ${stats.sessions.cold}C',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ResStat extends StatelessWidget {
+  const _ResStat(this.label, this.value);
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(fontSize: 9, color: Colors.white24)),
+        Text(value,
+            style: const TextStyle(fontSize: 11, color: Colors.white70)),
+      ],
+    );
+  }
+}
+
+class _PresetChip extends StatelessWidget {
+  const _PresetChip({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? ClawdTheme.claw.withValues(alpha: 0.15)
+              : ClawdTheme.surfaceElevated,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: isSelected ? ClawdTheme.claw : ClawdTheme.surfaceBorder,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: isSelected ? ClawdTheme.clawLight : Colors.white54,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SliderRow extends StatelessWidget {
+  const _SliderRow({
+    required this.label,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.divisions,
+    required this.onChanged,
+    this.extra,
+  });
+  final String label;
+  final String? extra;
+  final double value;
+  final double min;
+  final double max;
+  final int divisions;
+  final ValueChanged<double> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 3,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+              overlayShape:
+                  const RoundSliderOverlayShape(overlayRadius: 12),
+              activeTrackColor: ClawdTheme.claw,
+              thumbColor: ClawdTheme.claw,
+              inactiveTrackColor: ClawdTheme.surfaceBorder,
+              overlayColor: ClawdTheme.claw.withValues(alpha: 0.15),
+            ),
+            child: Slider(
+              value: value.clamp(min, max),
+              min: min,
+              max: max,
+              divisions: divisions,
+              onChanged: onChanged,
+            ),
+          ),
+        ),
+        SizedBox(
+          width: 120,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(label,
+                  style: const TextStyle(
+                      fontSize: 12, color: Colors.white70)),
+              if (extra != null)
+                Text(extra!,
+                    style: const TextStyle(
+                        fontSize: 10, color: Colors.white38)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Models pane (MI.T15) ──────────────────────────────────────────────────────
+
+/// Default model per task type + monthly budget cap (MI.T15).
+///
+/// Changes are shown as a config.toml snippet — the user copies and applies.
+/// There is no live write-back: editing daemon config requires a restart.
+class _ModelsPane extends StatefulWidget {
+  const _ModelsPane();
+
+  @override
+  State<_ModelsPane> createState() => _ModelsPaneState();
+}
+
+class _ModelsPaneState extends State<_ModelsPane> {
+  // Default model per task type, matching daemon TaskType enum.
+  static const _taskTypes = [
+    'Architecture',
+    'CodeReview',
+    'Debugging',
+    'Documentation',
+    'General',
+    'QuickEdit',
+    'Search',
+  ];
+
+  static const _models = [
+    ('Opus', 'claude-opus-4-6'),
+    ('Sonnet', 'claude-sonnet-4-6'),
+    ('Haiku', 'claude-haiku-4-5-20251001'),
+  ];
+
+  // Task type → model ID
+  late final Map<String, String> _routing;
+
+  // Monthly budget in USD (0 = no cap)
+  double _budgetUsd = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Sensible defaults matching the daemon router defaults.
+    _routing = {
+      'Architecture': 'claude-opus-4-6',
+      'CodeReview': 'claude-sonnet-4-6',
+      'Debugging': 'claude-sonnet-4-6',
+      'Documentation': 'claude-haiku-4-5-20251001',
+      'General': 'claude-sonnet-4-6',
+      'QuickEdit': 'claude-haiku-4-5-20251001',
+      'Search': 'claude-haiku-4-5-20251001',
+    };
+  }
+
+  String _toToml() {
+    final lines = StringBuffer('[model_intelligence]\n');
+    if (_budgetUsd > 0) {
+      lines.writeln('monthly_budget_usd = ${_budgetUsd.toStringAsFixed(2)}');
+    }
+    lines.writeln();
+    lines.writeln('[routing]');
+    for (final task in _taskTypes) {
+      final model = _routing[task] ?? 'claude-sonnet-4-6';
+      final key = task.toLowerCase().replaceAll(' ', '_');
+      lines.writeln('$key = "$model"');
+    }
+    return lines.toString().trimRight();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _Header(
+          title: 'Model Intelligence',
+          subtitle: 'Default model per task type and monthly budget cap',
+        ),
+        const SizedBox(height: 20),
+
+        // Task type routing table
+        const _Label('Default model per task type'),
+        const SizedBox(height: 4),
+        const Text(
+          'The daemon auto-routes each message based on task type. Override here.',
+          style: TextStyle(fontSize: 11, color: Colors.white38),
+        ),
+        const SizedBox(height: 12),
+        ...(_taskTypes.map((task) {
+          final current = _routing[task] ?? 'claude-sonnet-4-6';
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 130,
+                  child: Text(
+                    task,
+                    style: const TextStyle(fontSize: 12, color: Colors.white70),
+                  ),
+                ),
+                ..._models.map(((String, String) opt) {
+                  final (label, id) = opt;
+                  final selected = current == id;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: InkWell(
+                      onTap: () =>
+                          setState(() => _routing[task] = id),
+                      borderRadius: BorderRadius.circular(6),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 120),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? Colors.amber.withValues(alpha: 0.15)
+                              : ClawdTheme.surfaceElevated,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: selected
+                                ? Colors.amber
+                                : ClawdTheme.surfaceBorder,
+                          ),
+                        ),
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: selected
+                                ? Colors.amber
+                                : Colors.white54,
+                            fontWeight: selected
+                                ? FontWeight.w700
+                                : FontWeight.normal,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          );
+        })),
+
+        const SizedBox(height: 24),
+        const Divider(),
+        const SizedBox(height: 16),
+
+        // Monthly budget cap slider
+        const _Label('Monthly budget cap'),
+        const SizedBox(height: 4),
+        const Text(
+          'Daemon emits budgetWarning at 80% and budgetExceeded at 100% (blocks new turns).',
+          style: TextStyle(fontSize: 11, color: Colors.white38),
+        ),
+        const SizedBox(height: 10),
+        _SliderRow(
+          label: _budgetUsd == 0
+              ? 'No cap'
+              : '\$${_budgetUsd.toStringAsFixed(2)}/mo',
+          value: _budgetUsd,
+          min: 0,
+          max: 100,
+          divisions: 20,
+          onChanged: (v) => setState(() => _budgetUsd = v),
+        ),
+
+        const SizedBox(height: 24),
+        const Divider(),
+        const SizedBox(height: 16),
+
+        // TOML snippet
+        const _Label('Apply to config.toml'),
+        const SizedBox(height: 4),
+        const Text(
+          "Paste into your daemon's config.toml and restart to apply.",
+          style: TextStyle(fontSize: 11, color: Colors.white38),
+        ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0a0a0f),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: ClawdTheme.surfaceBorder),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: SelectableText(
+                  _toToml(),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                    color: Colors.white70,
+                    height: 1.6,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: _toToml()));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Config copied'),
+                      duration: Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.copy, size: 16),
+                color: Colors.white38,
+                tooltip: 'Copy',
+                padding: EdgeInsets.zero,
+                constraints:
+                    const BoxConstraints(minWidth: 28, minHeight: 28),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        // MI.T16 — link to usage dashboard
+        OutlinedButton.icon(
+          onPressed: () => context.go(routeUsage),
+          icon: const Icon(Icons.receipt_long, size: 14),
+          label: const Text('View Usage Dashboard'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.amber,
+            side: const BorderSide(color: Colors.amber),
+            padding: const EdgeInsets.symmetric(
+                horizontal: 16, vertical: 10),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Doctor pane (D64.T25) ─────────────────────────────────────────────────────
+
+/// Settings pane showing project health and active release plans (D64.T25).
+///
+/// Uses [ReleasePlanTile] from clawd_ui to display release findings
+/// (scope: "release") and [DoctorBadge] style score for the current project.
+class _DoctorPane extends ConsumerWidget {
+  const _DoctorPane();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeProject = ref.watch(activeProjectProvider);
+    final projectPath = activeProject?.rootPath;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _Header(
+          title: 'Doctor',
+          subtitle: 'Project health checks and release plan status',
+        ),
+        const SizedBox(height: 24),
+
+        if (projectPath == null)
+          const Padding(
+            padding: EdgeInsets.only(top: 16),
+            child: Text(
+              'No active project selected.',
+              style: TextStyle(fontSize: 13, color: Colors.white38),
+            ),
+          )
+        else ...[
+          // Score + scan button row
+          _DoctorScoreRow(projectPath: projectPath),
+          const SizedBox(height: 24),
+          const Divider(),
+          const SizedBox(height: 16),
+
+          // Release plans section
+          const _Label('Release Plans'),
+          const SizedBox(height: 4),
+          const Text(
+            'Active release plans from .claude/planning/. Approve to unblock git tagging.',
+            style: TextStyle(fontSize: 11, color: Colors.white38),
+          ),
+          const SizedBox(height: 12),
+          ReleasePlanTile(projectPath: projectPath),
+        ],
+      ],
+    );
+  }
+}
+
+class _DoctorScoreRow extends ConsumerWidget {
+  const _DoctorScoreRow({required this.projectPath});
+
+  final String projectPath;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scanAsync = ref.watch(doctorProvider(projectPath));
+    final score = scanAsync.valueOrNull?.score;
+    final isLoading = scanAsync.isLoading;
+
+    return Row(
+      children: [
+        DoctorBadge(projectPath: projectPath),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            score != null
+                ? 'Health score: $score / 100'
+                : 'Not yet scanned',
+            style: const TextStyle(fontSize: 13, color: Colors.white70),
+          ),
+        ),
+        isLoading
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : OutlinedButton.icon(
+                onPressed: () =>
+                    ref.read(doctorProvider(projectPath).notifier).scan(),
+                icon: const Icon(Icons.search, size: 14),
+                label: const Text('Scan Now'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white70,
+                  side: const BorderSide(color: ClawdTheme.surfaceBorder),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+              ),
       ],
     );
   }

@@ -111,6 +111,14 @@ Push:     {"jsonrpc":"2.0","method":"<event>","params":{...}}   (no "id")
 | `repo.status` | `{ "path": "..." }` | Get working-tree status (staged, unstaged, untracked) |
 | `repo.diff` | `{ "path": "...", "staged": bool }` | Get unified diff |
 | `repo.fileDiff` | `{ "path": "...", "file": "relative/path" }` | Diff a single file |
+| `repo.scan` | `{ "repoPath": "..." }` | Scan repo and store a RepoProfile (stack, frameworks, build tools, conventions) |
+| `repo.profile` | `{ "repoPath": "..." }` | Return stored RepoProfile; triggers background scan if none exists |
+| `repo.generateArtifacts` | `{ "repoPath": "...", "overwrite": bool }` | Generate `.claude/CLAUDE.md`, `.codex/AGENTS.md`, `.cursor/rules` |
+| `repo.syncArtifacts` | `{ "repoPath": "..." }` | Propagate CLAUDE.md changes to AGENTS.md and cursor rules |
+| `repo.driftScore` | `{ "repoPath": "..." }` | Returns 0–100 artifact sync score |
+| `repo.driftReport` | `{ "repoPath": "..." }` | Returns itemized drift items with severity |
+| `validators.list` | `{ "repoPath": "..." }` | Return auto-derived validators for the repo's detected language |
+| `validators.run` | `{ "repoPath": "...", "command": "..." }` | Run a validator and record the result |
 
 **`repo.open`**
 

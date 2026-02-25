@@ -34,3 +34,25 @@ export 'src/widgets/context_budget_bar.dart';
 export 'src/widgets/agent_feed.dart';
 export 'src/widgets/worktree_status.dart';
 export 'src/widgets/approval_card.dart';
+
+// Phase 57 — mode badge + resource status
+export 'src/widgets/mode_badge.dart';
+
+// V02 Sprint B — task progress + promoted idea widgets
+export 'src/widgets/task_progress_bar.dart';
+export 'src/widgets/standards_chip.dart';
+export 'src/widgets/provider_knowledge_chip.dart';
+export 'src/widgets/drift_badge.dart';
+
+// Phase D64 — doctor UI widgets
+export 'src/widgets/doctor_badge.dart';
+export 'src/widgets/doctor_panel.dart';
+export 'src/widgets/release_plan_tile.dart';
+
+// Sprint G — session intelligence widgets
+export 'src/widgets/health_chip.dart';
+export 'src/widgets/split_proposal_dialog.dart';
+
+// Sprint H — model intelligence widgets
+export 'src/widgets/model_chip.dart';
+export 'src/widgets/token_usage_panel.dart';

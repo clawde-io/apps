@@ -29,6 +29,7 @@
 | Relay client (mTLS) | 🔲 | Outbound tunnel to `api.clawde.io` |
 | Auto-update | 🔲 | Checks GitHub Releases every 24h |
 | Provider onboarding wizard | 🔲 | Detects installed providers, sets up accounts |
+| Model Intelligence | 🟡 | Auto-selects the best model per task, tracks token usage, enforces budget caps — see [Features/Model-Intelligence](Features/Model-Intelligence) |
 
 ## Desktop app
 

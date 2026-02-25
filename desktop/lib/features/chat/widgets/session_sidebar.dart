@@ -14,6 +14,10 @@ class SessionSidebar extends ConsumerWidget {
     final sessionAsync = ref.watch(sessionListProvider);
     final activeId = ref.watch(activeSessionIdProvider);
 
+    // V02.T24 — drift notification badge; empty until daemon supports drift.list
+    final driftItems =
+        ref.watch(driftItemsProvider).valueOrNull ?? [];
+
     return Container(
       color: ClawdTheme.surfaceElevated,
       child: Column(
@@ -35,6 +39,14 @@ class SessionSidebar extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                // V02.T24 — drift badge (hidden when count is 0)
+                if (driftItems.isNotEmpty) ...[
+                  DriftBadge(
+                    count: driftItems.length,
+                    items: driftItems,
+                  ),
+                  const SizedBox(width: 4),
+                ],
                 IconButton(
                   icon: const Icon(Icons.add, size: 18),
                   onPressed: onNewSession,

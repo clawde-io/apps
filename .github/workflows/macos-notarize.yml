@@ -1,0 +1,108 @@
+name: macOS Notarize (PENDING CERT)
+
+# NOTE: Requires Apple Developer certificate — see DT.T01 / DT.T02
+# This workflow is disabled until an Apple Developer account cert and provisioning
+# profile are added to GitHub Secrets:
+#   - APPLE_DEVELOPER_CERT_BASE64   (exported .p12, base64-encoded)
+#   - APPLE_DEVELOPER_CERT_PASSWORD (passphrase for the .p12)
+#   - APPLE_TEAM_ID                 (10-character Apple Developer Team ID)
+#   - APPLE_NOTARY_KEY_ID           (App Store Connect API key ID)
+#   - APPLE_NOTARY_KEY_ISSUER_ID    (App Store Connect API issuer ID)
+#   - APPLE_NOTARY_KEY_BASE64       (App Store Connect API key .p8, base64-encoded)
+#
+# Enable: remove the `if: false` condition from the notarize job.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag to notarize (e.g. v0.2.0)"
+        required: true
+        type: string
+
+jobs:
+  notarize:
+    name: Notarize macOS App
+    # DISABLED — remove this condition once Apple Developer cert is provisioned
+    if: false
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Import signing certificate
+        run: |
+          echo "${{ secrets.APPLE_DEVELOPER_CERT_BASE64 }}" | base64 --decode > cert.p12
+          security create-keychain -p "" build.keychain
+          security import cert.p12 -k build.keychain -P "${{ secrets.APPLE_DEVELOPER_CERT_PASSWORD }}" -T /usr/bin/codesign
+          security set-keychain-settings -t 3600 -u build.keychain
+          security list-keychains -s build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+
+      - name: Download macOS release binary
+        run: |
+          VERSION="${{ inputs.version }}"
+          curl -fLo clawd "https://github.com/clawde-io/apps/releases/download/${VERSION}/clawd-aarch64-apple-darwin"
+          chmod +x clawd
+
+      - name: Code-sign binary
+        run: |
+          codesign --sign "Developer ID Application: ClawDE (${{ secrets.APPLE_TEAM_ID }})" \
+            --options runtime \
+            --timestamp \
+            --force \
+            ./clawd
+
+      - name: Create .app bundle
+        run: |
+          mkdir -p ClawDE.app/Contents/MacOS
+          cp clawd ClawDE.app/Contents/MacOS/clawd
+          cat > ClawDE.app/Contents/Info.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleIdentifier</key>
+            <string>io.clawde.clawd</string>
+            <key>CFBundleVersion</key>
+            <string>${{ inputs.version }}</string>
+            <key>CFBundleShortVersionString</key>
+            <string>${{ inputs.version }}</string>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Notarize with Apple Notary Service
+        run: |
+          echo "${{ secrets.APPLE_NOTARY_KEY_BASE64 }}" | base64 --decode > notary_key.p8
+
+          # Submit for notarization
+          xcrun notarytool submit ClawDE.app \
+            --key notary_key.p8 \
+            --key-id "${{ secrets.APPLE_NOTARY_KEY_ID }}" \
+            --issuer "${{ secrets.APPLE_NOTARY_KEY_ISSUER_ID }}" \
+            --wait \
+            --output-format plist
+
+      - name: Staple notarization ticket
+        run: xcrun stapler staple ClawDE.app
+
+      - name: Package DMG
+        run: |
+          brew install create-dmg
+          create-dmg \
+            --volname "ClawDE" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --app-drop-link 450 185 \
+            "ClawDE-${{ inputs.version }}.dmg" \
+            "ClawDE.app"
+
+      - name: Upload DMG to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.version }}
+          files: "*.dmg"

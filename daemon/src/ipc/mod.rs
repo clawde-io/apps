@@ -21,11 +21,6 @@ use tracing::{debug, error, info, trace, warn};
 
 // ─── Rate limiting ──────────────────────────────────────────────────────────
 
-/// Max new WebSocket connections per IP per minute.
-const MAX_CONNECTIONS_PER_MIN: usize = 10;
-/// Max RPC requests per connection per second.
-const MAX_RPC_PER_SEC: u32 = 100;
-
 /// Per-IP connection rate tracker.
 struct ConnectionRateLimiter {
     /// Map of IP -> list of connection timestamps within the last minute.
@@ -40,14 +35,20 @@ impl ConnectionRateLimiter {
     }
 
     /// Returns `true` if the connection should be allowed.
-    fn check_and_record(&mut self, ip: IpAddr) -> bool {
+    ///
+    /// Localhost connections (`127.0.0.1`, `::1`) are always allowed — no rate limiting
+    /// for the local daemon process or Flutter desktop app.
+    fn check_and_record(&mut self, ip: IpAddr, limit: usize) -> bool {
+        if ip.is_loopback() {
+            return true;
+        }
         let now = Instant::now();
         let one_min_ago = now - std::time::Duration::from_secs(60);
 
         let timestamps = self.connections.entry(ip).or_default();
         timestamps.retain(|t| *t > one_min_ago);
 
-        if timestamps.len() >= MAX_CONNECTIONS_PER_MIN {
+        if timestamps.len() >= limit {
             return false;
         }
         timestamps.push(now);
@@ -55,29 +56,37 @@ impl ConnectionRateLimiter {
     }
 }
 
-/// Per-connection RPC rate tracker using a tumbling window (resets each second).
+/// Per-connection RPC rate tracker using a tumbling window (resets each minute).
 struct RpcRateLimiter {
     count: u32,
+    max_per_min: u32,
     window_start: Instant,
+    /// Loopback connections are never rate-limited.
+    is_loopback: bool,
 }
 
 impl RpcRateLimiter {
-    fn new() -> Self {
+    fn new(max_per_min: u32, is_loopback: bool) -> Self {
         Self {
             count: 0,
+            max_per_min,
             window_start: Instant::now(),
+            is_loopback,
         }
     }
 
     /// Returns `true` if the request should be allowed.
     fn check(&mut self) -> bool {
+        if self.is_loopback {
+            return true;
+        }
         let now = Instant::now();
-        if now.duration_since(self.window_start).as_secs() >= 1 {
+        if now.duration_since(self.window_start).as_secs() >= 60 {
             self.count = 0;
             self.window_start = now;
         }
         self.count += 1;
-        self.count <= MAX_RPC_PER_SEC
+        self.count <= self.max_per_min
     }
 }
 
@@ -149,6 +158,11 @@ const SESSION_PAUSED_CODE: i32 = -32006;
 /// Max session count reached — delete an existing session before creating a new one.
 /// NOTE: clawd_proto ClawdError.sessionLimitReached must also use -32007.
 const SESSION_LIMIT_CODE: i32 = -32007;
+/// Tool call blocked by the security allowlist/denylist/denied-path policy (DC.T40).
+const TOOL_SECURITY_CODE: i32 = -32028;
+/// IPC-level connection or RPC rate limit exceeded (distinct from RATE_LIMITED = -32003
+/// which is the AI provider rate limit).
+const IPC_RATE_LIMITED_CODE: i32 = -32029;
 // Task system error codes (-32010 through -32015)
 const TASK_NOT_FOUND_CODE: i32 = -32010;
 const TASK_ALREADY_CLAIMED_CODE: i32 = -32011;
@@ -158,11 +172,15 @@ const TASK_ALREADY_DONE_CODE: i32 = -32012;
 const AGENT_NOT_FOUND_CODE: i32 = -32013;
 const MISSING_COMPLETION_NOTES_CODE: i32 = -32014;
 const TASK_NOT_RESUMABLE_CODE: i32 = -32015;
+/// Tool rejected because the session is in FORGE or STORM mode (V02.T26).
+/// NOTE: spec originally listed -32006 here, but -32006 = sessionPaused — using -32016.
+#[allow(dead_code)]
+pub const MODE_VIOLATION_CODE: i32 = -32016;
 
 // ─── Server ──────────────────────────────────────────────────────────────────
 
 pub async fn run(ctx: Arc<AppContext>) -> Result<()> {
-    let addr = format!("127.0.0.1:{}", ctx.config.port);
+    let addr = format!("{}:{}", ctx.config.bind_address, ctx.config.port);
     let listener = TcpListener::bind(&addr).await?;
     info!(addr = %addr, "IPC server listening (WebSocket + HTTP health on same port)");
 
@@ -202,20 +220,23 @@ pub async fn run(ctx: Arc<AppContext>) -> Result<()> {
                     }
                 };
 
-                // Per-IP connection rate limit check.
+                // Per-IP connection rate limit check (loopback is always exempt).
                 {
+                    let limit = ctx.config.security.max_connections_per_minute_per_ip as usize;
                     let mut limiter = conn_limiter.lock().await;
-                    if !limiter.check_and_record(peer.ip()) {
+                    if !limiter.check_and_record(peer.ip(), limit) {
                         warn!(peer = %peer, "connection rate limit exceeded — rejecting");
+                        ctx.metrics.inc_ipc_rate_limit_hits();
                         drop(stream);
                         continue;
                     }
                 }
 
                 debug!(peer = %peer, "new connection");
+                let peer_ip = peer.ip();
                 let ctx = ctx.clone();
                 tokio::spawn(async move {
-                    if let Err(e) = handle_connection(stream, ctx).await {
+                    if let Err(e) = handle_connection(stream, peer_ip, ctx).await {
                         warn!(peer = %peer, err = %e, "connection error");
                     }
                 });
@@ -257,6 +278,28 @@ async fn handle_health_check(mut stream: tokio::net::TcpStream, ctx: &AppContext
     Ok(())
 }
 
+/// Respond to an HTTP `GET /metrics` request with Prometheus text format (DC.T49).
+///
+/// Accessible without auth — metrics are considered non-sensitive operational data.
+/// No active session IDs or user content is included.
+async fn handle_metrics(mut stream: tokio::net::TcpStream, ctx: &AppContext) -> Result<()> {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    // Consume the request headers.
+    let mut req_buf = [0u8; 256];
+    let _ = stream.read(&mut req_buf).await;
+
+    let active = ctx.session_manager.active_count().await as u64;
+    let body = ctx.metrics.render_prometheus(active);
+    let response = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: text/plain; version=0.0.4\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        body.len(),
+        body
+    );
+    stream.write_all(response.as_bytes()).await?;
+    Ok(())
+}
+
 /// Returns a future that resolves when a shutdown signal is received.
 ///
 /// On Unix we listen for SIGTERM *and* Ctrl-C.
@@ -277,7 +320,7 @@ async fn make_shutdown_future() {
     }
 }
 
-async fn handle_connection(stream: tokio::net::TcpStream, ctx: Arc<AppContext>) -> Result<()> {
+async fn handle_connection(stream: tokio::net::TcpStream, peer_ip: IpAddr, ctx: Arc<AppContext>) -> Result<()> {
     // Peek at the first bytes to distinguish HTTP health checks from WebSocket upgrades.
     // Both share the same port. An HTTP GET starts with "GET "; WS upgrade also starts
     // with "GET " but has an "Upgrade: websocket" header — we detect health checks by
@@ -286,10 +329,13 @@ async fn handle_connection(stream: tokio::net::TcpStream, ctx: Arc<AppContext>) 
     // Simpler approach: peek for "GET /health " (with trailing space) specifically.
     // Checking 12 bytes prevents false matches on paths like "GET /health-check".
     // All other GET requests (including WebSocket upgrades) fall through to the WS handshake.
-    let mut peek_buf = [0u8; 12];
+    let mut peek_buf = [0u8; 13];
     let n = stream.peek(&mut peek_buf).await.unwrap_or(0);
     if n >= 12 && &peek_buf[..12] == b"GET /health " {
         return handle_health_check(stream, &ctx).await;
+    }
+    if n >= 13 && &peek_buf[..13] == b"GET /metrics " {
+        return handle_metrics(stream, &ctx).await;
     }
 
     let ws_config = WebSocketConfig {
@@ -378,7 +424,10 @@ async fn handle_connection(stream: tokio::net::TcpStream, ctx: Arc<AppContext>) 
     }
 
     let mut broadcast_rx = ctx.broadcaster.subscribe();
-    let mut rpc_limiter = RpcRateLimiter::new();
+    let mut rpc_limiter = RpcRateLimiter::new(
+        ctx.config.security.max_rpc_calls_per_minute_per_ip,
+        peer_ip.is_loopback(),
+    );
 
     loop {
         tokio::select! {
@@ -388,7 +437,8 @@ async fn handle_connection(stream: tokio::net::TcpStream, ctx: Arc<AppContext>) 
                     Some(Ok(Message::Text(text))) => {
                         // Per-connection RPC rate limit.
                         if !rpc_limiter.check() {
-                            let resp = error_response(Value::Null, RATE_LIMITED, "RPC rate limit exceeded — max 100 req/sec");
+                            ctx.metrics.inc_ipc_rate_limit_hits();
+                            let resp = error_response(Value::Null, IPC_RATE_LIMITED_CODE, "RPC rate limit exceeded — try again shortly");
                             if let Err(e) = sink.send(Message::Text(resp)).await {
                                 warn!(err = %e, "send error");
                                 break;
@@ -485,6 +535,7 @@ pub(crate) async fn dispatch_text(text: &str, ctx: &AppContext, client_token: &s
     let params = req.params.unwrap_or(Value::Null);
 
     trace!(method = %req.method, "rpc dispatch");
+    ctx.metrics.inc_rpc_requests();
 
     let result = dispatch(&req.method, params, ctx).await;
 
@@ -508,16 +559,53 @@ pub(crate) async fn dispatch_text(text: &str, ctx: &AppContext, client_token: &s
 
 async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Result<Value> {
     match method {
+        // ─── Multi-account management ─────────────────────────────────────────
+        "account.list"        => handlers::accounts::list(params, ctx).await,
+        "account.create"      => handlers::accounts::create(params, ctx).await,
+        "account.delete"      => handlers::accounts::delete(params, ctx).await,
+        "account.setPriority" => handlers::accounts::set_priority(params, ctx).await,
+        "account.history"     => handlers::accounts::history(params, ctx).await,
+        // ─── License tier gating ─────────────────────────────────────────────
+        "license.get"   => handlers::license::get(params, ctx).await,
+        "license.check" => handlers::license::check(params, ctx).await,
+        "license.tier"  => handlers::license::tier(params, ctx).await,
         "daemon.ping" => handlers::daemon::ping(params, ctx).await,
         "daemon.status" => handlers::daemon::status(params, ctx).await,
         "daemon.checkUpdate" => handlers::daemon::check_update(params, ctx).await,
         "daemon.applyUpdate" => handlers::daemon::apply_update(params, ctx).await,
+        "daemon.updatePolicy" => handlers::daemon::update_policy(params, ctx).await,
+        "daemon.setUpdatePolicy" => handlers::daemon::set_update_policy(params, ctx).await,
         "daemon.checkProvider" => handlers::provider::check_provider(params, ctx).await,
-        "repo.open" => handlers::repo::open(params, ctx).await,
-        "repo.close" => handlers::repo::close(params, ctx).await,
-        "repo.status" => handlers::repo::status(params, ctx).await,
-        "repo.diff" => handlers::repo::diff(params, ctx).await,
+        "daemon.providers"    => handlers::daemon::providers(params, ctx).await,
+        "repo.list"    => handlers::repo::list(params, ctx).await,
+        "repo.open"    => handlers::repo::open(params, ctx).await,
+        "repo.close"   => handlers::repo::close(params, ctx).await,
+        "repo.status"  => handlers::repo::status(params, ctx).await,
+        "repo.diff"    => handlers::repo::diff(params, ctx).await,
         "repo.fileDiff" => handlers::repo::file_diff(params, ctx).await,
+        "repo.tree"    => handlers::repo::tree(params, ctx).await,
+        "repo.readFile" => handlers::repo::read_file(params, ctx).await,
+        // ─── Session Intelligence (Sprint G) ──────────────────────────────────
+        "message.pin"            => handlers::session_intelligence::pin_message(params, ctx).await,
+        "message.unpin"          => handlers::session_intelligence::unpin_message(params, ctx).await,
+        "session.contextStatus"  => handlers::session_intelligence::context_status(params, ctx).await,
+        "session.health"         => handlers::session_intelligence::session_health(params, ctx).await,
+        "session.splitProposed"  => handlers::session_intelligence::split_proposed(params, ctx).await,
+        "context.bridge"         => handlers::session_intelligence::context_bridge(params, ctx).await,
+        // ─── Model Intelligence (Sprint H) ────────────────────────────────────
+        "session.setModel"          => handlers::model_intelligence::set_model(params, ctx).await,
+        "session.addRepoContext"    => handlers::model_intelligence::add_repo_context(params, ctx).await,
+        "session.listRepoContexts"  => handlers::model_intelligence::list_repo_contexts(params, ctx).await,
+        "session.removeRepoContext" => handlers::model_intelligence::remove_repo_context(params, ctx).await,
+        // ─── Repo Intelligence (Sprint F) ─────────────────────────────────────
+        "repo.scan"              => handlers::repo_intelligence::scan(params, ctx).await,
+        "repo.profile"           => handlers::repo_intelligence::profile(params, ctx).await,
+        "repo.generateArtifacts" => handlers::repo_intelligence::generate_artifacts(params, ctx).await,
+        "repo.syncArtifacts"     => handlers::repo_intelligence::sync_artifacts(params, ctx).await,
+        "repo.driftScore"        => handlers::repo_intelligence::drift_score(params, ctx).await,
+        "repo.driftReport"       => handlers::repo_intelligence::drift_report(params, ctx).await,
+        "validators.list"        => handlers::repo_intelligence::validators_list(params, ctx).await,
+        "validators.run"         => handlers::repo_intelligence::validators_run(params, ctx).await,
         "session.create" => handlers::session::create(params, ctx).await,
         "session.list" => handlers::session::list(params, ctx).await,
         "session.get" => handlers::session::get(params, ctx).await,
@@ -526,9 +614,17 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
         "session.getMessages" => handlers::session::get_messages(params, ctx).await,
         "session.pause" => handlers::session::pause(params, ctx).await,
         "session.resume" => handlers::session::resume(params, ctx).await,
-        "session.cancel" => handlers::session::cancel(params, ctx).await,
+        "session.cancel"      => handlers::session::cancel(params, ctx).await,
+        "session.setProvider" => handlers::session::set_provider(params, ctx).await,
+        "session.setMode"     => handlers::session::set_mode(params, ctx).await,
+        // ─── Token usage ─────────────────────────────────────────────────────
+        "token.sessionUsage"  => handlers::token::session_usage(params, ctx).await,
+        "token.totalUsage"    => handlers::token::total_usage(params, ctx).await,
+        "token.budgetStatus"  => handlers::token::budget_status(params, ctx).await,
         "tool.approve" => handlers::tool::approve(params, ctx).await,
         "tool.reject" => handlers::tool::reject(params, ctx).await,
+        // ─── Tool call audit log (DC.T43) ─────────────────────────────────────
+        "session.toolCallAudit" => handlers::audit::tool_call_audit(params, ctx).await,
         // ─── Task system ─────────────────────────────────────────────────────
         "tasks.list" => handlers::tasks::list(params, ctx).await,
         "tasks.get" => handlers::tasks::get(params, ctx).await,
@@ -544,6 +640,7 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
         "tasks.fromPlanning" => handlers::tasks::from_planning(params, ctx).await,
         "tasks.fromChecklist" => handlers::tasks::from_checklist(params, ctx).await,
         "tasks.summary" => handlers::tasks::summary(params, ctx).await,
+        "tasks.progressEstimate" => handlers::tasks::progress_estimate(params, ctx).await,
         "tasks.export" => handlers::tasks::export(params, ctx).await,
         "tasks.validate" => handlers::tasks::validate(params, ctx).await,
         "tasks.sync" => handlers::tasks::sync(params, ctx).await,
@@ -566,14 +663,32 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
         "afs.status" => handlers::afs::status(params, ctx).await,
         "afs.syncInstructions" => handlers::afs::sync_instructions(params, ctx).await,
         "afs.register" => handlers::afs::register_project(params, ctx).await,
+        // ─── Drift scanner (V02.T21-T23) ─────────────────────────────────────
+        "drift.scan" => handlers::drift::scan(params, ctx).await,
+        "drift.list" => handlers::drift::list(params, ctx).await,
+        // ─── Coding standards (V02.T29-T31) ───────────────────────────────────
+        "standards.list" => handlers::standards::list(params, ctx).await,
+        // ─── Provider knowledge (V02.T33-T35) ─────────────────────────────────
+        "providers.detect" => handlers::providers_handler::detect(params, ctx).await,
+        "providers.list"   => handlers::providers_handler::list(params, ctx).await,
+        // ─── Doctor (D64) ─────────────────────────────────────────────────────
+        "doctor.scan" => handlers::doctor::scan(params, ctx).await,
+        "doctor.fix" => handlers::doctor::fix(params, ctx).await,
+        "doctor.approveRelease" => handlers::doctor::approve_release(params, ctx).await,
+        "doctor.hookInstall" => handlers::doctor::hook_install(params, ctx).await,
         // ─── Observability / Traces ───────────────────────────────────────────
         "traces.query" => handlers::telemetry::query_traces(params, ctx).await,
         "traces.summary" => handlers::telemetry::summary(params, ctx).await,
-        // ─── Phase 43c: Task Worktrees ────────────────────────────────────────
-        "worktrees.list" => handlers::worktrees::list(params, ctx).await,
-        "worktrees.merge" => handlers::worktrees::merge(params, ctx).await,
+        // ─── Task Worktrees ───────────────────────────────────────────────────
+        "worktrees.create"  => handlers::worktrees::create(params, ctx).await,
+        "worktrees.list"    => handlers::worktrees::list(params, ctx).await,
+        "worktrees.diff"    => handlers::worktrees::diff(params, ctx).await,
+        "worktrees.commit"  => handlers::worktrees::commit(params, ctx).await,
+        "worktrees.accept"  => handlers::worktrees::accept(params, ctx).await,
+        "worktrees.reject"  => handlers::worktrees::reject(params, ctx).await,
+        "worktrees.delete"  => handlers::worktrees::delete(params, ctx).await,
+        "worktrees.merge"   => handlers::worktrees::merge(params, ctx).await,
         "worktrees.cleanup" => handlers::worktrees::cleanup(params, ctx).await,
-        "worktrees.diff" => handlers::worktrees::diff(params, ctx).await,
         // ─── Human-approval workflow ──────────────────────────────────────────
         "approval.list" => handlers::approval::list(params, ctx).await,
         "approval.respond" => handlers::approval::respond(params, ctx).await,
@@ -618,6 +733,87 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
         "device.list"        => crate::pairing::handlers::device_list(params, ctx).await,
         "device.revoke"      => crate::pairing::handlers::device_revoke(params, ctx).await,
         "device.rename"      => crate::pairing::handlers::device_rename(params, ctx).await,
+
+        // ─── Sprint I: Provider Onboarding ────────────────────────────────────
+        "onboarding.checkAll"          => crate::providers_onboarding::handlers::check_all(params, ctx).await,
+        "onboarding.checkProvider"     => crate::providers_onboarding::handlers::check_provider(params, ctx).await,
+        "onboarding.addApiKey"         => crate::providers_onboarding::handlers::add_api_key(params, ctx).await,
+        "onboarding.capabilities"      => crate::providers_onboarding::handlers::account_capabilities(params, ctx).await,
+        "onboarding.generateGci"       => crate::providers_onboarding::handlers::generate_gci(params, ctx).await,
+        "onboarding.generateCodexMd"   => crate::providers_onboarding::handlers::generate_codex_md(params, ctx).await,
+        "onboarding.generateCursorRules" => crate::providers_onboarding::handlers::generate_cursor_rules(params, ctx).await,
+        "onboarding.bootstrapAid"      => crate::providers_onboarding::handlers::bootstrap_aid(params, ctx).await,
+        "onboarding.checkAid"          => crate::providers_onboarding::handlers::check_aid(params, ctx).await,
+
+        // ─── Sprint J: Autonomous Execution Engine ────────────────────────────
+        "ae.plan.create"    => crate::autonomous::handlers::ae_plan_create(params, ctx).await,
+        "ae.plan.approve"   => crate::autonomous::handlers::ae_plan_approve(params, ctx).await,
+        "ae.plan.get"       => crate::autonomous::handlers::ae_plan_get(params, ctx).await,
+        "ae.decision.record" => crate::autonomous::handlers::ae_decision_record(params, ctx).await,
+        "ae.confidence.get"  => crate::autonomous::handlers::ae_confidence_get(params, ctx).await,
+        "ae.recipe.list"    => crate::autonomous::handlers::recipe_list(params, ctx).await,
+        "ae.recipe.create"  => crate::autonomous::handlers::recipe_create(params, ctx).await,
+
+        // ─── Sprint K: Arena Mode + Code Completion ───────────────────────────
+        "arena.create"      => crate::arena::handlers::create_arena_session(params, ctx).await,
+        "arena.vote"        => crate::arena::handlers::record_vote(params, ctx).await,
+        "arena.leaderboard" => crate::arena::handlers::get_leaderboard(params, ctx).await,
+        "completion.suggest" => crate::completion::handlers::suggest_completion(params, ctx).await,
+
+        // ─── Sprint M: Pack Marketplace ───────────────────────────────────────
+        "packs.install"     => handlers::packs::install(params, ctx).await,
+        "packs.update"      => handlers::packs::update(params, ctx).await,
+        "packs.remove"      => handlers::packs::remove(params, ctx).await,
+        "packs.search"      => handlers::packs::search(params, ctx).await,
+        "packs.list"        => handlers::packs::list_installed(params, ctx).await,
+
+        // ─── Sprint N: Multi-Repo Orchestration ───────────────────────────────
+        "mailbox.send"              => crate::mailbox::handlers::mailbox_send(params, ctx).await,
+        "mailbox.list"              => crate::mailbox::handlers::mailbox_list(params, ctx).await,
+        "mailbox.archive"           => crate::mailbox::handlers::mailbox_archive(params, ctx).await,
+        "topology.get"              => crate::topology::handlers::topology_get(params, ctx).await,
+        "topology.validate"         => crate::topology::handlers::topology_validate(params, ctx).await,
+        "topology.addDependency"    => crate::topology::handlers::topology_add_dependency(params, ctx).await,
+        "topology.removeDependency" => crate::topology::handlers::topology_remove_dependency(params, ctx).await,
+        "topology.crossValidate"    => crate::topology::handlers::topology_cross_validate(params, ctx).await,
+
+        // ─── Sprint O: AI Code Review Engine ─────────────────────────────────
+        "review.run"   => crate::code_review::handlers::run(params, ctx).await,
+        "review.fix"   => crate::code_review::handlers::fix(params, ctx).await,
+        "review.learn" => crate::code_review::handlers::learn(params, ctx).await,
+
+        // ─── Sprint P: Builder Mode ───────────────────────────────────────────
+        "builder.create"    => crate::builder::handlers::builder_create_session(params, ctx).await,
+        "builder.templates" => crate::builder::handlers::builder_list_templates(params, ctx).await,
+        "builder.status"    => crate::builder::handlers::builder_get_status(params, ctx).await,
+
+        // ─── Sprint Q: Analytics ──────────────────────────────────────────────
+        "analytics.personal"      => crate::analytics::handlers::personal(params, ctx).await,
+        "analytics.providers"     => crate::analytics::handlers::provider_breakdown(params, ctx).await,
+        "analytics.session"       => crate::analytics::handlers::session(params, ctx).await,
+        "analytics.achievements"  => crate::analytics::handlers::achievements_list(params, ctx).await,
+
+        // ─── Sprint S: LSP + VS Code compatibility ────────────────────────────
+        "lsp.start"       => crate::lsp::handlers::lsp_start(params, ctx).await,
+        "lsp.stop"        => crate::lsp::handlers::lsp_stop(params, ctx).await,
+        "lsp.diagnostics" => crate::lsp::handlers::lsp_diagnostics(params, ctx).await,
+        "lsp.completions" => crate::lsp::handlers::lsp_completions(params, ctx).await,
+        "lsp.list"        => crate::lsp::handlers::lsp_list_servers(params, ctx).await,
+
+        // ─── Sprint L: Browser Tool (Visual & Multimodal) ────────────────────
+        "browser.screenshot" => crate::browser_tool::handlers::screenshot(params, ctx).await,
+
+        // ─── Sprint V: Prompt Intelligence ───────────────────────────────────
+        "prompt.suggest"     => crate::prompt_intelligence::handlers::prompt_suggest(params, ctx).await,
+        "prompt.recordUsed"  => crate::prompt_intelligence::handlers::prompt_record_used(params, ctx).await,
+
+        // ─── Sprint Z: IDE Extension Host ─────────────────────────────────────
+        "ide.extensionConnected" => crate::ide::handlers::extension_connected(params, ctx).await,
+        "ide.editorContext"      => crate::ide::handlers::editor_context(params, ctx).await,
+        "ide.syncSettings"       => crate::ide::handlers::sync_settings(params, ctx).await,
+        "ide.listConnections"    => crate::ide::handlers::list_connections(params, ctx).await,
+        "ide.latestContext"      => crate::ide::handlers::latest_context(params, ctx).await,
+
         _ => Err(anyhow::anyhow!("METHOD_NOT_FOUND:{}", method)),
     }
 }
@@ -694,6 +890,21 @@ fn classify_error(e: &anyhow::Error, _method: &str) -> (i32, String) {
         return (
             SESSION_PAUSED_CODE,
             "Session is paused — resume before sending messages".to_string(),
+        );
+    }
+    // Tool call blocked by security policy (DC.T40): allowlist, denylist, or denied path.
+    if msg.contains("TOOL_DENIED:") || msg.contains("TOOL_NOT_ALLOWED:") || msg.contains("TOOL_PATH_DENIED:") {
+        return (TOOL_SECURITY_CODE, "Tool call blocked by security policy".to_string());
+    }
+
+    if msg.contains("MODE_VIOLATION") {
+        let mode = msg
+            .split_once("MODE_VIOLATION: ")
+            .map(|x| x.1)
+            .unwrap_or("FORGE or STORM");
+        return (
+            MODE_VIOLATION_CODE,
+            format!("Tool rejected — session is in {mode} mode (write operations blocked)"),
         );
     }
     if msg.contains("RATE_LIMITED") {

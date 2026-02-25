@@ -2,6 +2,7 @@ pub mod claude;
 pub mod codex;
 pub mod cursor;
 pub mod events;
+pub mod router;
 pub mod runner;
 pub mod worktree;
 
@@ -34,6 +35,17 @@ pub struct SessionView {
     /// Permission scopes for this session. `None` means all permissions.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub permissions: Option<Vec<String>>,
+    /// Provider selected by auto-routing when `provider = "auto"` was requested.
+    /// `None` when the provider was explicitly specified.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub routed_provider: Option<String>,
+    /// GCI mode: NORMAL | LEARN | STORM | FORGE | CRUNCH
+    pub mode: String,
+    /// Resource tier: active | warm | cold
+    pub tier: String,
+    /// Pinned model ID, or `None` when auto-routing is active (MI.T12).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_override: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -90,15 +102,24 @@ impl SessionManager {
         title: &str,
         max_sessions: usize,
         permissions: Option<Vec<String>>,
+        initial_message: Option<&str>,
     ) -> Result<SessionView> {
-        // Validate provider — must match ProviderType.name values from Dart
-        match provider {
-            "claude" | "codex" | "cursor" => {}
-            _ => anyhow::bail!("PROVIDER_NOT_AVAILABLE: unknown provider: {}", provider),
-        }
+        // Resolve "auto" provider via intent classification.
+        // The resolved provider is stored separately as `routed_provider`.
+        let (effective_provider, routed_provider) = if provider == "auto" {
+            let chosen = router::classify_intent(initial_message, &[]);
+            (chosen.as_str().to_string(), Some(chosen.as_str().to_string()))
+        } else {
+            // Validate explicit provider — must match ProviderType.name values from Dart
+            match provider {
+                "claude" | "codex" | "cursor" => {}
+                _ => anyhow::bail!("PROVIDER_NOT_AVAILABLE: unknown provider: {}", provider),
+            }
+            (provider.to_string(), None)
+        };
 
         // Check that the provider CLI is installed and authenticated.
-        check_provider_ready(provider).await?;
+        check_provider_ready(&effective_provider).await?;
 
         // Enforce session limit.  Checked here (inside the manager) rather than
         // in the handler so the check and creation are logically coupled; SQLite
@@ -117,9 +138,22 @@ impl SessionManager {
             .context("failed to serialize permissions")?;
         let row = self
             .storage
-            .create_session(provider, repo_path, title, permissions_json.as_deref())
+            .create_session(&effective_provider, repo_path, title, permissions_json.as_deref())
             .await?;
-        info!(id = %row.id, provider = %provider, "session created");
+
+        // If provider was auto-routed, persist the routing decision.
+        if let Some(ref rp) = routed_provider {
+            self.storage
+                .update_session_routed_provider(&row.id, rp)
+                .await?;
+        }
+
+        info!(
+            id = %row.id,
+            provider = %effective_provider,
+            routed = ?routed_provider,
+            "session created"
+        );
 
         // Create an isolated git worktree for this session (non-fatal).
         // The runner will use the worktree path instead of the main repo,
@@ -127,7 +161,12 @@ impl SessionManager {
         let wt_path = worktree::worktree_path(&self.data_dir, &row.id);
         worktree::try_create(std::path::Path::new(repo_path), &wt_path).await;
 
-        let view = row_to_view(row);
+        let mut view = row_to_view(row);
+        // Inject the routing decision into the view since the row was fetched
+        // before update_session_routed_provider ran.
+        if routed_provider.is_some() {
+            view.routed_provider = routed_provider;
+        }
         self.broadcaster.broadcast(
             "session.statusChanged",
             json!({ "sessionId": view.id, "status": view.status }),
@@ -257,6 +296,55 @@ impl SessionManager {
         Ok(())
     }
 
+    // ─── Provider management ──────────────────────────────────────────────────
+
+    /// Override the provider for an existing session.
+    ///
+    /// Only valid when the session is "idle" or "paused" (not "running").
+    /// Replaces the in-memory runner if one exists, so the next
+    /// `session.sendMessage` uses the new provider.
+    pub async fn set_provider(
+        &self,
+        session_id: &str,
+        new_provider: &str,
+    ) -> Result<()> {
+        // Validate the target provider (must be explicit — not "auto").
+        match new_provider {
+            "claude" | "codex" | "cursor" => {}
+            _ => anyhow::bail!(
+                "PROVIDER_NOT_AVAILABLE: unknown provider: {}",
+                new_provider
+            ),
+        }
+
+        let session = self
+            .storage
+            .get_session(session_id)
+            .await?
+            .context("SESSION_NOT_FOUND")?;
+
+        // Reject mid-turn provider switches.
+        if session.status == "running" {
+            anyhow::bail!("PROVIDER_NOT_AVAILABLE: cannot change provider while session is running");
+        }
+
+        // Drop any existing runner so the next turn creates a fresh one.
+        self.handles.write().await.remove(session_id);
+
+        // Persist the provider choice as routed_provider (the sessions.provider
+        // column always holds the originally-requested provider).
+        self.storage
+            .update_session_routed_provider(session_id, new_provider)
+            .await?;
+
+        self.broadcaster.broadcast(
+            "session.statusChanged",
+            json!({ "sessionId": session_id, "status": session.status, "provider": new_provider }),
+        );
+        info!(id = %session_id, provider = %new_provider, "session provider updated");
+        Ok(())
+    }
+
     // ─── Messages ─────────────────────────────────────────────────────────────
 
     pub async fn send_message(
@@ -306,21 +394,31 @@ impl SessionManager {
             worktree::effective_repo_path(&self.data_dir, session_id, &session_row.repo_path);
 
         // Get or create a runner for this session.
-        // Provider is matched from the persisted session row so the correct
-        // CLI binary is used for each provider type.
+        // Prefer routed_provider (set via session.setProvider or auto-routing)
+        // over the original provider column.
+        let effective_provider = session_row
+            .routed_provider
+            .as_deref()
+            .unwrap_or(session_row.provider.as_str());
+
         let runner: Arc<dyn Runner> = {
             let mut handles = self.handles.write().await;
             if let Some(h) = handles.get(session_id) {
                 h.runner.clone()
             } else {
-                let r: Arc<dyn Runner> = match session_row.provider.as_str() {
+                let r: Arc<dyn Runner> = match effective_provider {
                     "codex" => CodexRunner::new(
                         session_id.to_string(),
                         effective_path,
                         self.storage.clone(),
                         self.broadcaster.clone(),
                     ),
-                    "cursor" => CursorRunner::new(session_id.to_string()),
+                    "cursor" => CursorRunner::new(
+                        session_id.to_string(),
+                        effective_path,
+                        self.storage.clone(),
+                        self.broadcaster.clone(),
+                    ),
                     _ => ClaudeCodeRunner::new(
                         session_id.to_string(),
                         effective_path,
@@ -535,6 +633,10 @@ fn row_to_view(row: crate::storage::SessionRow) -> SessionView {
         updated_at: row.updated_at,
         message_count: row.message_count,
         permissions,
+        routed_provider: row.routed_provider,
+        mode: row.mode,
+        tier: row.tier,
+        model_override: row.model_override,
     }
 }
 

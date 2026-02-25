@@ -170,6 +170,22 @@ impl ClaudeCodeRunner {
         ]);
         if let Some(ref sid) = claude_sid {
             cmd.args(["--resume", sid]);
+        } else {
+            // First turn — inject coding standards (V02.T31) + provider knowledge (V02.T35).
+            let repo = std::path::Path::new(&self.repo_path);
+            let lang = crate::standards::detect_language(repo);
+            if let Some(standards_text) = crate::standards::bundle_for(&lang) {
+                cmd.args(["--append-system-prompt", standards_text]);
+            }
+            let providers = crate::providers_knowledge::detect_providers(repo);
+            if !providers.is_empty() {
+                let knowledge: String = providers
+                    .iter()
+                    .map(|p| crate::providers_knowledge::bundle_for_provider(p))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                cmd.args(["--append-system-prompt", &knowledge]);
+            }
         }
 
         // Apply per-account credentials if configured.

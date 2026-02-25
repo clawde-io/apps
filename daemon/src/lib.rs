@@ -1,5 +1,6 @@
 pub mod account;
 pub mod agents;
+pub mod intelligence;
 pub mod claw_init;
 pub mod config;
 pub mod evals;
@@ -25,7 +26,16 @@ pub mod resource_governor;
 pub mod worktree;
 pub mod security;
 pub mod observability;
+pub mod doctor;
+pub mod drift;
+pub mod init_templates;
+pub mod metrics;
+pub mod providers_knowledge;
+pub mod standards;
 pub mod task_engine;
+pub mod cli;
+pub mod repo_intelligence;
+pub mod session_intelligence;
 
 // Re-export auth so main.rs can use clawd::auth directly.
 pub use ipc::auth;
@@ -35,6 +45,7 @@ use std::sync::Arc;
 use account::AccountRegistry;
 use agents::orchestrator::{Orchestrator, SharedOrchestrator};
 use config::DaemonConfig;
+use intelligence::token_tracker::TokenTracker;
 use ipc::event::EventBroadcaster;
 use license::LicenseInfo;
 use repo::RepoRegistry;
@@ -46,6 +57,8 @@ use session::SessionManager;
 use storage::Storage;
 use tasks::TaskStorage;
 use telemetry::TelemetrySender;
+use doctor::version_watcher::VersionWatcher;
+use metrics::SharedMetrics;
 use update::Updater;
 use worktree::manager::{SharedWorktreeManager, WorktreeManager};
 
@@ -86,6 +99,14 @@ pub struct AppContext {
     pub scheduler_queue: SharedSchedulerQueue,
     /// Multi-agent orchestrator (Phase 43e).
     pub orchestrator: SharedOrchestrator,
+    /// Token usage tracker — records input/output tokens per AI response (Phase 61 MI.T05).
+    pub token_tracker: TokenTracker,
+    /// In-process Prometheus-style metrics counters (DC.T49).
+    pub metrics: SharedMetrics,
+    /// Version bump watcher — polls manifest files and fires `warning.versionBump` (D64.T16).
+    pub version_watcher: Arc<VersionWatcher>,
+    /// In-memory registry of connected IDE extensions and their editor contexts (Sprint Z).
+    pub ide_bridge: crate::ide::SharedVsCodeBridge,
 }
 
 impl AppContext {
@@ -112,3 +133,46 @@ impl AppContext {
 }
 pub mod pairing;
 pub mod project;
+pub mod packs;
+
+// Sprint I — Provider Onboarding
+pub mod providers_onboarding;
+
+// Sprint J — Autonomous Execution Engine
+pub mod autonomous;
+
+// Sprint K — Arena Mode + Code Completion
+pub mod arena;
+pub mod completion;
+
+// Sprint L — Visual & Multimodal
+pub mod browser_tool;
+
+// Sprint N — Multi-Repo Orchestration
+pub mod mailbox;
+pub mod topology;
+
+// Sprint O — AI Code Review Engine
+pub mod code_review;
+
+// Sprint P — Builder Mode
+pub mod builder;
+
+// Sprint Q — Analytics
+pub mod analytics;
+
+// Sprint S — LSP + VS Code compatibility
+pub mod lsp;
+pub mod vscode;
+
+// Sprint V — Intelligence & Extensibility
+pub mod prompt_intelligence;
+
+// Sprint X — Production Reliability utilities
+pub mod health;
+pub mod circuit_breaker;
+pub mod retry;
+
+// Sprint Z — IDE Extension Host + Performance
+pub mod ide;
+pub mod perf;
