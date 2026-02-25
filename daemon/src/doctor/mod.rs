@@ -534,7 +534,10 @@ fn available_disk_bytes(path: &std::path::Path) -> Option<u64> {
         if ret == 0 {
             // f_bavail = blocks available to unprivileged user
             // f_frsize = fundamental file system block size
-            Some(stat.f_bavail as u64 * stat.f_frsize)
+            // Field types vary by OS (u32 on macOS, u64 on Linux) — cast both explicitly.
+            #[allow(clippy::unnecessary_cast)]
+            let bytes = stat.f_bavail as u64 * stat.f_frsize as u64;
+            Some(bytes)
         } else {
             None
         }
