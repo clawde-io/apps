@@ -57,4 +57,77 @@ abstract final class ClawdTheme {
       ),
     );
   }
+
+  /// Sprint CC A11Y.2 — High-contrast accessibility theme.
+  ///
+  /// White on black, minimum 4.5:1 contrast ratio for all text elements.
+  /// Suitable for users with low vision or high-contrast display requirements.
+  static ThemeData accessibility() {
+    const black = Color(0xFF000000);
+    const white = Color(0xFFFFFFFF);
+    const yellow = Color(0xFFFFFF00); // for interactive highlights
+
+    final themeBase = ThemeData.dark(useMaterial3: true);
+    return themeBase.copyWith(
+      colorScheme: const ColorScheme.dark(
+        primary: yellow,
+        onPrimary: black,
+        secondary: white,
+        onSecondary: black,
+        surface: black,
+        onSurface: white,
+        error: Color(0xFFFF6B6B),
+        onError: black,
+        outline: white,
+        outlineVariant: Color(0xFFCCCCCC),
+        surfaceContainerHighest: Color(0xFF1A1A1A),
+        onSurfaceVariant: white,
+      ),
+      scaffoldBackgroundColor: black,
+      cardColor: const Color(0xFF111111),
+      dividerColor: white,
+      textTheme: themeBase.textTheme
+          .apply(bodyColor: white, displayColor: white)
+          .copyWith(
+            bodyMedium: const TextStyle(
+                fontSize: 15, height: 1.6, color: white, fontWeight: FontWeight.w500),
+            bodySmall: const TextStyle(
+                fontSize: 13, height: 1.5, color: Color(0xFFDDDDDD)),
+            labelSmall: const TextStyle(
+                fontSize: 12, height: 1.4, color: Color(0xFFCCCCCC)),
+          ),
+      iconTheme: const IconThemeData(color: white),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: black,
+        foregroundColor: white,
+        iconTheme: IconThemeData(color: white),
+        titleTextStyle: TextStyle(
+            color: white, fontSize: 18, fontWeight: FontWeight.bold),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: ButtonStyle(
+          backgroundColor: WidgetStateProperty.all(yellow),
+          foregroundColor: WidgetStateProperty.all(black),
+          textStyle: WidgetStateProperty.all(
+              const TextStyle(fontWeight: FontWeight.bold)),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: ButtonStyle(
+          foregroundColor: WidgetStateProperty.all(white),
+          side: WidgetStateProperty.all(
+              const BorderSide(color: white, width: 2)),
+        ),
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected) ? yellow : white,
+        ),
+        trackColor: WidgetStateProperty.resolveWith(
+          (states) =>
+              states.contains(WidgetState.selected) ? yellow.withValues(alpha: 0.5) : const Color(0xFF444444),
+        ),
+      ),
+    );
+  }
 }

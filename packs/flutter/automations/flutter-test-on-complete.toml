@@ -1,0 +1,6 @@
+[[automations]]
+name = "flutter-test-on-session-complete"
+description = "Run flutter test and analyze after every AI session"
+trigger = { type = "session_complete" }
+action = { type = "shell", command = "flutter test --reporter compact && flutter analyze 2>&1 | tail -20" }
+enabled = true

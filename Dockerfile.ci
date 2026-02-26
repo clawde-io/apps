@@ -1,0 +1,27 @@
+# ClawDE CI image — clawd daemon + Claude Code + Codex CLI
+# Sprint EE CI.1
+
+FROM debian:bookworm-slim
+
+# Install runtime deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    git \
+    nodejs \
+    npm \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Claude Code CLI
+RUN npm install -g @anthropic-ai/claude-code
+
+# Install clawd binary (replaced at build time via CI workflow)
+COPY clawd /usr/local/bin/clawd
+RUN chmod +x /usr/local/bin/clawd
+
+# Default working directory
+WORKDIR /workspace
+
+# Non-interactive CI mode — no daemon service, runs the CI task directly
+ENTRYPOINT ["clawd"]
+CMD ["ci", "run"]

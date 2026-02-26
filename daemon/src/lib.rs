@@ -1,19 +1,32 @@
 pub mod account;
 pub mod agents;
+pub mod analysis;
+pub mod autostart;
+pub mod connectivity;
+pub mod automations;
+pub mod ci;
 pub mod claw_init;
+pub mod plugins;
 pub mod cli;
 pub mod config;
 pub mod context_manager;
 pub mod doctor;
 pub mod drift;
 pub mod evals;
+pub mod ghost_diff;
+pub mod events;
 pub mod identity;
 pub mod init_templates;
+pub mod instructions;
 pub mod intelligence;
 pub mod ipc;
 pub mod license;
 pub mod mcp;
+pub mod memory;
 pub mod mdns;
+// metrics/mod.rs supersedes metrics.rs (Sprint PP OB.1). Use #[path] to resolve
+// the E0761 ambiguity — metrics.rs is kept for git history but is no longer used.
+#[path = "metrics/mod.rs"]
 pub mod metrics;
 pub mod observability;
 pub mod policy;
@@ -28,14 +41,17 @@ pub mod security;
 pub mod service;
 pub mod session;
 pub mod session_intelligence;
+pub mod sovereignty;
 pub mod standards;
 pub mod storage;
 pub mod task_engine;
 pub mod tasks;
 pub mod telemetry;
 pub mod threads;
+pub mod tools;
 pub mod update;
 pub mod worktree;
+pub mod workflows;
 
 // Re-export auth so main.rs can use clawd::auth directly.
 pub use ipc::auth;
@@ -44,6 +60,7 @@ use std::sync::Arc;
 
 use account::AccountRegistry;
 use agents::orchestrator::{Orchestrator, SharedOrchestrator};
+use agents::provider_session::{new_shared_registry, SharedProviderSessionRegistry};
 use config::DaemonConfig;
 use doctor::version_watcher::VersionWatcher;
 use intelligence::token_tracker::TokenTracker;
@@ -107,6 +124,24 @@ pub struct AppContext {
     pub version_watcher: Arc<VersionWatcher>,
     /// In-memory registry of connected IDE extensions and their editor contexts (Sprint Z).
     pub ide_bridge: crate::ide::SharedVsCodeBridge,
+    /// Per-session persistent provider connection state (Sprint BB PV.5-6).
+    /// Tracks `previous_response_id` for Codex Responses API chaining and
+    /// session affinity metadata for Claude. Stale sessions evicted on access.
+    pub provider_sessions: SharedProviderSessionRegistry,
+    /// Set to `true` when the daemon is started with `--no-migrate`.
+    /// In recovery mode, database migrations are skipped and a `recoveryMode`
+    /// flag is returned in `daemon.status` for clients to show recovery UI.
+    pub recovery_mode: bool,
+    /// Task automation engine — trigger/action rules (Sprint CC CA.1-CA.9).
+    pub automation_engine: Arc<automations::engine::AutomationEngine>,
+    /// Connection quality snapshot updated by the background monitor (Sprint JJ CQ.1).
+    pub quality: connectivity::SharedQuality,
+    /// LAN peer registry updated by the mDNS browse task (Sprint JJ DM.1).
+    pub peer_registry: connectivity::PeerRegistry,
+    /// AI memory store — global + project scopes (Sprint OO ME.1).
+    pub memory_store: memory::MemoryStore,
+    /// Session cost + token metrics store (Sprint PP OB.1).
+    pub metrics_store: metrics::MetricsStore,
 }
 
 impl AppContext {
@@ -176,3 +211,6 @@ pub mod retry;
 // Sprint Z — IDE Extension Host + Performance
 pub mod ide;
 pub mod perf;
+
+// Sprint QQ — Public REST API
+pub mod rest;

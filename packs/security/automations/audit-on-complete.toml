@@ -1,0 +1,6 @@
+[[automations]]
+name = "npm-audit-on-session-complete"
+description = "Run npm/pnpm audit after every AI session"
+trigger = { type = "session_complete" }
+action = { type = "shell", command = "pnpm audit --audit-level=high 2>&1 | tail -20" }
+enabled = true

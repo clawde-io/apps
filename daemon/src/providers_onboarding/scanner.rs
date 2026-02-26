@@ -53,16 +53,24 @@ pub struct RateLimits {
     pub tpm: Option<u32>,
 }
 
-/// Check the status of all three providers in parallel.
+/// Check the status of all providers in parallel.
 ///
 /// Returns a map of provider name → `ProviderStatus`.
 pub async fn check_all_providers() -> Result<Vec<(String, ProviderStatus)>> {
-    let (claude, codex, cursor) = tokio::join!(check_claude(), check_codex(), check_cursor(),);
+    let (claude, codex, cursor, copilot, gemini) = tokio::join!(
+        check_claude(),
+        check_codex(),
+        check_cursor(),
+        check_copilot(),
+        check_gemini(),
+    );
 
     Ok(vec![
         ("claude".to_string(), claude?),
         ("codex".to_string(), codex?),
         ("cursor".to_string(), cursor?),
+        ("copilot".to_string(), copilot?),
+        ("gemini".to_string(), gemini?),
     ])
 }
 
@@ -73,6 +81,8 @@ pub async fn check_provider_by_name(provider: &str) -> Result<ProviderStatus> {
         "claude" => check_claude().await,
         "codex" => check_codex().await,
         "cursor" => check_cursor().await,
+        "copilot" => check_copilot().await,
+        "gemini" => check_gemini().await,
         other => {
             warn!(provider = other, "unknown provider requested in scanner");
             Ok(ProviderStatus {
@@ -160,6 +170,93 @@ async fn check_cursor() -> Result<ProviderStatus> {
         version,
         path,
         accounts_count,
+    })
+}
+
+/// MP.T06 — Detect GitHub Copilot CLI (`gh copilot --version`).
+async fn check_copilot() -> Result<ProviderStatus> {
+    // Copilot CLI is a `gh` extension: `gh copilot suggest/explain`
+    let (gh_installed, gh_version, _) = detect_binary("gh").await;
+    if !gh_installed {
+        return Ok(ProviderStatus {
+            installed: false,
+            authenticated: false,
+            version: None,
+            path: None,
+            accounts_count: 0,
+        });
+    }
+
+    // Check if the copilot extension is installed
+    let copilot_check = Command::new("gh")
+        .args(["copilot", "--version"])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .output()
+        .await;
+
+    let copilot_installed = copilot_check
+        .as_ref()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+
+    if !copilot_installed {
+        return Ok(ProviderStatus {
+            installed: false,
+            authenticated: false,
+            version: None,
+            path: None,
+            accounts_count: 0,
+        });
+    }
+
+    let version = copilot_check.ok().and_then(|o| {
+        String::from_utf8(o.stdout)
+            .ok()
+            .map(|s| s.trim().to_string())
+    });
+
+    // Authenticated if `gh auth status` succeeds
+    let authenticated = Command::new("gh")
+        .args(["auth", "status"])
+        .output()
+        .await
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+
+    Ok(ProviderStatus {
+        installed: true,
+        authenticated,
+        version: version.or(gh_version),
+        path: None,
+        accounts_count: if authenticated { 1 } else { 0 },
+    })
+}
+
+/// MP.T06 — Detect Google Gemini CLI (`gemini --version`).
+async fn check_gemini() -> Result<ProviderStatus> {
+    let (installed, version, path) = detect_binary("gemini").await;
+    if !installed {
+        return Ok(ProviderStatus {
+            installed: false,
+            authenticated: false,
+            version: None,
+            path: None,
+            accounts_count: 0,
+        });
+    }
+
+    // Gemini CLI uses GEMINI_API_KEY or GOOGLE_API_KEY env var
+    let authenticated = std::env::var("GEMINI_API_KEY")
+        .or_else(|_| std::env::var("GOOGLE_API_KEY"))
+        .is_ok();
+
+    Ok(ProviderStatus {
+        installed: true,
+        authenticated,
+        version,
+        path,
+        accounts_count: if authenticated { 1 } else { 0 },
     })
 }
 
@@ -403,7 +500,7 @@ mod tests {
     #[tokio::test]
     async fn check_provider_by_name_unknown_returns_not_installed() {
         // "definitely-not-a-real-provider" is not installed on any CI machine
-        let result = check_provider_by_name("definitely-not-a-real-provider").await;
+        let result = check_provider_by_name("definitely-not-a-real-provider_zz").await;
         let ps = result.expect("should not error — returns not-installed for unknown");
         assert!(!ps.installed);
         assert!(!ps.authenticated);

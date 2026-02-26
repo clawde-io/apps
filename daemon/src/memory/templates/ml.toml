@@ -1,0 +1,36 @@
+# ML / Data Science Developer Memory Template
+
+[[entries]]
+scope = "global"
+key = "preferences.language"
+value = "Python 3.11+ with type hints"
+weight = 9
+source = "template:ml"
+
+[[entries]]
+scope = "global"
+key = "preferences.ml_framework"
+value = "PyTorch for deep learning. scikit-learn for classical ML. HuggingFace Transformers for LLMs."
+weight = 9
+source = "template:ml"
+
+[[entries]]
+scope = "global"
+key = "style.data"
+value = "pandas for tabular data. numpy for arrays. Always check for NaN before training. Use polars for large datasets."
+weight = 8
+source = "template:ml"
+
+[[entries]]
+scope = "global"
+key = "style.experiments"
+value = "Track experiments with MLflow or W&B. Reproducibility: set random seeds. Log hyperparams, metrics, artifacts."
+weight = 8
+source = "template:ml"
+
+[[entries]]
+scope = "global"
+key = "style.notebooks"
+value = "Jupyter for exploration only. Production code moves to .py scripts. Keep notebooks in notebooks/ folder, scripts in src/."
+weight = 7
+source = "template:ml"

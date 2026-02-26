@@ -1,0 +1,6 @@
+[[automations]]
+name = "nextjs-build-on-session-complete"
+description = "Run Next.js build after every AI session to catch type errors and build failures early"
+trigger = { type = "session_complete" }
+action = { type = "shell", command = "pnpm build 2>&1 | tail -20" }
+enabled = true

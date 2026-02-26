@@ -37,6 +37,11 @@ impl RepoRegistry {
         self.repos.read().await.len()
     }
 
+    /// Return the canonical paths of all currently-watched repositories.
+    pub async fn list_paths(&self) -> Vec<String> {
+        self.repos.read().await.keys().cloned().collect()
+    }
+
     /// Register a repo path, start watching it, return its current status.
     pub async fn open(&self, repo_path: &str) -> Result<RepoStatus> {
         let path = PathBuf::from(repo_path);

@@ -172,13 +172,22 @@ impl ClaudeCodeRunner {
             cmd.args(["--resume", sid]);
         } else {
             // First turn — inject coding standards (V02.T31) + provider knowledge (V02.T35).
+            //
+            // Prompt caching (Sprint BB PV.7): stable content is injected first so the
+            // Anthropic API can cache the prefix across turns. The `--resume` flag on
+            // subsequent turns reuses claude's own session ID, causing the claude SDK
+            // to mark system-prompt blocks with `cache_control: {"type": "ephemeral"}`.
+            // Ordering (standards → provider knowledge) maximises the cacheable prefix;
+            // variable per-turn content is never injected as a system prompt.
             let repo = std::path::Path::new(&self.repo_path);
             let lang = crate::standards::detect_language(repo);
             if let Some(standards_text) = crate::standards::bundle_for(&lang) {
+                // Stable block 1: coding standards (language-specific, rarely changes).
                 cmd.args(["--append-system-prompt", standards_text]);
             }
             let providers = crate::providers_knowledge::detect_providers(repo);
             if !providers.is_empty() {
+                // Stable block 2: provider knowledge (detected once at session start).
                 let knowledge: String = providers
                     .iter()
                     .map(|p| crate::providers_knowledge::bundle_for_provider(p))

@@ -1,0 +1,36 @@
+# TypeScript Developer Memory Template
+
+[[entries]]
+scope = "global"
+key = "preferences.language"
+value = "TypeScript (strict mode)"
+weight = 9
+source = "template:typescript"
+
+[[entries]]
+scope = "global"
+key = "style.validation"
+value = "Use zod for schema validation at all system boundaries (API responses, env vars, form inputs)."
+weight = 9
+source = "template:typescript"
+
+[[entries]]
+scope = "global"
+key = "style.types"
+value = "Prefer interface for object shapes, type for unions. No any — use unknown at boundaries."
+weight = 8
+source = "template:typescript"
+
+[[entries]]
+scope = "global"
+key = "testing.framework"
+value = "Jest + Testing Library. No implementation detail testing."
+weight = 7
+source = "template:typescript"
+
+[[entries]]
+scope = "global"
+key = "style.imports"
+value = "Barrel exports only for feature public API. No circular imports."
+weight = 6
+source = "template:typescript"

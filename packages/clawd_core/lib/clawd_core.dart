@@ -36,3 +36,19 @@ export 'src/providers/session_health_provider.dart';
 
 // Sprint H — model intelligence providers
 export 'src/providers/token_usage_provider.dart';
+
+// Dunning — license + grace period
+export 'src/providers/license_provider.dart';
+
+// Relay resilience
+export 'src/providers/relay_provider.dart';
+
+// Sprint DD — semantic intelligence providers
+export 'src/providers/workflow_provider.dart';
+export 'src/providers/pulse_provider.dart';
+
+// Sprint JJ — connectivity + LAN peer discovery
+export 'src/providers/connectivity_provider.dart';
+
+// Sprint ZZ — instruction graph + evidence pack providers
+export 'src/providers/instruction_provider.dart';

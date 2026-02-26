@@ -6,5 +6,8 @@
 // provider and extracts the suggested code text.  It is session-agnostic:
 // the caller supplies a session ID and the daemon routes to the correct runner.
 
+pub mod cache;
+pub mod context;
+pub mod engine;
 pub mod handlers;
 pub mod model;

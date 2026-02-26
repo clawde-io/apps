@@ -1,0 +1,12 @@
+[pack]
+name = "@clawde/git-flow"
+version = "0.1.0"
+description = "Git conventions, Conventional Commits format, feature branch workflow recipe, and commit validation."
+author = "ClawDE"
+license = "MIT"
+tags = ["git", "conventional-commits", "workflow", "branching"]
+
+[pack.provides]
+memory = ["memory/git-conventions.md"]
+automations = ["automations/commit-lint.toml"]
+workflows = ["workflows/feature-to-pr.yaml"]

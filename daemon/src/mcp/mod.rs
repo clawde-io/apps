@@ -28,6 +28,7 @@ pub mod capabilities;
 pub mod client;
 pub mod config;
 pub mod dispatch;
+pub mod resources;
 pub mod tools;
 pub mod transport;
 
@@ -49,3 +50,5 @@ pub use client::{McpClient, McpServerConfig, McpTrustLevel};
 pub use config::McpServersConfig;
 
 pub use capabilities::{negotiate, ClawdCapabilities};
+
+pub use resources::{list_resources, read_resource, ResourceDescriptor};

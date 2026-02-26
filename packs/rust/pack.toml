@@ -1,0 +1,12 @@
+[pack]
+name = "@clawde/rust"
+version = "0.1.0"
+description = "Rust conventions, clippy rules, cargo test automation, and error handling patterns."
+author = "ClawDE"
+license = "MIT"
+tags = ["rust", "cargo", "clippy", "testing"]
+
+[pack.provides]
+memory = ["memory/rust-patterns.md"]
+automations = ["automations/cargo-test-on-complete.toml", "automations/clippy-on-save.toml"]
+evals = ["evals/rust-quality.yaml"]

@@ -1,0 +1,51 @@
+name: 'ClawDE AI Review'
+description: 'Run a ClawDE AI task in CI — code review, security scan, or any AI-powered step'
+author: 'ClawDE'
+
+branding:
+  icon: 'cpu'
+  color: 'red'
+
+inputs:
+  task:
+    description: 'The AI task to run (plain English). Used when no .claw/ci.yaml is present.'
+    required: false
+    default: ''
+  github-token:
+    description: 'GitHub token for posting PR review comments (requires pull-requests: write)'
+    required: false
+    default: ${{ github.token }}
+  repo-path:
+    description: 'Path to the repository root. Defaults to workspace root.'
+    required: false
+    default: '.'
+  step:
+    description: 'Run a specific step by name (from .claw/ci.yaml). Leave empty to run all steps.'
+    required: false
+    default: ''
+  post-comment:
+    description: 'Whether to post findings as a PR review comment'
+    required: false
+    default: 'true'
+
+outputs:
+  run-id:
+    description: 'The ClawDE CI run ID'
+  status:
+    description: 'Final run status: success | failure'
+  summary:
+    description: 'One-line summary of findings'
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile.ci'
+  env:
+    GITHUB_TOKEN: ${{ inputs.github-token }}
+    CLAWD_TASK: ${{ inputs.task }}
+    CLAWD_POST_COMMENT: ${{ inputs.post-comment }}
+    CLAWD_STEP: ${{ inputs.step }}
+  args:
+    - ci
+    - run
+    - --repo
+    - ${{ inputs.repo-path }}

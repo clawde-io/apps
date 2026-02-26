@@ -1,0 +1,12 @@
+[package]
+name = "hello-clawd"
+version = "0.1.0"
+edition = "2021"
+description = "Example ClawDE dylib plugin — logs a greeting on session start"
+
+[lib]
+name = "hello_clawd"
+crate-type = ["cdylib"]
+
+[dependencies]
+clawd_plugin_abi = { path = "../../../packages/clawd_plugin_abi" }

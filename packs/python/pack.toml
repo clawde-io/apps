@@ -1,0 +1,12 @@
+[pack]
+name = "@clawde/python"
+version = "0.1.0"
+description = "Python conventions, type hints, pytest patterns, ruff lint rules, and test automation."
+author = "ClawDE"
+license = "MIT"
+tags = ["python", "pytest", "ruff", "mypy", "type-hints"]
+
+[pack.provides]
+memory = ["memory/python-patterns.md"]
+automations = ["automations/pytest-on-complete.toml"]
+evals = ["evals/python-quality.yaml"]

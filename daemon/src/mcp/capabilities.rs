@@ -10,13 +10,13 @@ use serde_json::Value;
 
 /// The set of MCP capabilities that `clawd` can advertise as a server.
 ///
-/// Currently only `tools` is supported (v1).  `resources`, `prompts`, and
-/// `sampling` are placeholders for future protocol expansions.
+/// `tools` and `resources` are enabled as of Sprint BB PV.12.
+/// `prompts` and `sampling` are reserved for future protocol expansions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClawdCapabilities {
     /// `tools` — clawd exposes the task-management tool catalogue.
     pub tools: bool,
-    /// `resources` — not yet supported.
+    /// `resources` — clawd exposes sessions, tasks, messages, and repo files.
     pub resources: bool,
     /// `prompts` — not yet supported.
     pub prompts: bool,
@@ -28,7 +28,7 @@ impl Default for ClawdCapabilities {
     fn default() -> Self {
         Self {
             tools: true,
-            resources: false,
+            resources: true,
             prompts: false,
             sampling: false,
         }

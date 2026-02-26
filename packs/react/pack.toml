@@ -1,0 +1,13 @@
+[pack]
+name = "@clawde/react"
+version = "0.1.0"
+description = "React conventions, component patterns, hook rules, and test automation for React projects."
+author = "ClawDE"
+license = "MIT"
+tags = ["react", "typescript", "testing", "jest"]
+
+[pack.provides]
+memory = ["memory/react-patterns.md"]
+automations = ["automations/jest-on-complete.toml"]
+evals = ["evals/component-quality.yaml"]
+templates = ["templates/react/"]

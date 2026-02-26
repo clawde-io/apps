@@ -1,0 +1,5 @@
+# OS.4 — GitHub Sponsors funding configuration.
+# Adds "Sponsor" button to the repository.
+github: [clawde-io]
+custom:
+  - https://clawde.io/sponsor

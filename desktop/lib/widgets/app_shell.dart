@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:clawd_core/clawd_core.dart';
 import 'package:clawd_ui/clawd_ui.dart';
 import 'package:clawde/router.dart';
 import 'package:clawde/widgets/status_bar.dart';
 import 'package:clawde/widgets/update_banner.dart';
+import 'package:clawde/widgets/grace_period_banner.dart';
+import 'package:clawde/features/settings/relay_status_banner.dart';
 import 'package:clawde/features/projects/project_selector_header.dart';
+import 'package:clawde/features/repo/repo_context_provider.dart';
 
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key, required this.child});
@@ -25,6 +29,8 @@ class _AppShellState extends ConsumerState<AppShell> {
     routeDashboard,
     routeSearch,
     routePacks,
+    routeDoctor,
+    routeInstructions,
     routeSettings,
   ];
 
@@ -39,6 +45,14 @@ class _AppShellState extends ConsumerState<AppShell> {
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).uri.toString();
     final selectedIndex = _indexFromRoute(location);
+
+    // Watch doctor scan result for warning badge.
+    final repoPath = ref.watch(effectiveRepoPathProvider);
+    final doctorResult = repoPath == null
+        ? null
+        : ref.watch(doctorProvider(repoPath)).valueOrNull;
+    final hasDoctorWarning =
+        doctorResult != null && !doctorResult.isHealthy;
 
     return Scaffold(
       body: Row(
@@ -65,43 +79,53 @@ class _AppShellState extends ConsumerState<AppShell> {
               padding: EdgeInsets.fromLTRB(4, 8, 4, 4),
               child: ProjectSelectorHeader(),
             ),
-            destinations: const [
-              NavigationRailDestination(
+            destinations: [
+              const NavigationRailDestination(
                 icon: Icon(Icons.chat_bubble_outline),
                 selectedIcon: Icon(Icons.chat_bubble),
                 label: Text('Chat'),
               ),
-              NavigationRailDestination(
+              const NavigationRailDestination(
                 icon: Icon(Icons.layers_outlined),
                 selectedIcon: Icon(Icons.layers),
                 label: Text('Sessions'),
               ),
-              NavigationRailDestination(
+              const NavigationRailDestination(
                 icon: Icon(Icons.folder_outlined),
                 selectedIcon: Icon(Icons.folder),
                 label: Text('Files'),
               ),
-              NavigationRailDestination(
+              const NavigationRailDestination(
                 icon: Icon(Icons.account_tree_outlined),
                 selectedIcon: Icon(Icons.account_tree),
                 label: Text('Git'),
               ),
-              NavigationRailDestination(
+              const NavigationRailDestination(
                 icon: Icon(Icons.view_kanban_outlined),
                 selectedIcon: Icon(Icons.view_kanban),
                 label: Text('Tasks'),
               ),
-              NavigationRailDestination(
+              const NavigationRailDestination(
                 icon: Icon(Icons.search_outlined),
                 selectedIcon: Icon(Icons.search),
                 label: Text('Search'),
               ),
-              NavigationRailDestination(
+              const NavigationRailDestination(
                 icon: Icon(Icons.extension_outlined),
                 selectedIcon: Icon(Icons.extension),
                 label: Text('Packs'),
               ),
               NavigationRailDestination(
+                icon: _DoctorIcon(hasWarning: hasDoctorWarning, selected: false),
+                selectedIcon: _DoctorIcon(hasWarning: hasDoctorWarning, selected: true),
+                label: const Text('Doctor'),
+              ),
+              const NavigationRailDestination(
+                icon: Icon(Icons.rule_outlined),
+                selectedIcon: Icon(Icons.rule),
+                label: Text('Instructions'),
+              ),
+              const NavigationRailDestination(
                 icon: Icon(Icons.settings_outlined),
                 selectedIcon: Icon(Icons.settings),
                 label: Text('Settings'),
@@ -118,10 +142,52 @@ class _AppShellState extends ConsumerState<AppShell> {
             ),
           ),
           const VerticalDivider(thickness: 1, width: 1),
-          Expanded(child: UpdateBanner(child: widget.child)),
+          Expanded(
+            child: RelayStatusBanner(
+              child: GracePeriodBanner(
+                child: UpdateBanner(child: widget.child),
+              ),
+            ),
+          ),
         ],
       ),
       bottomNavigationBar: const StatusBar(),
+    );
+  }
+}
+
+// ─── Doctor nav icon with optional warning badge ──────────────────────────────
+
+class _DoctorIcon extends StatelessWidget {
+  const _DoctorIcon({required this.hasWarning, required this.selected});
+
+  final bool hasWarning;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Icon(
+          selected
+              ? Icons.health_and_safety
+              : Icons.health_and_safety_outlined,
+        ),
+        if (hasWarning)
+          Positioned(
+            top: -2,
+            right: -4,
+            child: Container(
+              width: 8,
+              height: 8,
+              decoration: const BoxDecoration(
+                color: Color(0xFFf97316),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

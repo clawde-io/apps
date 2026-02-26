@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:clawd_core/clawd_core.dart';
 import 'package:clawd_proto/clawd_proto.dart';
@@ -41,6 +42,16 @@ class _ClawDEAppState extends ConsumerState<ClawDEApp> {
       routerConfig: appRouter,
       scaffoldMessengerKey: scaffoldMessengerKey,
       debugShowCheckedModeBanner: false,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('en'),
+        Locale('fr'),
+        Locale('ja'),
+      ],
       builder: (context, child) {
         return _GlobalShortcuts(
           ref: ref,

@@ -12,6 +12,7 @@
 pub mod accounts;
 pub mod backoff;
 pub mod cost;
+pub mod digest;
 pub mod fallback;
 pub mod queue;
 pub mod rate_limits;

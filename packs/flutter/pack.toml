@@ -1,0 +1,12 @@
+[pack]
+name = "@clawde/flutter"
+version = "0.1.0"
+description = "Flutter/Dart conventions, Riverpod patterns, widget testing, and build automation."
+author = "ClawDE"
+license = "MIT"
+tags = ["flutter", "dart", "riverpod", "testing"]
+
+[pack.provides]
+memory = ["memory/flutter-patterns.md"]
+automations = ["automations/flutter-test-on-complete.toml"]
+evals = ["evals/widget-quality.yaml"]

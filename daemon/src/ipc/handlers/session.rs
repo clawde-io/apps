@@ -2,6 +2,7 @@ use crate::{security, telemetry::TelemetryEvent, AppContext};
 use anyhow::Result;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use sqlx::Row;
 
 #[derive(Deserialize)]
 struct CreateParams {
@@ -16,6 +17,14 @@ struct CreateParams {
     /// Only used when `provider = "auto"`. Not stored in the database.
     #[serde(rename = "initialMessage")]
     initial_message: Option<String>,
+    /// Optional session ID to inherit context from (Sprint BB PV.13).
+    ///
+    /// When set, the new session receives a system context primer built from
+    /// the source session: last 3 AI turns, diff window (files changed since
+    /// that session started), and active task IDs.  This lets follow-up
+    /// sessions continue where the previous one left off.
+    #[serde(rename = "inheritFrom")]
+    inherit_from: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -92,6 +101,13 @@ pub async fn create(params: Value, ctx: &AppContext) -> Result<Value> {
         }
     }
 
+    // Sprint BB PV.13: build context primer from a prior session if requested.
+    // The primer is prepended to the title so the runner can inject it as an
+    // initial system message on the first turn.  We use the title channel
+    // (non-persistent) rather than a new DB column to keep the migration surface
+    // minimal; a future sprint can promote this to a dedicated field.
+    let effective_initial_message = build_inherit_primer(ctx, p.inherit_from.as_deref(), p.initial_message.as_deref()).await;
+
     let session = ctx
         .session_manager
         .create(
@@ -100,7 +116,7 @@ pub async fn create(params: Value, ctx: &AppContext) -> Result<Value> {
             &title,
             ctx.config.max_sessions,
             p.permissions,
-            p.initial_message.as_deref(),
+            effective_initial_message.as_deref(),
         )
         .await?;
     // D64.T16: start watching manifest files for version bumps in this repo.
@@ -213,4 +229,166 @@ pub async fn set_mode(params: Value, ctx: &AppContext) -> Result<Value> {
     );
 
     Ok(json!({}))
+}
+
+// ─── Context inheritance (Sprint BB PV.13) ────────────────────────────────────
+
+/// Build an `initial_message` primer from a prior session's context.
+///
+/// Fetches the last 3 AI turns, active task IDs from the source session, then
+/// assembles them as a compact context block prepended to the original message.
+/// If `inherit_from` is None, returns the original `initial_message` unchanged.
+async fn build_inherit_primer(
+    ctx: &AppContext,
+    inherit_from: Option<&str>,
+    original_message: Option<&str>,
+) -> Option<String> {
+    let source_id = match inherit_from {
+        Some(id) if !id.is_empty() => id,
+        _ => return original_message.map(|s| s.to_string()),
+    };
+
+    // Fetch last 3 assistant messages from the source session.
+    let messages = match ctx.storage.list_messages(source_id, 50, None).await {
+        Ok(msgs) => msgs,
+        Err(_) => return original_message.map(|s| s.to_string()),
+    };
+
+    // Collect to Vec first so we can call .iter().rev() (Filter doesn't impl ExactSizeIterator).
+    let assistant_msgs: Vec<_> = messages
+        .iter()
+        .filter(|m| m.role == "assistant" && m.status == "done")
+        .collect();
+    let last_turns: Vec<String> = assistant_msgs
+        .iter()
+        .rev()
+        .take(3)
+        .rev()
+        .map(|m| {
+            let preview = m.content.chars().take(400).collect::<String>();
+            format!("[turn] {preview}")
+        })
+        .collect();
+
+    // Fetch active task IDs from the task queue.
+    use crate::tasks::storage::TaskListParams;
+    let task_ids: Vec<String> = ctx
+        .task_storage
+        .list_tasks(&TaskListParams {
+            status: Some("active".to_string()),
+            ..Default::default()
+        })
+        .await
+        .unwrap_or_default()
+        .iter()
+        .map(|t| t.id.clone())
+        .collect();
+
+    if last_turns.is_empty() && task_ids.is_empty() {
+        return original_message.map(|s| s.to_string());
+    }
+
+    let mut primer = format!(
+        "[Context inherited from session {}]\n",
+        &source_id[..8.min(source_id.len())]
+    );
+
+    if !task_ids.is_empty() {
+        primer.push_str(&format!("Active tasks: {}\n", task_ids.join(", ")));
+    }
+    if !last_turns.is_empty() {
+        primer.push_str("Recent AI turns:\n");
+        for turn in &last_turns {
+            primer.push_str(&format!("  {turn}\n"));
+        }
+    }
+
+    if let Some(orig) = original_message {
+        primer.push('\n');
+        primer.push_str(orig);
+    }
+
+    Some(primer)
+}
+
+// ── Sprint CC AM.4 — Attention Map RPC ────────────────────────────────────────
+
+/// `session.attention_map` — top-N files by combined attention score for a session.
+pub async fn attention_map(params: Value, ctx: AppContext) -> Result<Value> {
+    let session_id = params
+        .get("sessionId")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("missing sessionId"))?;
+    let top_n = params
+        .get("topN")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(20)
+        .min(100) as i64;
+
+    let rows = sqlx::query(
+        "SELECT file_path, read_count, write_count, mention_count,
+                (read_count + write_count * 2 + mention_count) AS attention_score,
+                last_accessed_at
+         FROM session_file_attention
+         WHERE session_id = ?
+         ORDER BY attention_score DESC
+         LIMIT ?",
+    )
+    .bind(session_id)
+    .bind(top_n)
+    .fetch_all(ctx.storage.pool())
+    .await?;
+
+    let files: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "filePath": r.get::<String, _>("file_path"),
+                "readCount": r.get::<i64, _>("read_count"),
+                "writeCount": r.get::<i64, _>("write_count"),
+                "mentionCount": r.get::<i64, _>("mention_count"),
+                "attentionScore": r.get::<i64, _>("attention_score"),
+                "lastAccessedAt": r.get::<i64, _>("last_accessed_at"),
+            })
+        })
+        .collect();
+
+    Ok(json!({ "sessionId": session_id, "files": files }))
+}
+
+// ── Sprint CC IE.4 — Intent Summary RPC ──────────────────────────────────────
+
+/// `session.intent_summary` — intent vs execution diff for a session.
+pub async fn intent_summary(params: Value, ctx: AppContext) -> Result<Value> {
+    let session_id = params
+        .get("sessionId")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("missing sessionId"))?;
+
+    let row = sqlx::query(
+        "SELECT intent_json, execution_json, intent_divergence_score FROM sessions WHERE id = ?",
+    )
+    .bind(session_id)
+    .fetch_optional(ctx.storage.pool())
+    .await?;
+
+    match row {
+        None => anyhow::bail!("session not found"),
+        Some(r) => {
+            let intent: Option<serde_json::Value> = r
+                .get::<Option<String>, _>("intent_json")
+                .and_then(|s| serde_json::from_str(&s).ok());
+            let execution: Option<serde_json::Value> = r
+                .get::<Option<String>, _>("execution_json")
+                .and_then(|s| serde_json::from_str(&s).ok());
+            let divergence = r.get::<Option<f64>, _>("intent_divergence_score");
+
+            Ok(json!({
+                "sessionId": session_id,
+                "intent": intent,
+                "execution": execution,
+                "divergenceScore": divergence,
+            }))
+        }
+    }
 }

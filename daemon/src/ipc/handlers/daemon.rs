@@ -44,8 +44,94 @@ pub async fn status(_params: Value, ctx: &AppContext) -> Result<Value> {
         "watchedRepos": watched_repos,
         "port": ctx.config.port,
         "pendingUpdate": pending_update,
-        "providers": providers
+        "providers": providers,
+        "recoveryMode": ctx.recovery_mode,
     }))
+}
+
+// ─── daemon.changelog (Sprint BB — UX.3) ─────────────────────────────────────
+
+/// Embedded changelog JSON (compile-time include).
+const CHANGELOG_JSON: &str = include_str!("../../changelog.json");
+
+/// `daemon.changelog` — What's New overlay data (UX.3 — Sprint BB).
+///
+/// Returns new changelog entries since `last_seen_version` and marks the
+/// current version as seen in the `settings` table.
+///
+/// Params: `{}` (none)
+///
+/// Response:
+/// ```json
+/// {
+///   "currentVersion": "0.2.1",
+///   "hasNew": true,
+///   "entries": [
+///     { "version": "0.2.1", "date": "…", "headline": "…", "entries": ["…"] }
+///   ]
+/// }
+/// ```
+pub async fn changelog(_params: Value, ctx: &AppContext) -> Result<Value> {
+    let current_version = env!("CARGO_PKG_VERSION");
+
+    // Read last seen version from settings table
+    let last_seen = ctx
+        .storage
+        .get_setting("last_seen_version")
+        .await
+        .unwrap_or(None);
+
+    // Parse the embedded changelog
+    let all_entries: Vec<Value> =
+        serde_json::from_str(CHANGELOG_JSON).unwrap_or_default();
+
+    // Filter to entries newer than what was last seen
+    let new_entries: Vec<Value> = if let Some(ref seen) = last_seen {
+        all_entries
+            .into_iter()
+            .filter(|e| {
+                e.get("version")
+                    .and_then(|v| v.as_str())
+                    .map(|v| semver_gt(v, seen.as_str()))
+                    .unwrap_or(false)
+            })
+            .collect()
+    } else {
+        // First launch — show the entry for the current version only
+        all_entries
+            .into_iter()
+            .filter(|e| {
+                e.get("version")
+                    .and_then(|v| v.as_str())
+                    .map(|v| v == current_version)
+                    .unwrap_or(false)
+            })
+            .collect()
+    };
+
+    // Mark current version as seen (fire-and-forget; errors are non-fatal)
+    let _ = ctx
+        .storage
+        .set_setting("last_seen_version", current_version)
+        .await;
+
+    Ok(json!({
+        "currentVersion": current_version,
+        "hasNew": !new_entries.is_empty(),
+        "entries": new_entries,
+    }))
+}
+
+/// Simple semver greater-than comparison (major.minor.patch only, no pre-release).
+fn semver_gt(a: &str, b: &str) -> bool {
+    fn parse(s: &str) -> (u32, u32, u32) {
+        let mut parts = s.splitn(3, '.');
+        let major = parts.next().and_then(|x| x.parse().ok()).unwrap_or(0);
+        let minor = parts.next().and_then(|x| x.parse().ok()).unwrap_or(0);
+        let patch = parts.next().and_then(|x| x.parse().ok()).unwrap_or(0);
+        (major, minor, patch)
+    }
+    parse(a) > parse(b)
 }
 
 pub async fn check_update(_params: Value, ctx: &AppContext) -> Result<Value> {

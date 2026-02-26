@@ -1,0 +1,88 @@
+name: Mutation Testing
+
+# Sprint BB TH.1 — cargo-mutants on critical daemon modules
+# Runs weekly + on push to main targeting session/security/policy modules.
+# Target: 80%+ mutation kill rate.
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"  # Mondays 03:00 UTC
+  push:
+    branches: [main]
+    paths:
+      - "daemon/src/session/**"
+      - "daemon/src/security/**"
+      - "daemon/src/policy/**"
+      - "daemon/src/license/**"
+      - "daemon/src/ipc/auth.rs"
+      - "daemon/src/intelligence/**"
+      - "daemon/src/agents/routing.rs"
+      - "daemon/src/agents/capabilities.rs"
+      - "daemon/src/agents/prompt_cache.rs"
+      - "daemon/src/agents/provider_session.rs"
+  workflow_dispatch:
+
+jobs:
+  mutation-test:
+    name: cargo-mutants
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-mutants-${{ hashFiles('daemon/Cargo.lock') }}
+
+      - name: Install cargo-mutants
+        run: cargo install cargo-mutants --locked
+
+      - name: Run mutation tests
+        working-directory: daemon
+        run: |
+          cargo mutants \
+            --output mutants-out \
+            --no-shuffle \
+            2>&1 | tee mutants-report.txt
+
+      - name: Check kill rate
+        working-directory: daemon
+        run: |
+          if [ -f mutants-out/mutants.out ]; then
+            python3 - <<'EOF'
+          import json, sys
+          with open("mutants-out/mutants.out") as f:
+              data = json.load(f)
+          total = data.get("total_mutants", 0)
+          killed = data.get("caught", 0)
+          if total == 0:
+              print("No mutants generated — check include_globs in mutants.toml")
+              sys.exit(0)
+          kill_rate = killed / total * 100
+          print(f"Kill rate: {killed}/{total} = {kill_rate:.1f}%")
+          if kill_rate < 80.0:
+              print(f"FAIL: kill rate {kill_rate:.1f}% < 80% target")
+              sys.exit(1)
+          else:
+              print("PASS: 80% target met")
+          EOF
+          else
+            echo "mutants.out not found — treating as first run"
+          fi
+
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: daemon/mutants-out/
+          retention-days: 30

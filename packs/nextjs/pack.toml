@@ -1,0 +1,12 @@
+[pack]
+name = "@clawde/nextjs"
+version = "0.1.0"
+description = "Next.js App Router patterns, server action conventions, ISR patterns, and build automation."
+author = "ClawDE"
+license = "MIT"
+tags = ["nextjs", "react", "typescript", "app-router"]
+
+[pack.provides]
+memory = ["memory/nextjs-patterns.md"]
+automations = ["automations/build-on-complete.toml"]
+evals = ["evals/route-quality.yaml"]

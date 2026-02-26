@@ -1,0 +1,6 @@
+[[automations]]
+name = "jest-on-session-complete"
+description = "Run Jest tests after every AI session completes"
+trigger = { type = "session_complete" }
+action = { type = "shell", command = "pnpm test --watchAll=false --passWithNoTests" }
+enabled = true

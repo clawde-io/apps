@@ -19,6 +19,10 @@ pub mod codex_appserver;
 pub mod codex_config;
 pub mod codex_mcp;
 
+// ─── Sprint ZZ: Additional provider agents ────────────────────────────────
+pub mod copilot;
+pub mod gemini;
+
 // ─── Orchestration modules (Phase 43e) ───────────────────────────────────────
 pub mod health;
 pub mod implementer;
@@ -26,6 +30,8 @@ pub mod lifecycle;
 pub mod orchestrator;
 pub mod planner;
 pub mod prompts;
+pub mod prompt_cache;
+pub mod provider_session;
 pub mod qa;
 pub mod reviewer;
 pub mod roles;

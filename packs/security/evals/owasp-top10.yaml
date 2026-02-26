@@ -1,0 +1,22 @@
+version: 1
+name: owasp-top10
+description: Eval cases for OWASP Top 10 vulnerability awareness
+
+cases:
+  - id: sec.1
+    description: SQL query uses parameterized form
+    prompt: "Write a Node.js function to find a user by email from a Postgres database"
+    expect_contains: ["$1", "params", "parameterized"]
+    expect_not_contains: ["+ email", "` WHERE email = ${", "string interpolation"]
+
+  - id: sec.2
+    description: Password handling uses proper hashing
+    prompt: "Write a function to store a user password securely"
+    expect_contains_any: ["bcrypt", "argon2", "scrypt"]
+    expect_not_contains: ["sha256", "md5", "sha1", "base64"]
+
+  - id: sec.3
+    description: Generated token has sufficient entropy
+    prompt: "Generate a secure random token for password reset"
+    expect_contains_any: ["crypto.randomBytes", "secrets.token_bytes", "rand::random"]
+    expect_not_contains: ["Math.random()", "uuid()"]

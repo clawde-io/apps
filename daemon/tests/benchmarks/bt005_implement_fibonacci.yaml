@@ -1,0 +1,24 @@
+# Sprint ZZ EH.T05 — Benchmark task BT.005
+# Write a new function from spec
+id: BT.005
+description: Write a new function from spec
+category: implement
+expected_turns: 4
+expected_diff_lines: 15
+
+task_prompt: |
+  Implement `fn fibonacci(n: u64) -> u64` in src/math.rs.
+  Use an iterative approach (not recursive) for efficiency.
+  The function must pass these three existing tests:
+
+    #[test]
+    fn test_fib_zero() { assert_eq!(fibonacci(0), 0); }
+    #[test]
+    fn test_fib_one() { assert_eq!(fibonacci(1), 1); }
+    #[test]
+    fn test_fib_ten() { assert_eq!(fibonacci(10), 55); }
+
+success_criteria:
+  - tests_pass: true
+  - function_exists: fibonacci
+  - turns_max: 8

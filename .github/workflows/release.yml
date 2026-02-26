@@ -92,12 +92,41 @@ jobs:
           Write-Output "Binary:   $destBin"
           Write-Output "Checksum: $hash"
 
+      # SPARKLE.4 — sign macOS binaries with Sparkle Ed25519 key
+      - name: Sign binary for Sparkle (macOS only)
+        if: runner.os == 'macOS'
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          BINARY="clawd-${{ matrix.target }}"
+          # Locate sign_update from Sparkle (bundled in auto_updater pub package)
+          SIGN_TOOL=""
+          PUB_CACHE="${HOME}/.pub-cache"
+          SPARKLE_SIGN=$(find "${PUB_CACHE}" -name "sign_update" -type f 2>/dev/null | head -1)
+          if command -v sign_update &>/dev/null; then
+            SIGN_TOOL="sign_update"
+          elif [[ -n "${SPARKLE_SIGN}" ]]; then
+            SIGN_TOOL="${SPARKLE_SIGN}"
+          fi
+          if [[ -n "${SIGN_TOOL}" ]] && [[ -n "${SPARKLE_PRIVATE_KEY:-}" ]]; then
+            echo "${SPARKLE_PRIVATE_KEY}" | base64 --decode > /tmp/sparkle_private.key
+            SIG=$("${SIGN_TOOL}" "${BINARY}" --ed-key /tmp/sparkle_private.key 2>/dev/null || true)
+            rm -f /tmp/sparkle_private.key
+            if [[ -n "${SIG}" ]]; then
+              printf '%s' "${SIG}" > "${BINARY}.sparkle_sig"
+              echo "Sparkle signature written: ${BINARY}.sparkle_sig"
+            fi
+          else
+            echo "sign_update not found or SPARKLE_PRIVATE_KEY not set — skipping"
+          fi
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: clawd-${{ matrix.target }}
           path: clawd-${{ matrix.target }}*
-          retention-days: 1
+          retention-days: 30
 
   # ─── Create GitHub Release with all binaries ──────────────────────────────
   release:

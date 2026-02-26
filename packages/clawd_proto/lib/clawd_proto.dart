@@ -28,3 +28,29 @@ export 'src/device.dart';
 
 // Phase D64 — doctor types
 export 'src/doctor.dart';
+
+// Sprint DD — semantic intelligence types
+export 'src/workflow.dart';
+export 'src/sovereignty.dart';
+export 'src/semantic_event.dart';
+export 'src/session_bundle.dart';
+export 'src/git_query.dart';
+
+// Sprint EE — ecosystem + session sharing types
+export 'src/ci.dart';
+export 'src/session_share.dart';
+export 'src/digest.dart';
+
+// Sprint FF — plugin architecture types
+export 'src/plugin.dart';
+
+// Sprint GG — code completion + session search types
+export 'src/completion.dart';
+export 'src/search.dart';
+
+// Sprint OO — AI memory types
+export 'src/memory.dart';
+
+// Sprint ZZ — instruction graph + evidence pack types
+export 'src/instruction.dart';
+export 'src/evidence_pack.dart';

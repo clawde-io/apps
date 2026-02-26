@@ -1,0 +1,6 @@
+[[automations]]
+name = "commit-message-lint"
+description = "Validate commit message follows Conventional Commits format before committing"
+trigger = { type = "pre_commit" }
+action = { type = "shell", command = "echo \"Checking commit message format...\" && git log -1 --format=%s HEAD 2>/dev/null | grep -qE '^(feat|fix|docs|style|refactor|test|chore|perf)(\\(.+\\))?: .{1,72}$' && echo 'OK' || echo 'WARNING: Commit message does not follow Conventional Commits format'" }
+enabled = true

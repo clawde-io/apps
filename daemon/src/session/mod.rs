@@ -1,9 +1,12 @@
 pub mod claude;
 pub mod codex;
+pub mod completion;
 pub mod cursor;
 pub mod events;
 pub mod router;
 pub mod runner;
+pub mod system_prompt;
+pub mod telemetry;
 pub mod worktree;
 
 use crate::{ipc::event::EventBroadcaster, storage::Storage, AppContext};

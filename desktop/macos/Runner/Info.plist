@@ -28,5 +28,12 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<!-- Sparkle auto-update (SPARKLE.2) -->
+	<key>SUFeedURL</key>
+	<string>https://api.clawde.io/updates/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>jytqOgCo7kIDdtYDAeL+7u2C8Yq70m/X0R7OfLP+eZc=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
 </dict>
 </plist>

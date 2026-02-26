@@ -17,4 +17,5 @@ pub mod report;
 pub mod rollback;
 pub mod runner;
 pub mod scanners;
+pub mod session_eval;
 pub mod versioning;

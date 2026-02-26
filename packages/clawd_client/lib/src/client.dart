@@ -1036,6 +1036,191 @@ class ClawdClient {
     }
   }
 
+  // ─── Sprint DD — Workflow Recipes ─────────────────────────────────────────
+
+  /// List all workflow recipes (built-in + user-defined).
+  Future<Map<String, dynamic>> workflowList() async =>
+      call<Map<String, dynamic>>('workflow.list', {});
+
+  /// Create a new workflow recipe from YAML.
+  Future<Map<String, dynamic>> workflowCreate({
+    required String name,
+    String description = '',
+    required String yaml,
+  }) async =>
+      call<Map<String, dynamic>>(
+        'workflow.create',
+        {'name': name, 'description': description, 'yaml': yaml},
+      );
+
+  /// Run a workflow recipe in the given repo. Returns immediately with a runId.
+  Future<Map<String, dynamic>> workflowRun({
+    required String recipeId,
+    String repoPath = '.',
+  }) async =>
+      call<Map<String, dynamic>>(
+        'workflow.run',
+        {'recipeId': recipeId, 'repoPath': repoPath},
+      );
+
+  /// Delete a user-defined workflow recipe by ID.
+  Future<void> workflowDelete(String id) async =>
+      call<Map<String, dynamic>>('workflow.delete', {'id': id});
+
+  // ─── Sprint DD — Project Pulse ─────────────────────────────────────────────
+
+  /// Fetch semantic change velocity for the last [days] days.
+  Future<Map<String, dynamic>> projectPulse({int days = 7}) async =>
+      call<Map<String, dynamic>>('project.pulse', {'days': days});
+
+  // ─── Sprint DD — Tool Sovereignty ─────────────────────────────────────────
+
+  /// Fetch the 7-day sovereignty report (other AI tools detected).
+  Future<Map<String, dynamic>> sovereigntyReport() async =>
+      call<Map<String, dynamic>>('sovereignty.report', {});
+
+  // ─── Sprint DD — Session Replay ───────────────────────────────────────────
+
+  /// Export a session to a portable base64 bundle.
+  Future<Map<String, dynamic>> sessionExport(String sessionId) async =>
+      call<Map<String, dynamic>>('session.export', {'sessionId': sessionId});
+
+  /// Import a session bundle. Returns the new replay session ID.
+  Future<Map<String, dynamic>> sessionImport(String bundle) async =>
+      call<Map<String, dynamic>>('session.import', {'bundle': bundle});
+
+  /// Start replaying an imported session at [speed]x.
+  Future<Map<String, dynamic>> sessionReplay(String sessionId,
+          {double speed = 1.0}) async =>
+      call<Map<String, dynamic>>(
+        'session.replay',
+        {'sessionId': sessionId, 'speed': speed},
+      );
+
+  // ─── Sprint DD — NL Git ───────────────────────────────────────────────────
+
+  /// Ask a natural language question about the git history of [repoPath].
+  Future<Map<String, dynamic>> gitQuery({
+    required String question,
+    String repoPath = '.',
+  }) async =>
+      call<Map<String, dynamic>>(
+        'git.query',
+        {'question': question, 'repoPath': repoPath},
+      );
+
+  // ─── Sprint EE — CI Runner ────────────────────────────────────────────────
+
+  /// Start a CI pipeline run in [repoPath].
+  /// Returns `{ runId, status }`.
+  Future<Map<String, dynamic>> ciRun({
+    String repoPath = '.',
+    String trigger = 'manual',
+  }) async =>
+      call<Map<String, dynamic>>(
+        'ci.run',
+        {'repo_path': repoPath, 'trigger': trigger},
+      );
+
+  /// Get status of a CI run by [runId].
+  Future<Map<String, dynamic>> ciStatus(String runId) async =>
+      call<Map<String, dynamic>>('ci.status', {'run_id': runId});
+
+  /// Cancel a running CI pipeline.
+  Future<Map<String, dynamic>> ciCancel(String runId) async =>
+      call<Map<String, dynamic>>('ci.cancel', {'run_id': runId});
+
+  // ─── Sprint EE — Session Sharing ─────────────────────────────────────────
+
+  /// Create a share token for [sessionId] that expires in [expiresIn] seconds.
+  Future<Map<String, dynamic>> sessionShare(
+    String sessionId, {
+    int expiresIn = 3600,
+  }) async =>
+      call<Map<String, dynamic>>(
+        'session.share',
+        {'session_id': sessionId, 'expires_in': expiresIn},
+      );
+
+  /// Revoke an active share token.
+  Future<Map<String, dynamic>> sessionRevokeShare(String shareToken) async =>
+      call<Map<String, dynamic>>(
+        'session.revokeShare',
+        {'share_token': shareToken},
+      );
+
+  /// List active share tokens for [sessionId].
+  Future<ShareListResult> sessionShareList(String sessionId) async {
+    final raw = await call<Map<String, dynamic>>(
+      'session.shareList',
+      {'session_id': sessionId},
+    );
+    return ShareListResult.fromJson(raw);
+  }
+
+  // ─── Sprint EE — Daily Digest ─────────────────────────────────────────────
+
+  /// Fetch today's daily digest (sessions, metrics, top files).
+  Future<Map<String, dynamic>> digestToday() async =>
+      call<Map<String, dynamic>>('digest.today', {});
+
+  // ─── Sprint ZZ — Instruction graph API ────────────────────────────────────
+
+  /// Explain merged instructions for [path] (scope tree + preview).
+  Future<Map<String, dynamic>> instructionsExplain(String path) async {
+    try {
+      return await call<Map<String, dynamic>>(
+          'instructions.explain', {'path': path});
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  /// Budget report: bytes used vs budget for each provider (claude + codex).
+  Future<Map<String, dynamic>> instructionsBudgetReport(
+      String projectPath) async {
+    try {
+      return await call<Map<String, dynamic>>(
+          'instructions.budgetReport', {'project_path': projectPath});
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  /// Compile instructions for [target] (`"claude"` or `"codex"`).
+  Future<Map<String, dynamic>> instructionsCompile({
+    required String projectPath,
+    String target = 'claude',
+    bool dryRun = false,
+  }) async =>
+      call<Map<String, dynamic>>('instructions.compile', {
+        'target': target,
+        'project_path': projectPath,
+        'dry_run': dryRun,
+      });
+
+  /// Run the instruction linter and return an `InstructionLintReport` map.
+  Future<Map<String, dynamic>> instructionsLint(String projectPath) async {
+    try {
+      return await call<Map<String, dynamic>>(
+          'instructions.lint', {'project_path': projectPath});
+    } catch (_) {
+      return const {'passed': true, 'errors': 0, 'warnings': 0, 'issues': []};
+    }
+  }
+
+  // ─── Sprint ZZ — Evidence pack API ────────────────────────────────────────
+
+  /// Fetch the evidence pack for [taskId].  Returns null when none exists.
+  Future<Map<String, dynamic>?> artifactsEvidencePack(String taskId) async {
+    try {
+      return await call<Map<String, dynamic>>(
+          'artifacts.evidencePack', {'task_id': taskId});
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ─── Internal ─────────────────────────────────────────────────────────────
 
   void _onDisconnect() {

@@ -1,10 +1,13 @@
 pub mod checkpoint;
 pub mod event_log;
 pub mod events;
+pub mod evidence;
+pub mod janitor;
 pub mod jobs;
 pub mod markdown_generator;
 pub mod markdown_parser;
 pub mod migrate;
+pub mod ownership;
 pub mod queue_serializer;
 pub mod reducer;
 pub mod replay;

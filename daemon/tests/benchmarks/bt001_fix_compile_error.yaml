@@ -1,0 +1,19 @@
+# Sprint ZZ EH.T05 — Benchmark task BT.001
+# Fix a compile error (missing semicolon)
+id: BT.001
+description: Fix a compile error (missing semicolon)
+category: bug_fix
+expected_turns: 2
+expected_diff_lines: 1
+
+task_prompt: |
+  The file src/main.rs has a compile error: missing semicolon on line 10.
+  The code reads:
+    let x = 42
+    println!("{}", x);
+  Fix the compile error so `cargo build` succeeds.
+
+success_criteria:
+  - compile_passes: true
+  - diff_lines_max: 3
+  - turns_max: 5

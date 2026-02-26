@@ -33,6 +33,13 @@ pub struct CodexRunner {
     paused: Arc<AtomicBool>,
     /// Set by stop() so the stream_output safety net does not mark "error".
     cancelled: Arc<AtomicBool>,
+    /// OpenAI Responses API chaining (Sprint BB PV.8).
+    ///
+    /// The `previous_response_id` returned by the last completed Codex turn
+    /// is stored here and passed as `--previous-response-id` on the next
+    /// turn. This enables server-side conversation caching: only the new
+    /// user message is sent, not the full history.
+    previous_response_id: Arc<Mutex<Option<String>>>,
 }
 
 impl CodexRunner {
@@ -51,14 +58,29 @@ impl CodexRunner {
             current_child: Arc::new(Mutex::new(None)),
             paused: Arc::new(AtomicBool::new(false)),
             cancelled: Arc::new(AtomicBool::new(false)),
+            previous_response_id: Arc::new(Mutex::new(None)),
         })
     }
 
     pub async fn run_turn(&self, content: &str) -> Result<()> {
         self.cancelled.store(false, Ordering::Release);
 
+        // Build the base argument list. Pass --previous-response-id if we
+        // have one from a prior turn to enable OpenAI Responses API chaining.
+        let prev_id = self.previous_response_id.lock().await.clone();
+        let mut args: Vec<String> = vec![
+            "--approval-mode".to_string(),
+            "full-auto".to_string(),
+            "-q".to_string(),
+            content.to_string(),
+        ];
+        if let Some(ref id) = prev_id {
+            args.push("--previous-response-id".to_string());
+            args.push(id.clone());
+        }
+
         let mut child = Command::new("codex")
-            .args(["--approval-mode", "full-auto", "-q", content])
+            .args(&args)
             .current_dir(&self.repo_path)
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())

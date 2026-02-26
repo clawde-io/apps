@@ -1,0 +1,13 @@
+[[automations]]
+name = "pytest-on-session-complete"
+description = "Run pytest with coverage after every AI session"
+trigger = { type = "session_complete" }
+action = { type = "shell", command = "python -m pytest --tb=short -q 2>&1 | tail -20" }
+enabled = true
+
+[[automations]]
+name = "mypy-on-session-complete"
+description = "Run mypy type check after every AI session"
+trigger = { type = "session_complete" }
+action = { type = "shell", command = "python -m mypy src/ --ignore-missing-imports 2>&1 | tail -15" }
+enabled = true

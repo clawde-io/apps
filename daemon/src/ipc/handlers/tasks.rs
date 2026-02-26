@@ -6,9 +6,10 @@ use crate::tasks::{
     storage::{ActivityQueryParams, TaskListParams, TASK_NOT_FOUND},
 };
 use crate::AppContext;
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use chrono::Utc;
 use serde_json::{json, Value};
+use sqlx::Row;
 
 fn s(v: &Value, key: &str) -> Option<String> {
     v.get(key).and_then(|v| v.as_str()).map(String::from)
@@ -205,6 +206,30 @@ pub async fn update_status(params: Value, ctx: &AppContext) -> Result<Value> {
     let notes = sv(&params, "notes");
     let block_reason = sv(&params, "block_reason");
     let agent_id = sv(&params, "agent_id").unwrap_or("system");
+
+    // EP.T03: Require evidence_pack_id when marking done/completed.
+    if new_status == "done" || new_status == "completed" {
+        let evidence_pack_id = sv(&params, "evidence_pack_id");
+        if evidence_pack_id.is_none() || evidence_pack_id.map(|s| s.is_empty()).unwrap_or(true) {
+            // Check if the task already has an evidence_pack_id recorded
+            let has_evidence: Option<String> = sqlx::query_scalar(
+                "SELECT evidence_pack_id FROM agent_tasks WHERE id = ? AND evidence_pack_id IS NOT NULL",
+            )
+            .bind(task_id)
+            .fetch_optional(ctx.storage.pool())
+            .await
+            .unwrap_or(None)
+            .flatten();
+
+            if has_evidence.is_none() {
+                tracing::warn!(
+                    task_id,
+                    "task.complete called without evidence_pack_id — consider running task.evidencePack first"
+                );
+                // Non-blocking warning for now — will become blocking in Sprint AA
+            }
+        }
+    }
 
     // V02.T06-T08: Stub gate — check modified_files for stubs when marking done.
     if new_status == "done" || new_status == "completed" {
@@ -871,6 +896,109 @@ pub async fn progress_estimate(params: Value, ctx: &AppContext) -> Result<Value>
         "pct_complete": pct_complete,
         "avg_minutes_per_task": avg,
         "eta_minutes": eta_minutes,
+    }))
+}
+
+// ── Sprint CC TG.2 — Task Genealogy RPCs ─────────────────────────────────────
+
+/// `task.spawn` — create a child task with a genealogy link to its parent.
+pub async fn spawn(params: Value, ctx: &AppContext) -> Result<Value> {
+    let parent_id = s(&params, "parentId").ok_or_else(|| anyhow!("missing parentId"))?;
+    let title = s(&params, "title").ok_or_else(|| anyhow!("missing title"))?;
+    let description = s(&params, "description");
+    let relationship = s(&params, "relationship").unwrap_or_else(|| "spawned_from".into());
+
+    validate_task_id(&parent_id)?;
+
+    // Verify parent exists.
+    ctx.task_storage
+        .get_task(&parent_id)
+        .await?
+        .ok_or_else(|| anyhow!("parent task not found"))?;
+
+    let child_id = format!("task-{}", uuid::Uuid::new_v4());
+    let full_title = match &description {
+        Some(d) => format!("{title}: {d}"),
+        None => title.clone(),
+    };
+
+    ctx.task_storage
+        .add_task(
+            &child_id, &full_title,
+            Some("spawned"), None, None, Some(&parent_id),
+            None, None, None, None, None, None,
+            "",
+        )
+        .await?;
+
+    // Insert genealogy record.
+    sqlx::query(
+        "INSERT OR IGNORE INTO task_genealogy (parent_task_id, child_task_id, relationship)
+         VALUES (?, ?, ?)",
+    )
+    .bind(&parent_id)
+    .bind(&child_id)
+    .bind(&relationship)
+    .execute(ctx.task_storage.pool())
+    .await?;
+
+    Ok(json!({
+        "childId": child_id,
+        "parentId": parent_id,
+        "relationship": relationship,
+        "title": full_title,
+    }))
+}
+
+/// `task.lineage` — return full ancestor + descendant tree for a task.
+pub async fn lineage(params: Value, ctx: &AppContext) -> Result<Value> {
+    let task_id = s(&params, "taskId").ok_or_else(|| anyhow!("missing taskId"))?;
+    validate_task_id(&task_id)?;
+
+    // Ancestors (this task is a child).
+    let ancestors = sqlx::query(
+        "SELECT g.parent_task_id, g.relationship, t.title
+         FROM task_genealogy g
+         JOIN agent_tasks t ON t.id = g.parent_task_id
+         WHERE g.child_task_id = ?",
+    )
+    .bind(&task_id)
+    .fetch_all(ctx.task_storage.pool())
+    .await?
+    .into_iter()
+    .map(|row| {
+        json!({
+            "taskId": row.get::<String, _>("parent_task_id"),
+            "title":  row.get::<Option<String>, _>("title"),
+            "relationship": row.get::<String, _>("relationship"),
+        })
+    })
+    .collect::<Vec<_>>();
+
+    // Descendants (this task is a parent).
+    let descendants = sqlx::query(
+        "SELECT g.child_task_id, g.relationship, t.title
+         FROM task_genealogy g
+         JOIN agent_tasks t ON t.id = g.child_task_id
+         WHERE g.parent_task_id = ?",
+    )
+    .bind(&task_id)
+    .fetch_all(ctx.task_storage.pool())
+    .await?
+    .into_iter()
+    .map(|row| {
+        json!({
+            "taskId": row.get::<String, _>("child_task_id"),
+            "title":  row.get::<Option<String>, _>("title"),
+            "relationship": row.get::<String, _>("relationship"),
+        })
+    })
+    .collect::<Vec<_>>();
+
+    Ok(json!({
+        "taskId": task_id,
+        "ancestors": ancestors,
+        "descendants": descendants,
     }))
 }
 

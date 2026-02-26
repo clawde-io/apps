@@ -1,0 +1,12 @@
+[pack]
+name = "@clawde/security"
+version = "0.1.0"
+description = "Security check patterns, OWASP top 10 eval cases, npm audit automation, and secret scanning."
+author = "ClawDE"
+license = "MIT"
+tags = ["security", "owasp", "audit", "secrets"]
+
+[pack.provides]
+memory = ["memory/security-patterns.md"]
+automations = ["automations/audit-on-complete.toml", "automations/secret-scan-on-save.toml"]
+evals = ["evals/owasp-top10.yaml"]

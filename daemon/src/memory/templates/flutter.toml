@@ -1,0 +1,36 @@
+# Flutter/Dart Developer Memory Template
+
+[[entries]]
+scope = "global"
+key = "preferences.language"
+value = "Flutter/Dart with Riverpod"
+weight = 9
+source = "template:flutter"
+
+[[entries]]
+scope = "global"
+key = "style.state_management"
+value = "Riverpod with @riverpod codegen. AsyncNotifier for async state, Notifier for sync. Never ref.read in build()."
+weight = 9
+source = "template:flutter"
+
+[[entries]]
+scope = "global"
+key = "style.widgets"
+value = "const constructors everywhere. ConsumerWidget over StatefulWidget for Riverpod state. Color.withValues() not withOpacity()."
+weight = 8
+source = "template:flutter"
+
+[[entries]]
+scope = "global"
+key = "testing.approach"
+value = "Widget tests with pumpWidget. ProviderContainer for provider tests. mockito/mocktail for mocks."
+weight = 7
+source = "template:flutter"
+
+[[entries]]
+scope = "global"
+key = "style.error_handling"
+value = "sealed class Result for domain errors. Avoid bare ! null assertions. Use ?. and ?? patterns."
+weight = 7
+source = "template:flutter"

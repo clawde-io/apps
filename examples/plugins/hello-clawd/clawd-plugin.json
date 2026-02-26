@@ -1,0 +1,10 @@
+{
+  "name": "hello-clawd",
+  "version": "0.1.0",
+  "description": "Example ClawDE plugin — logs a greeting on session start",
+  "author": "clawde-io",
+  "runtime": "dylib",
+  "entry": "libhello_clawd.dylib",
+  "capabilities": [],
+  "signature": ""
+}

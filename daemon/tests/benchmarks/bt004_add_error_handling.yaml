@@ -1,0 +1,17 @@
+# Sprint ZZ EH.T05 — Benchmark task BT.004
+# Add error handling to an unwrap
+id: BT.004
+description: Add error handling to an unwrap
+category: error_handling
+expected_turns: 3
+expected_diff_lines: 5
+
+task_prompt: |
+  Replace `file.read_to_string(&mut buf).unwrap()` in src/io.rs with proper
+  error propagation using the `?` operator. The function signature should
+  become `fn read_config(path: &Path) -> Result<String, std::io::Error>`.
+
+success_criteria:
+  - no_unwrap_in_read_config: true
+  - compile_passes: true
+  - turns_max: 6

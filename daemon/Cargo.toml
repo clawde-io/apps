@@ -48,6 +48,13 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"]
 tracing-appender = "0.2"
 log = "0.4"
 
+# OT.T01 — OpenTelemetry OTLP export (feature-gated: --features tracing)
+# Only active when OTEL_EXPORTER_OTLP_ENDPOINT is set at runtime.
+# Without the feature, spans are stored in SQLite only (zero external overhead).
+opentelemetry = { version = "0.27", optional = true }
+opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"], optional = true }
+opentelemetry-otlp = { version = "0.27", features = ["grpc-tonic"], optional = true }
+
 # TOML config file support
 toml = { version = "0.8", features = ["parse"] }
 
@@ -80,6 +87,10 @@ base64 = "0.22"
 # HTTP client for license verification, telemetry, and auto-update
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
 
+# Pack archive extraction (gzip + tar for registry downloads)
+flate2 = "1"
+tar = "0.4"
+
 # Semver for auto-update version comparison
 semver = "1"
 
@@ -107,6 +118,23 @@ tempfile = "3"
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+# Sprint FF PL.13 — Plugin runtime dependencies
+# libloading: dlopen native dylib plugins (.so/.dylib/.dll)
+libloading = "0.8"
+# wasmtime: WASM plugin sandbox (cranelift JIT backend, no OpenSSL)
+wasmtime = { version = "28", default-features = false, features = ["cranelift", "runtime", "component-model"] }
+# clawd_plugin_abi: stable C ABI types shared with plugins
+clawd_plugin_abi = { path = "../packages/clawd_plugin_abi" }
+
+# Sprint II CH.1-CH.2 — Terminal chat + explain UI
+ratatui = "0.28"
+indicatif = "0.17"
+crossterm = "0.28"
+
+[features]
+# OT.T01 — Enable OpenTelemetry OTLP export
+tracing = ["opentelemetry", "opentelemetry_sdk", "opentelemetry-otlp"]
+
 # Library crate for integration tests
 [lib]
 name = "clawd"
@@ -115,6 +143,7 @@ path = "src/lib.rs"
 [dev-dependencies]
 tempfile = "3"
 criterion = { version = "0.5", features = ["html_reports"] }
+proptest = "1"
 
 [[bench]]
 name = "daemon_bench"

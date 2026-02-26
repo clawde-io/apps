@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: MIT
-//! Daemon metrics — DC.T49.
+// NOTE: This file is superseded by metrics/mod.rs (Sprint PP OB.1-3).
+// Rust requires either metrics.rs OR metrics/mod.rs — not both.
+// metrics/mod.rs is the canonical location. This file must be deleted
+// when the build is cleaned up. Content has been migrated to metrics/mod.rs.
 //!
 //! Simple in-process counters exposed as `GET /metrics` in Prometheus text format.
 //! No external library needed — all counters are `AtomicU64` incremented inline.

@@ -7,6 +7,8 @@
 //! SQLite for up to 24 hours.  If verification fails and a valid cache exists
 //! the cached values are used (offline grace period).
 
+pub mod bundle;
+
 use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
 use hmac::{Hmac, Mac};
@@ -32,6 +34,8 @@ pub struct Features {
 pub struct LicenseInfo {
     pub tier: String,
     pub features: Features,
+    /// Days remaining in dunning grace period. None = not in grace period.
+    pub grace_days_remaining: Option<u32>,
 }
 
 impl LicenseInfo {
@@ -39,6 +43,7 @@ impl LicenseInfo {
         Self {
             tier: "free".to_string(),
             features: Features::default(),
+            grace_days_remaining: None,
         }
     }
 }
@@ -47,9 +52,16 @@ impl LicenseInfo {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct GracePeriodInfo {
+    days_remaining: u32,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct VerifyResponse {
     tier: String,
     features: Features,
+    grace_period: Option<GracePeriodInfo>,
 }
 
 // ─── Verification ─────────────────────────────────────────────────────────────
@@ -114,6 +126,7 @@ async fn call_verify(config: &DaemonConfig, daemon_id: &str, token: &str) -> Res
     Ok(LicenseInfo {
         tier: body.tier,
         features: body.features,
+        grace_days_remaining: body.grace_period.map(|g| g.days_remaining),
     })
 }
 
@@ -191,6 +204,7 @@ async fn read_cache_grace(storage: &Storage) -> LicenseInfo {
                     LicenseInfo {
                         tier: row.tier,
                         features,
+                        grace_days_remaining: None,
                     }
                 }
                 _ => {

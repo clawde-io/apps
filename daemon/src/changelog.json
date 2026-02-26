@@ -1,0 +1,35 @@
+[
+  {
+    "version": "0.2.1",
+    "date": "2026-02-26",
+    "headline": "Provider Enhancement + Context Continuity",
+    "entries": [
+      "Codex speed-tier routing: fast (codex-spark) for review/QA, full (gpt-5.3-codex) for planning/implementation",
+      "Persistent provider sessions with previous_response_id chaining for Codex Responses API",
+      "Anthropic prompt caching: stable prefix hash invalidated on commit",
+      "Session context inheritance via inherit_from param on session.create",
+      "MCP resources: clawd:// URI scheme exposes sessions, tasks, messages, and repo files",
+      "Ambient file watcher: watch.suggestion events on TODO/FIXME or active task path matches",
+      "Analytics budget RPC: token spend vs monthly cap with warning/exceeded thresholds",
+      "SQLite auto-backup before migrations to backups/clawd-{version}.db",
+      "Recovery mode: --no-migrate flag skips migrations; daemon.status reports recoveryMode"
+    ]
+  },
+  {
+    "version": "0.1.0",
+    "date": "2026-02-23",
+    "headline": "Production Launch",
+    "entries": [
+      "First public release of the clawd daemon",
+      "17 JSON-RPC methods, 7 push events over WebSocket",
+      "Full session management: Claude Code and Codex provider runners",
+      "Git integration with repo intelligence and drift detection",
+      "SQLite-backed sessions, messages, tool calls, and analytics",
+      "MCP server: tools/list and tools/call for external AI clients",
+      "Multi-account pool with automatic tier-based switching",
+      "Model intelligence: auto-routing by complexity",
+      "Self-update via GitHub Releases with rollback-on-crash",
+      "GitHub Actions CI: Linux + macOS binaries"
+    ]
+  }
+]

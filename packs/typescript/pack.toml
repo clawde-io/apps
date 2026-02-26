@@ -1,0 +1,12 @@
+[pack]
+name = "@clawde/typescript"
+version = "0.1.0"
+description = "TypeScript strict mode conventions, zod schema patterns, Prettier config, and tsc automation."
+author = "ClawDE"
+license = "MIT"
+tags = ["typescript", "zod", "prettier", "strict"]
+
+[pack.provides]
+memory = ["memory/typescript-patterns.md"]
+automations = ["automations/tsc-on-complete.toml"]
+evals = ["evals/ts-quality.yaml"]

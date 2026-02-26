@@ -1,0 +1,6 @@
+[[automations]]
+name = "sync-gci-memory"
+description = "Remind AI to re-read GCI rules when CLAUDE.md changes"
+trigger = { type = "file_saved", pattern = "CLAUDE.md" }
+action = { type = "notify", message = "CLAUDE.md changed — re-read GCI rules at next session start" }
+enabled = true

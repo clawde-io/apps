@@ -1,0 +1,46 @@
+<idea-plugin>
+  <id>io.clawde.jetbrains</id>
+  <name>ClawDE</name>
+  <vendor url="https://clawde.io">ClawDE Contributors</vendor>
+  <description><![CDATA[
+    AI-first development environment — ClawDE for JetBrains IDEs.<br><br>
+    Connect to your local <code>clawd</code> daemon and get AI-assisted code review,
+    chat, and session management directly inside IntelliJ IDEA, WebStorm, PyCharm,
+    and other JetBrains IDEs.<br><br>
+    Features:<br>
+    <ul>
+      <li>Side panel showing active clawd sessions</li>
+      <li>Right-click → Ask ClawDE on any selection</li>
+      <li>Inline streaming responses</li>
+      <li>Connects to localhost:4300 (no internet required)</li>
+    </ul>
+  ]]></description>
+
+  <!-- Compatible with IntelliJ Platform 2024.1+ -->
+  <idea-version since-build="241"/>
+
+  <depends>com.intellij.modules.platform</depends>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <!-- Tool window registered in ClawdToolWindowFactory -->
+    <toolWindow
+        id="ClawDE"
+        anchor="right"
+        factoryClass="io.clawde.ClawdToolWindowFactory"
+        icon="/icons/clawd13.svg"
+    />
+  </extensions>
+
+  <actions>
+    <group id="ClawDE.ActionGroup" text="ClawDE" popup="true">
+      <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+      <action
+          id="ClawDE.AskClawdAction"
+          class="io.clawde.AskClawdAction"
+          text="Ask ClawDE…"
+          description="Send selected code to ClawDE for explanation or review"
+          icon="/icons/clawd13.svg"
+      />
+    </group>
+  </actions>
+</idea-plugin>

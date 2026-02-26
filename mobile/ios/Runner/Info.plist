@@ -15,6 +15,26 @@
 	<array>
 		<string>_clawde._tcp</string>
 	</array>
+	<!-- DL.1: Custom URL scheme for deep links — clawde://session/{id}, clawde://task/{id} -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>io.clawde.mobile</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>clawde</string>
+			</array>
+		</dict>
+	</array>
+	<!-- PN.2: Background modes for push notifications and offline sync -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

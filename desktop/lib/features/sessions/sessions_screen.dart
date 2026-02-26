@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:clawd_core/clawd_core.dart';
 import 'package:clawd_proto/clawd_proto.dart';
@@ -518,6 +519,30 @@ class _ActionButtonsState extends ConsumerState<_ActionButtons> {
             padding: const EdgeInsets.all(4),
             constraints: const BoxConstraints(),
           ),
+        // UI.7 — export session history to clipboard as markdown
+        IconButton(
+          icon: const Icon(Icons.download, size: 16),
+          tooltip: 'Export to clipboard',
+          color: Colors.white38,
+          onPressed: () => _run(() async {
+            // Capture messenger before async gap to avoid BuildContext warning.
+            final messenger = ScaffoldMessenger.of(context);
+            final messages =
+                await ref.read(messageListProvider(session.id).future);
+            final md = exportSessionToMarkdown(session, messages);
+            await Clipboard.setData(ClipboardData(text: md));
+            if (mounted) {
+              messenger.showSnackBar(
+                const SnackBar(
+                  content: Text('Session exported to clipboard'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+          }),
+          padding: const EdgeInsets.all(4),
+          constraints: const BoxConstraints(),
+        ),
         IconButton(
           icon: const Icon(Icons.close, size: 16),
           tooltip: 'Close',

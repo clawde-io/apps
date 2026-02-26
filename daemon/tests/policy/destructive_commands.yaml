@@ -1,0 +1,47 @@
+# Sprint ZZ PT.T05 — Destructive command policy tests
+# Tests that the policy engine correctly denies destructive shell commands.
+name: destructive_commands
+
+cases:
+  - command: Bash
+    args:
+      command: "rm -rf /home/user/important"
+    expected: deny
+    reason: Recursive deletion of home directory
+    category: destructive
+
+  - command: Bash
+    args:
+      command: "rm -rf /"
+    expected: deny
+    reason: Recursive deletion of filesystem root
+    category: destructive
+
+  - command: Bash
+    args:
+      command: "sudo rm -rf /etc"
+    expected: deny
+    reason: Privileged recursive deletion of system directory
+    category: destructive
+
+  - command: Bash
+    args:
+      command: "git clean -fdx"
+    expected: deny
+    reason: Force-removes untracked files including gitignored files
+    category: destructive
+
+  - command: Write
+    args:
+      file_path: "src/lib.rs"
+      content: "// allowed write to source file"
+    expected: allow
+    reason: Writing to a source file is normal agent work
+    category: safe_write
+
+  - command: Bash
+    args:
+      command: "ls -la"
+    expected: allow
+    reason: Read-only directory listing
+    category: safe_read

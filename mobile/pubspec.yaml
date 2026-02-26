@@ -45,6 +45,17 @@ dependencies:
   # Local notifications
   flutter_local_notifications: ^17.2.3
 
+  # Offline cache — local SQLite for cached sessions/messages
+  sqflite: ^2.4.2
+  path: ^1.9.0
+
+  # Deep links
+  app_links: ^6.3.3
+
+  # Push notifications (FCM)
+  firebase_messaging: ^15.1.6
+  firebase_core: ^3.9.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -29,6 +29,7 @@ pub async fn get(_params: Value, ctx: &AppContext) -> Result<Value> {
             "relay": info.features.relay,
             "autoSwitch": info.features.auto_switch,
         },
+        "graceDaysRemaining": info.grace_days_remaining,
         "cached": true,
     }))
 }
@@ -59,6 +60,7 @@ pub async fn check(_params: Value, ctx: &AppContext) -> Result<Value> {
             "relay": fresh.features.relay,
             "autoSwitch": fresh.features.auto_switch,
         },
+        "graceDaysRemaining": fresh.grace_days_remaining,
         "cached": false,
         "refreshed": refreshed,
     }))

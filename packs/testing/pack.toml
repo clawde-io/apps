@@ -1,0 +1,13 @@
+[pack]
+name = "@clawde/testing"
+version = "0.1.0"
+description = "TDD workflow recipe, coverage threshold automation, test naming patterns, and test generation evals."
+author = "ClawDE"
+license = "MIT"
+tags = ["testing", "tdd", "coverage", "quality"]
+
+[pack.provides]
+memory = ["memory/testing-patterns.md"]
+automations = ["automations/coverage-check.toml"]
+workflows = ["workflows/tdd.yaml"]
+evals = ["evals/test-generation.yaml"]

@@ -17,6 +17,20 @@ pub enum Provider {
     Unknown(String),
 }
 
+// ─── ProviderSpeed ────────────────────────────────────────────────────────────
+
+/// Speed/quality tier for a Codex request.
+///
+/// `Fast` maps to `codex-spark` (low latency, classification/review workloads).
+/// `Full` maps to `gpt-5.3-codex` (highest quality, planning/implementation).
+/// Claude always uses `Full` quality — the Claude Router role uses a cheaper
+/// Haiku model instead, so the speed distinction is Codex-specific.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ProviderSpeed {
+    Fast,
+    Full,
+}
+
 // ─── ProviderCapabilities ─────────────────────────────────────────────────────
 
 /// Static capability matrix for a single AI provider.
@@ -41,6 +55,9 @@ pub struct ProviderCapabilities {
     pub cost_per_1k_tokens_in: f64,
     /// Output cost in USD per 1 000 tokens.
     pub cost_per_1k_tokens_out: f64,
+    /// Preferred speed tier for this provider's default routing.
+    /// Codex defaults to `Fast`; Claude defaults to `Full`.
+    pub preferred_speed: ProviderSpeed,
 }
 
 impl ProviderCapabilities {
@@ -58,6 +75,7 @@ impl ProviderCapabilities {
             max_context_tokens: 200_000,
             cost_per_1k_tokens_in: 3.0 / 1000.0,
             cost_per_1k_tokens_out: 15.0 / 1000.0,
+            preferred_speed: ProviderSpeed::Full,
         }
     }
 
@@ -76,6 +94,9 @@ impl ProviderCapabilities {
             max_context_tokens: 128_000,
             cost_per_1k_tokens_in: 1.5 / 1000.0,
             cost_per_1k_tokens_out: 6.0 / 1000.0,
+            // Codex Fast (codex-spark) is the default; Full (gpt-5.3-codex) is
+            // selected when the role is Planner or Implementer.
+            preferred_speed: ProviderSpeed::Fast,
         }
     }
 
@@ -95,6 +116,7 @@ impl ProviderCapabilities {
                 max_context_tokens: 4096,
                 cost_per_1k_tokens_in: 0.0,
                 cost_per_1k_tokens_out: 0.0,
+                preferred_speed: ProviderSpeed::Full,
             },
         }
     }

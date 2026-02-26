@@ -1,0 +1,13 @@
+[pack]
+name = "@clawde/gci"
+version = "0.1.0"
+description = "Global Claude Instructions (GCI) rules as clawd memory, automations, and init templates. For teams using the GCI instruction framework."
+author = "ClawDE"
+license = "MIT"
+tags = ["instructions", "memory", "workflow", "gci"]
+
+[pack.provides]
+memory = ["memory/gci.md", "memory/preferences.md", "memory/identity.md"]
+automations = ["automations/sync-instructions.toml"]
+workflows = ["workflows/gci-onboard.yaml"]
+templates = ["templates/generic/"]

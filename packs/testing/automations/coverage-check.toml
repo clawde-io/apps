@@ -1,0 +1,6 @@
+[[automations]]
+name = "coverage-threshold-check"
+description = "Warn when test coverage drops below 80%"
+trigger = { type = "session_complete" }
+action = { type = "shell", command = "pnpm test --coverage --coverageThreshold='{\"global\":{\"lines\":80}}' 2>&1 | grep -E '(Coverage|PASS|FAIL)' | tail -10" }
+enabled = false  # Enable per-project by setting to true

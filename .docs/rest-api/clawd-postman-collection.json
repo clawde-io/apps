@@ -1,0 +1,133 @@
+{
+  "info": {
+    "name": "clawd REST API",
+    "description": "Public REST API for the clawd daemon (Sprint QQ). Port 4301, local only.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "0.1.0"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://127.0.0.1:4301", "type": "string" },
+    { "key": "token", "value": "your-api-token", "type": "string" },
+    { "key": "session_id", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/api/v1/health",
+        "description": "Check daemon health and uptime. No authentication required."
+      }
+    },
+    {
+      "name": "OpenAPI Spec",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/api/v1/openapi.json",
+        "description": "Retrieve the full OpenAPI 3.1 specification."
+      }
+    },
+    {
+      "name": "Sessions",
+      "item": [
+        {
+          "name": "List Sessions",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/sessions",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Get Session",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/sessions/{{session_id}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Create Session",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/sessions",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"repo_path\":\"/path/to/project\",\"provider\":\"claude\"}"
+            }
+          }
+        },
+        {
+          "name": "Submit Task",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/sessions/{{session_id}}/tasks",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"task\":\"Review the authentication module\"}"
+            }
+          }
+        },
+        {
+          "name": "Stream Events (SSE)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/sessions/{{session_id}}/events?token={{token}}",
+              "query": [{ "key": "token", "value": "{{token}}" }]
+            },
+            "description": "Open SSE stream. Use the @clawde/rest subscribeSessionEvents helper in code."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Metrics",
+      "item": [
+        {
+          "name": "Get Metrics Summary",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/metrics",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Memory",
+      "item": [
+        {
+          "name": "List Memory (Global)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/memory?scope=global",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "List Memory (Project)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/memory?scope=project&repo_path=/path/to/project",
+              "query": [
+                { "key": "scope", "value": "project" },
+                { "key": "repo_path", "value": "/path/to/project" }
+              ]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        }
+      ]
+    }
+  ]
+}

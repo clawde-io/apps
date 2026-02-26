@@ -1,0 +1,49 @@
+# contributors.yml — Auto-generate CONTRIBUTORS.md on merge to main (Sprint TT CR.1).
+#
+# Runs after every push to main. Uses `git log` to build the list,
+# then commits the updated CONTRIBUTORS.md back to the repo.
+
+name: Update Contributors
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  contributors:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate CONTRIBUTORS.md
+        run: |
+          cat > CONTRIBUTORS.md << 'HEADER'
+          # Contributors
+
+          Thank you to everyone who has contributed to ClawDE.
+
+          HEADER
+
+          echo "| Contributor | Commits |" >> CONTRIBUTORS.md
+          echo "| --- | --- |" >> CONTRIBUTORS.md
+
+          git log --format='%aN <%aE>' | sort | uniq -c | sort -rn | \
+          while read count name; do
+            echo "| $name | $count |" >> CONTRIBUTORS.md
+          done
+
+          echo "" >> CONTRIBUTORS.md
+          echo "*Generated automatically on every merge to main.*" >> CONTRIBUTORS.md
+
+      - name: Commit CONTRIBUTORS.md
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CONTRIBUTORS.md
+          git diff --staged --quiet || git commit -m "chore: update CONTRIBUTORS.md [skip ci]"
+          git push

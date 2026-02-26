@@ -1,0 +1,22 @@
+version: 1
+name: rust-code-quality
+description: Eval cases for Rust code generation quality
+
+cases:
+  - id: rust.1
+    description: Error handling uses ? operator not unwrap
+    prompt: "Write a function that reads a file and parses JSON from it"
+    expect_contains: ["Result<", "?"]
+    expect_not_contains: [".unwrap()", ".expect("]
+
+  - id: rust.2
+    description: Async function uses proper Tokio patterns
+    prompt: "Write an async function that makes an HTTP GET request"
+    expect_contains: ["async fn", "await", "Result<"]
+    expect_not_contains: [".unwrap()", "thread::spawn"]
+
+  - id: rust.3
+    description: Struct derives appropriate traits
+    prompt: "Create a struct representing a user session with id, user_id, and created_at"
+    expect_contains: ["#[derive(", "Debug"]
+    expect_not_contains: [".clone().clone()"]

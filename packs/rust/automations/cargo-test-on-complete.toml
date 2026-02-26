@@ -1,0 +1,13 @@
+[[automations]]
+name = "cargo-test-on-session-complete"
+description = "Run cargo test after every AI session"
+trigger = { type = "session_complete" }
+action = { type = "shell", command = "cargo test 2>&1 | tail -30" }
+enabled = true
+
+[[automations]]
+name = "cargo-clippy-on-session-complete"
+description = "Run clippy after every AI session"
+trigger = { type = "session_complete" }
+action = { type = "shell", command = "cargo clippy -- -D warnings 2>&1 | tail -20" }
+enabled = true

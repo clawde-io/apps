@@ -1,0 +1,21 @@
+# Sprint ZZ EH.T05 — Benchmark task BT.002
+# Fix a failing unit test
+id: BT.002
+description: Add a failing unit test fix
+category: bug_fix
+expected_turns: 3
+expected_diff_lines: 2
+
+task_prompt: |
+  src/lib.rs has a function `add(a, b)` that returns `a - b`.
+  Fix the bug so the existing test passes:
+
+    #[test]
+    fn test_add() {
+        assert_eq!(add(2, 3), 5);
+    }
+
+success_criteria:
+  - tests_pass: true
+  - diff_lines_max: 5
+  - turns_max: 6

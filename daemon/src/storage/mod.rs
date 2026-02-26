@@ -149,6 +149,28 @@ impl Storage {
         Self::new_with_slow_query(data_dir, 0).await
     }
 
+    /// Expose the pool for direct queries (attention map, intent, etc.).
+    pub fn pool(&self) -> &SqlitePool {
+        &self.pool
+    }
+
+    /// Open storage **without** running migrations — recovery mode (UX.2 — Sprint BB).
+    ///
+    /// Connects to the database but skips `migrate()`. Use when the daemon is
+    /// started with `--no-migrate` after a failed upgrade.
+    pub async fn new_no_migrate(data_dir: &Path) -> Result<Self> {
+        tokio::fs::create_dir_all(data_dir).await?;
+        let db_path = data_dir.join("clawd.db");
+        let opts =
+            SqliteConnectOptions::from_str(&format!("sqlite://{}?mode=rwc", db_path.display()))?
+                .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
+                .synchronous(sqlx::sqlite::SqliteSynchronous::Normal)
+                .create_if_missing(true);
+        let pool = SqlitePool::connect_with(opts).await?;
+        tracing::warn!("recovery mode: database migrations skipped (--no-migrate)");
+        Ok(Self { pool })
+    }
+
     /// Create storage with slow-query logging enabled (DC.T50).
     ///
     /// `slow_query_ms` is the threshold in milliseconds — queries exceeding it are
@@ -169,6 +191,10 @@ impl Storage {
             );
         }
 
+        // Back up the database before running migrations (UX.1 — Sprint BB).
+        // Creates ~/.clawd/backups/clawd-{version}.db so users can roll back.
+        Self::backup_before_migrate(data_dir, &db_path).await;
+
         let pool = SqlitePool::connect_with(opts).await?;
         Self::migrate(&pool).await?;
         Ok(Self { pool })
@@ -178,6 +204,38 @@ impl Storage {
     /// Used to create TaskStorage that shares the same SQLite connection.
     pub fn pool(&self) -> SqlitePool {
         self.pool.clone()
+    }
+
+    /// Copy `db_path` to `{data_dir}/backups/clawd-{version}.db` before running
+    /// migrations (UX.1 — Sprint BB).  Failure is non-fatal: if the copy fails
+    /// (e.g. first-run, no existing DB) we warn and continue.
+    async fn backup_before_migrate(data_dir: &Path, db_path: &std::path::PathBuf) {
+        if !db_path.exists() {
+            return; // fresh install — nothing to back up
+        }
+        let backup_dir = data_dir.join("backups");
+        if let Err(e) = tokio::fs::create_dir_all(&backup_dir).await {
+            tracing::warn!(err = %e, "could not create backup dir — skipping pre-migration backup");
+            return;
+        }
+        let version = env!("CARGO_PKG_VERSION");
+        let backup_path = backup_dir.join(format!("clawd-{version}.db"));
+        if backup_path.exists() {
+            return; // already backed up for this version
+        }
+        if let Err(e) = tokio::fs::copy(db_path, &backup_path).await {
+            tracing::warn!(
+                err = %e,
+                src = %db_path.display(),
+                dst = %backup_path.display(),
+                "pre-migration backup failed — continuing without backup"
+            );
+        } else {
+            tracing::info!(
+                path = %backup_path.display(),
+                "pre-migration SQLite backup created"
+            );
+        }
     }
 
     async fn migrate(pool: &SqlitePool) -> Result<()> {
@@ -1044,5 +1102,46 @@ impl Storage {
             .execute(&self.pool)
             .await?;
         Ok(())
+    }
+
+    // ─── Push tokens (Sprint RR PN.3) ────────────────────────────────────────
+
+    pub async fn upsert_push_token(
+        &self,
+        device_id: &str,
+        token: &str,
+        platform: &str,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO push_tokens (device_id, token, platform, updated_at)
+             VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+             ON CONFLICT(device_id) DO UPDATE SET
+               token = excluded.token,
+               platform = excluded.platform,
+               updated_at = excluded.updated_at",
+        )
+        .bind(device_id)
+        .bind(token)
+        .bind(platform)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn delete_push_token(&self, device_id: &str) -> Result<()> {
+        sqlx::query("DELETE FROM push_tokens WHERE device_id = ?")
+            .bind(device_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn list_push_tokens(&self) -> Result<Vec<(String, String, String)>> {
+        let rows = sqlx::query_as::<_, (String, String, String)>(
+            "SELECT device_id, token, platform FROM push_tokens ORDER BY registered_at",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
     }
 }

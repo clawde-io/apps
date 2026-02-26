@@ -3,6 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:clawd_core/clawd_core.dart';
 import 'package:clawd_proto/clawd_proto.dart';
 import 'package:clawd_ui/clawd_ui.dart';
+import 'package:clawde/features/traces/widgets/budget_warning_widget.dart';
+import 'package:clawde/features/traces/widgets/token_burn_chart.dart';
+import 'package:clawde/features/traces/widgets/tool_heatmap.dart';
+// CostPanel is used in per-session detail views, not here.
 
 /// Cost dashboard — shows per-task cost breakdown, total today,
 /// cost by model, and top-5 most expensive tasks.
@@ -37,6 +41,22 @@ class CostDashboard extends ConsumerWidget {
                   color: Colors.white,
                 ),
               ),
+            ],
+          ),
+        ),
+
+        // ── Budget warning (fires on push events) ────────────────────────────
+        const BudgetWarningWidget(),
+
+        // ── Observability charts ──────────────────────────────────────────────
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: TokenBurnChart()),
+              SizedBox(width: 12),
+              Expanded(child: ToolHeatmap()),
             ],
           ),
         ),

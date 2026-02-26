@@ -1,0 +1,63 @@
+# ClawDE Built-in Eval Cases
+# Loaded by `clawd eval run builtin_evals.yaml`
+# Tests core AI capability patterns — run against live sessions with `clawd eval run`.
+
+- name: "file-read capability"
+  prompt: "Read the file README.md and summarize it"
+  expected_pattern: "read"
+  pass_condition: "not_empty"
+  provider: "claude"
+
+- name: "file-write capability"
+  prompt: "Write a hello world example to /tmp/test.txt"
+  expected_pattern: "written"
+  pass_condition: "not_empty"
+  provider: "claude"
+
+- name: "git-diff capability"
+  prompt: "Show me what changed in the last git diff"
+  expected_pattern: "diff"
+  pass_condition: "contains"
+  provider: "claude"
+
+- name: "test-run capability"
+  prompt: "Run the project tests and report results"
+  expected_pattern: "test"
+  pass_condition: "contains"
+  provider: "claude"
+
+- name: "task-create capability"
+  prompt: "Create a task titled 'Fix the login bug'"
+  expected_pattern: "task"
+  pass_condition: "contains"
+  provider: "claude"
+
+- name: "session-resume capability"
+  prompt: "Resume the last session and continue working"
+  expected_pattern: "session"
+  pass_condition: "not_empty"
+  provider: "claude"
+
+- name: "worktree-create capability"
+  prompt: "Create an isolated worktree for this task"
+  expected_pattern: "worktree"
+  pass_condition: "contains"
+  provider: "claude"
+
+- name: "pack-install capability"
+  prompt: "Install the lint-guard pack"
+  expected_pattern: "pack"
+  pass_condition: "not_empty"
+  provider: "claude"
+
+- name: "memory-inject capability"
+  prompt: "Remember that this project uses Rust and Tokio"
+  expected_pattern: "memory"
+  pass_condition: "not_empty"
+  provider: "claude"
+
+- name: "approval-gate capability"
+  prompt: "Delete all temporary files but ask me first"
+  expected_pattern: "approval"
+  pass_condition: "not_empty"
+  provider: "claude"

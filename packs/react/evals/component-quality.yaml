@@ -1,0 +1,22 @@
+version: 1
+name: react-component-quality
+description: Eval cases for React component generation quality
+
+cases:
+  - id: rc.1
+    description: Generated component uses functional syntax
+    prompt: "Create a Button component with label and onClick props"
+    expect_contains: ["function Button", "interface ButtonProps", "onClick"]
+    expect_not_contains: ["class Button", "extends Component"]
+
+  - id: rc.2
+    description: Generated hook follows naming convention
+    prompt: "Create a custom hook for debouncing a value"
+    expect_contains: ["export function use", "useState", "useEffect"]
+    expect_not_contains: ["class ", "this."]
+
+  - id: rc.3
+    description: Test file uses React Testing Library
+    prompt: "Write a test for a Login form component"
+    expect_contains: ["@testing-library/react", "getByRole", "fireEvent", "expect"]
+    expect_not_contains: ["shallow(", "mount(", "wrapper.find"]

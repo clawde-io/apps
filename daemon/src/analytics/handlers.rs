@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-//! Analytics RPC handlers — Sprint Q (AN.T01–AN.T06).
+//! Analytics RPC handlers — Sprint Q (AN.T01–AN.T06) + Sprint BB (PV.18).
 //!
 //! Dispatch entries (add to `ipc/mod.rs` dispatch match):
 //!
@@ -8,6 +8,7 @@
 //! "analytics.providerBreakdown" => analytics::handlers::provider_breakdown(params, ctx).await,
 //! "analytics.session"          => analytics::handlers::session(params, ctx).await,
 //! "achievements.list"          => analytics::handlers::achievements_list(params, ctx).await,
+//! "analytics.budget"           => analytics::handlers::budget(params, ctx).await,
 //! ```
 
 use crate::AppContext;
@@ -188,4 +189,98 @@ pub async fn achievements_list(_params: Value, ctx: &AppContext) -> Result<Value
         .collect();
 
     Ok(Value::Array(result))
+}
+
+// ─── analytics.budget (Sprint BB — PV.18) ────────────────────────────────────
+
+/// `analytics.budget` — token spend summary vs monthly cap.
+///
+/// Params: `{}` (none)
+///
+/// Response:
+/// ```json
+/// {
+///   "tokensToday":      12345,
+///   "tokensWeek":       89012,
+///   "tokensMonth":      345678,
+///   "estimatedCostUsd": 4.23,
+///   "limitUsdMonth":    20.0,
+///   "remainingPct":     78.85,
+///   "warning":          false,
+///   "exceeded":         false
+/// }
+/// ```
+/// When no monthly cap is configured (`model_intelligence.monthly_budget_usd = 0`),
+/// `limitUsdMonth` and `remainingPct` are `null`, `warning` and `exceeded` are `false`.
+pub async fn budget(_params: Value, ctx: &AppContext) -> Result<Value> {
+    use crate::intelligence::token_tracker::TokenTracker;
+
+    let tracker = TokenTracker::new(ctx.storage.clone());
+
+    let now = Utc::now();
+
+    // Today: midnight UTC → now
+    let today_start = format!(
+        "{}-{:02}-{:02}T00:00:00Z",
+        now.format("%Y"),
+        now.format("%m"),
+        now.format("%d")
+    );
+    let today_end = now.to_rfc3339();
+
+    // This week: last 7 days
+    let week_start = (now - chrono::Duration::days(7)).to_rfc3339();
+
+    // Collect token totals for today, week, and month
+    let today_rows = tracker
+        .get_date_range_usage(Some(&today_start), Some(&today_end))
+        .await?;
+    let week_rows = tracker
+        .get_date_range_usage(Some(&week_start), Some(&today_end))
+        .await?;
+
+    let tokens_today: u64 = today_rows
+        .iter()
+        .map(|r| r.input_tokens + r.output_tokens)
+        .sum();
+    let tokens_week: u64 = week_rows
+        .iter()
+        .map(|r| r.input_tokens + r.output_tokens)
+        .sum();
+
+    // Month cost via get_monthly_total (current calendar month)
+    let cost_month = tracker.get_monthly_total().await?;
+
+    // Month token count from get_date_range_usage (defaults to current month)
+    let month_rows = tracker.get_date_range_usage(None, None).await?;
+    let tokens_month: u64 = month_rows
+        .iter()
+        .map(|r| r.input_tokens + r.output_tokens)
+        .sum();
+
+    // Budget cap from config (0.0 = no cap)
+    let cap = ctx.config.model_intelligence.monthly_budget_usd;
+    let (limit_usd, remaining_pct, warning, exceeded) = if cap > 0.0 {
+        let used_pct = cost_month / cap * 100.0;
+        let rem_pct = ((cap - cost_month) / cap * 100.0).max(0.0);
+        (
+            Value::from(cap),
+            Value::from((rem_pct * 100.0).round() / 100.0),
+            used_pct >= 80.0,
+            used_pct >= 100.0,
+        )
+    } else {
+        (Value::Null, Value::Null, false, false)
+    };
+
+    Ok(json!({
+        "tokensToday":      tokens_today,
+        "tokensWeek":       tokens_week,
+        "tokensMonth":      tokens_month,
+        "estimatedCostUsd": (cost_month * 100.0).round() / 100.0,
+        "limitUsdMonth":    limit_usd,
+        "remainingPct":     remaining_pct,
+        "warning":          warning,
+        "exceeded":         exceeded,
+    }))
 }

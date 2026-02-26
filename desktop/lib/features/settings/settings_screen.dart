@@ -504,27 +504,86 @@ class _ProvidersPane extends ConsumerWidget {
 
 // ── Appearance pane ───────────────────────────────────────────────────────────
 
-class _AppearancePane extends StatelessWidget {
+/// Available locales — must match supportedLocales in app.dart.
+const _kLocales = [
+  (code: 'en', label: 'English'),
+  (code: 'fr', label: 'Français'),
+  (code: 'ja', label: '日本語'),
+];
+
+class _AppearancePane extends StatefulWidget {
   const _AppearancePane();
 
   @override
+  State<_AppearancePane> createState() => _AppearancePaneState();
+}
+
+class _AppearancePaneState extends State<_AppearancePane> {
+  // Default to the system locale code, clamped to supported locales.
+  late String _selectedLocale;
+
+  @override
+  void initState() {
+    super.initState();
+    final systemCode = WidgetsBinding.instance.platformDispatcher.locale.languageCode;
+    _selectedLocale = _kLocales.any((l) => l.code == systemCode)
+        ? systemCode
+        : 'en';
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _Header(
+        const _Header(
           title: 'Appearance',
           subtitle: 'Customize the look of ClawDE',
         ),
-        SizedBox(height: 24),
-        _Label('Theme'),
-        SizedBox(height: 10),
-        Row(
+        const SizedBox(height: 24),
+        const _Label('Theme'),
+        const SizedBox(height: 10),
+        const Row(
           children: [
             Icon(Icons.dark_mode, size: 16, color: ClawdTheme.claw),
             SizedBox(width: 8),
             Text('Dark', style: TextStyle(fontSize: 13, color: Colors.white)),
           ],
+        ),
+        const SizedBox(height: 28),
+        const Divider(),
+        const SizedBox(height: 20),
+        const _Label('Language'),
+        const SizedBox(height: 6),
+        const Text(
+          'Choose the display language. Restart required to apply fully.',
+          style: TextStyle(fontSize: 11, color: Colors.white38),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: 260,
+          child: DropdownButtonFormField<String>(
+            initialValue: _selectedLocale,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              contentPadding:
+                  EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            ),
+            items: _kLocales
+                .map(
+                  (l) => DropdownMenuItem(
+                    value: l.code,
+                    child: Text(
+                      '${l.label} (${l.code})',
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: (v) {
+              if (v != null) setState(() => _selectedLocale = v);
+            },
+          ),
         ),
       ],
     );

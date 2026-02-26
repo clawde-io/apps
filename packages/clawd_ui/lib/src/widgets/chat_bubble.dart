@@ -21,41 +21,50 @@ class ChatBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Row(
-        mainAxisAlignment:
-            _isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (!_isUser) _Avatar(role: message.role),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: _isUser
-                    ? ClawdTheme.userBubble
-                    : ClawdTheme.assistantBubble,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(16),
-                  topRight: const Radius.circular(16),
-                  bottomLeft: Radius.circular(_isUser ? 16 : 4),
-                  bottomRight: Radius.circular(_isUser ? 4 : 16),
+    // A11Y.1 — screen reader label for each message bubble.
+    final roleLabel = _isUser ? 'You' : 'Assistant';
+    final contentSnippet = message.content.length > 120
+        ? '${message.content.substring(0, 120)}…'
+        : message.content;
+    return Semantics(
+      label: '$roleLabel: $contentSnippet',
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: Row(
+          mainAxisAlignment:
+              _isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (!_isUser) _Avatar(role: message.role),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: _isUser
+                      ? ClawdTheme.userBubble
+                      : ClawdTheme.assistantBubble,
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(16),
+                    topRight: const Radius.circular(16),
+                    bottomLeft: Radius.circular(_isUser ? 16 : 4),
+                    bottomRight: Radius.circular(_isUser ? 4 : 16),
+                  ),
+                  border: Border.all(color: ClawdTheme.surfaceBorder, width: 1),
                 ),
-                border: Border.all(color: ClawdTheme.surfaceBorder, width: 1),
+                child: _isUser
+                    ? Text(
+                        message.content,
+                        style: const TextStyle(fontSize: 14, height: 1.5),
+                      )
+                    : MarkdownMessage(content: message.content),
               ),
-              child: _isUser
-                  ? Text(
-                      message.content,
-                      style: const TextStyle(fontSize: 14, height: 1.5),
-                    )
-                  : MarkdownMessage(content: message.content),
             ),
-          ),
-          const SizedBox(width: 8),
-          if (_isUser) _Avatar(role: message.role),
-        ],
+            const SizedBox(width: 8),
+            if (_isUser) _Avatar(role: message.role),
+          ],
+        ),
       ),
     );
   }

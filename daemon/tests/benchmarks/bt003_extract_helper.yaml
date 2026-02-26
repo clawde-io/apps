@@ -1,0 +1,19 @@
+# Sprint ZZ EH.T05 — Benchmark task BT.003
+# Refactor: extract a helper function
+id: BT.003
+description: Refactor — extract a helper function
+category: refactor
+expected_turns: 4
+expected_diff_lines: 20
+
+task_prompt: |
+  In src/utils.rs, the function `process_items` has a 30-line inner loop that
+  processes each item individually. Extract the inner loop body into a helper
+  function named `process_single_item(item: &Item) -> ProcessedItem`.
+
+  The existing tests in tests/utils_test.rs must still pass.
+
+success_criteria:
+  - tests_pass: true
+  - function_exists: process_single_item
+  - turns_max: 8

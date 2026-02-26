@@ -1,0 +1,6 @@
+[[automations]]
+name = "tsc-on-session-complete"
+description = "Run TypeScript type check after every AI session"
+trigger = { type = "session_complete" }
+action = { type = "shell", command = "pnpm tsc --noEmit 2>&1 | tail -20" }
+enabled = true

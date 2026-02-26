@@ -4,6 +4,7 @@
 // Module root for pack management: model, storage, installer, signing, handlers.
 
 pub mod handlers;
+pub mod install_token;
 pub mod installer;
 pub mod model;
 pub mod signing;

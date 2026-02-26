@@ -31,9 +31,65 @@ The daemon runs SQLite migrations automatically on startup. Migrations are:
 
 You do not need to do anything. The daemon handles migrations.
 
-## Rollback
+### Auto-Backup Before Migrations
 
-If you need to downgrade to a previous version:
+Starting with v0.2.1, the daemon automatically backs up the database before running migrations:
+
+- **Backup location**: `~/.clawd/backups/clawd-{version}.db`
+- One backup per version — re-running the same version does not overwrite the backup
+- On fresh install (no existing database), no backup is created
+
+To find your backups:
+
+```bash
+ls ~/.clawd/backups/
+# clawd-0.2.1.db  clawd-0.2.0.db  …
+```
+
+## Recovery Mode
+
+If a migration failure prevents the daemon from starting normally, start in recovery mode:
+
+```bash
+clawd --no-migrate
+```
+
+In recovery mode:
+- Database migrations are **skipped**
+- `daemon.status` returns `recoveryMode: true`
+- The Flutter desktop app shows a recovery overlay with retry and rollback options
+- Your existing data is safe — nothing is modified
+
+### Recovery Steps
+
+1. Start in recovery mode: `clawd --no-migrate`
+2. Connect with the desktop app — it shows the recovery overlay
+3. Options from the recovery overlay:
+   - **Retry migration**: Restart normally (`clawd`) after the issue is resolved
+   - **Rollback**: Restore from a pre-migration backup (see below)
+
+### Manual Rollback via Backup
+
+To restore a previous database after a failed migration:
+
+```bash
+clawd stop
+
+# Find available backups
+ls ~/.clawd/backups/
+
+# Restore the backup you want (replace version as needed)
+cp ~/.clawd/backups/clawd-0.2.0.db ~/.clawd/clawd.db
+
+# Downgrade the binary (if needed)
+brew install clawd@0.2.0   # or download from GitHub Releases
+
+clawd start
+```
+
+## Rollback (Binary Only)
+
+If you need to downgrade to a previous version without a migration issue:
 
 1. Stop the daemon: `clawd stop`
 2. Install the previous binary

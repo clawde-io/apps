@@ -143,6 +143,11 @@ impl TaskStorage {
         Self { pool }
     }
 
+    /// Expose the pool for direct queries (genealogy, confidence, etc.).
+    pub fn pool(&self) -> &SqlitePool {
+        &self.pool
+    }
+
     // ─── Tasks ────────────────────────────────────────────────────────────────
 
     pub async fn list_tasks(&self, params: &TaskListParams) -> Result<Vec<AgentTaskRow>> {
@@ -297,6 +302,7 @@ impl TaskStorage {
         }
 
         // Allow re-claim of interrupted tasks by any agent.
+        // LH.T04: Also allow claiming tasks with expired leases (lease_expires_at < now).
         let rows_affected = sqlx::query(
             "UPDATE agent_tasks
              SET status = 'in_progress',
@@ -306,8 +312,12 @@ impl TaskStorage {
                  last_heartbeat = ?,
                  updated_at = ?
              WHERE id = ?
-               AND (status = 'pending' OR status = 'interrupted')
-               AND (claimed_by IS NULL OR status = 'interrupted')",
+               AND (
+                   (status = 'pending' OR status = 'interrupted')
+                   AND (claimed_by IS NULL OR status = 'interrupted')
+                   OR
+                   (status = 'claimed' AND lease_expires_at IS NOT NULL AND lease_expires_at < ?)
+               )",
         )
         .bind(agent_id)
         .bind(now)
@@ -315,12 +325,52 @@ impl TaskStorage {
         .bind(now)
         .bind(now)
         .bind(task_id)
+        .bind(now) // LH.T04: lease_expires_at < now check
         .execute(&self.pool)
         .await?
         .rows_affected();
 
         if rows_affected == 0 {
             return Err(anyhow!("TASK_CODE:{}", TASK_ALREADY_CLAIMED));
+        }
+
+        // FO.T05 — Conflict detection at claim time: warn if owned_paths overlap
+        // with any other currently-active task.
+        let new_paths_json: Option<String> =
+            sqlx::query_scalar("SELECT owned_paths_json FROM agent_tasks WHERE id = ?")
+                .bind(task_id)
+                .fetch_optional(&self.pool)
+                .await
+                .unwrap_or(None)
+                .flatten();
+
+        if let Some(ref new_paths) = new_paths_json {
+            if new_paths != "[]" && new_paths != "null" {
+                let active_tasks: Vec<(String, String)> = sqlx::query_as(
+                    "SELECT id, owned_paths_json FROM agent_tasks \
+                     WHERE status IN ('claimed', 'in_progress', 'active') \
+                       AND id != ? AND owned_paths_json IS NOT NULL",
+                )
+                .bind(task_id)
+                .fetch_all(&self.pool)
+                .await
+                .unwrap_or_default();
+
+                for (other_id, other_paths) in &active_tasks {
+                    let overlaps = crate::tasks::ownership::check_ownership_overlap(
+                        new_paths,
+                        other_paths,
+                    );
+                    if !overlaps.is_empty() {
+                        tracing::warn!(
+                            task_id,
+                            other_task_id = %other_id,
+                            conflicts = ?overlaps,
+                            "FO.T05: owned-paths conflict at claim time"
+                        );
+                    }
+                }
+            }
         }
 
         self.get_task(task_id)

@@ -13,6 +13,8 @@ name: macOS Notarize (PENDING CERT)
 # Enable: remove the `if: false` condition from the notarize job.
 
 on:
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       version:
@@ -23,12 +25,26 @@ on:
 jobs:
   notarize:
     name: Notarize macOS App
-    # DISABLED — remove this condition once Apple Developer cert is provisioned
-    if: false
     runs-on: macos-latest
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Check required secrets
+        env:
+          CERT: ${{ secrets.APPLE_DEVELOPER_CERT_BASE64 }}
+          TEAM: ${{ secrets.APPLE_TEAM_ID }}
+          KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+        run: |
+          missing=()
+          [[ -z "${CERT}" ]]   && missing+=(APPLE_DEVELOPER_CERT_BASE64)
+          [[ -z "${TEAM}" ]]   && missing+=(APPLE_TEAM_ID)
+          [[ -z "${KEY_ID}" ]] && missing+=(APPLE_NOTARY_KEY_ID)
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "Missing secrets: ${missing[*]}"
+            echo "Add Apple Developer certs per NOTARY.1-4 to enable notarization."
+            exit 1
+          fi
 
       - name: Import signing certificate
         run: |

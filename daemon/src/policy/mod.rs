@@ -33,6 +33,7 @@ pub mod sandbox;
 pub mod scanners;
 pub mod secrets;
 pub mod supply_chain;
+pub mod tester;
 
 // ─── Top-level re-exports ─────────────────────────────────────────────────────
 

@@ -64,6 +64,16 @@ struct Args {
     /// unaffected. Use this flag when piping output to other tools.
     #[arg(long, short = 'q', global = true)]
     quiet: bool,
+
+    /// Skip database migrations and start in recovery mode (UX.2 — Sprint BB).
+    ///
+    /// Use when a migration failure prevents the daemon from starting normally.
+    /// `daemon.status` reports `recoveryMode: true`; Flutter clients show a
+    /// recovery overlay with retry / rollback options.
+    ///
+    /// Pre-migration backups live in `{data_dir}/backups/`.
+    #[arg(long, env = "CLAWD_NO_MIGRATE")]
+    no_migrate: bool,
 }
 
 #[derive(Subcommand)]
@@ -258,6 +268,239 @@ enum Command {
         #[command(subcommand)]
         cmd: AccountCmd,
     },
+    /// Produce a keyless Sigstore / cosign attestation for an autonomous run (SIG.1 — Sprint BB).
+    ///
+    /// Signs the task output + worktree HEAD SHA with an ambient OIDC identity
+    /// (GitHub Actions, Google, etc.) and publishes to the Sigstore transparency log.
+    /// Requires `cosign` on PATH (brew install cosign).
+    ///
+    /// Examples:
+    ///   clawd sign-run --task-id SP1.T3 --sha abc123 --notes "done"
+    ///   clawd sign-run --task-id SP1.T3 --sha abc123
+    SignRun {
+        /// Task ID to attest.
+        #[arg(long)]
+        task_id: String,
+        /// Worktree HEAD SHA (git commit hash of the completed work).
+        #[arg(long)]
+        sha: String,
+        /// Completion notes (optional — describes what was done).
+        #[arg(long, default_value = "")]
+        notes: String,
+    },
+    /// Interactive AI chat in the terminal (Sprint II CH.1).
+    ///
+    /// Connects to the running daemon and starts an interactive AI session
+    /// directly in your terminal. Use --resume to continue an existing session
+    /// or --non-interactive for single-shot scripting.
+    ///
+    /// Examples:
+    ///   clawd chat
+    ///   clawd chat --resume <session-id>
+    ///   clawd chat --session-list
+    ///   clawd chat --non-interactive "What does this code do?"
+    Chat {
+        /// Resume an existing session by ID.
+        #[arg(long)]
+        resume: Option<String>,
+        /// List recent sessions and pick one interactively.
+        #[arg(long)]
+        session_list: bool,
+        /// Single-shot non-interactive query — print response and exit.
+        #[arg(long, value_name = "PROMPT")]
+        non_interactive: Option<String>,
+        /// AI provider to use when creating a new session (default: claude).
+        #[arg(long, default_value = "claude")]
+        provider: String,
+    },
+    /// Ask the AI to explain a file, code range, stdin, or error message (Sprint II EX.1).
+    ///
+    /// Creates an ephemeral AI session, sends the code/error as context, and
+    /// streams the explanation to the terminal. The session is not saved.
+    ///
+    /// Examples:
+    ///   clawd explain src/main.rs
+    ///   clawd explain src/main.rs --line 42
+    ///   clawd explain src/main.rs --lines 40-60
+    ///   clawd explain --stdin
+    ///   clawd explain --error "E0308: mismatched types"
+    ///   clawd explain src/lib.rs --format json
+    Explain {
+        /// File to explain (positional).
+        file: Option<std::path::PathBuf>,
+        /// Focus on a specific line number (1-based).
+        #[arg(long)]
+        line: Option<u32>,
+        /// Focus on a line range, e.g. "40-60".
+        #[arg(long)]
+        lines: Option<String>,
+        /// Read code from stdin.
+        #[arg(long)]
+        stdin: bool,
+        /// Explain an error message string.
+        #[arg(long)]
+        error: Option<String>,
+        /// Output format: text (default) or json.
+        #[arg(long, default_value = "text")]
+        format: String,
+        /// AI provider to use (default: claude).
+        #[arg(long, default_value = "claude")]
+        provider: String,
+    },
+    /// Manage instruction graph nodes (Sprint ZZ IG / IL).
+    ///
+    /// Compile, lint, explain, import, and snapshot project instructions.
+    ///
+    /// Examples:
+    ///   clawd instructions compile
+    ///   clawd instructions compile --dry-run
+    ///   clawd instructions lint --ci
+    ///   clawd instructions explain --path .
+    ///   clawd instructions import
+    ///   clawd instructions snapshot --check
+    ///   clawd instructions doctor
+    Instructions {
+        #[command(subcommand)]
+        action: InstructionsAction,
+    },
+    /// Run policy YAML tests (Sprint ZZ PT.T02).
+    ///
+    /// Validates that the daemon policy engine accepts/denies the right commands.
+    ///
+    /// Examples:
+    ///   clawd policy test
+    ///   clawd policy test --file .clawd/tests/policy/custom.yaml
+    ///   clawd policy test --ci
+    ///   clawd policy seed
+    Policy {
+        #[command(subcommand)]
+        action: PolicyAction,
+    },
+    /// Run and compare benchmark tasks (Sprint ZZ EH.T03/T04).
+    ///
+    /// Runs benchmark tasks against the daemon and compares pass rates.
+    ///
+    /// Examples:
+    ///   clawd bench run --task BT.001
+    ///   clawd bench compare
+    ///   clawd bench compare --base-ref abc123
+    ///   clawd bench seed
+    Bench {
+        #[command(subcommand)]
+        action: BenchAction,
+    },
+    /// Observe OpenTelemetry trace for a session (Sprint ZZ OT.T06).
+    ///
+    /// Pretty-prints the trace tree for a completed session.
+    ///
+    /// Examples:
+    ///   clawd observe --session <session-id>
+    Observe {
+        /// Session ID to inspect
+        #[arg(long)]
+        session: String,
+    },
+    /// List provider capability matrix (Sprint ZZ MP.T04).
+    ///
+    /// Shows what each AI provider supports (sessions, MCP, worktrees, cost).
+    ///
+    /// Examples:
+    ///   clawd providers
+    Providers,
+    /// Show diff risk score for the current worktree (Sprint ZZ DR.T04).
+    ///
+    /// Scores each changed file by criticality and churn.
+    ///
+    /// Examples:
+    ///   clawd diff-risk
+    ///   clawd diff-risk --path /path/to/worktree
+    DiffRisk {
+        /// Worktree path (default: current directory)
+        #[arg(long)]
+        path: Option<std::path::PathBuf>,
+    },
+}
+
+#[derive(Subcommand)]
+enum InstructionsAction {
+    /// Compile instruction nodes to CLAUDE.md / AGENTS.md.
+    Compile {
+        #[arg(long, default_value = "claude")]
+        target: String,
+        #[arg(long, default_value = ".")]
+        project: std::path::PathBuf,
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Explain effective instructions for a directory path.
+    Explain {
+        #[arg(long, default_value = ".")]
+        path: std::path::PathBuf,
+    },
+    /// Lint instruction nodes.
+    Lint {
+        #[arg(long, default_value = ".")]
+        project: std::path::PathBuf,
+        #[arg(long)]
+        ci: bool,
+    },
+    /// Import .claude/rules/ files as instruction nodes.
+    Import {
+        #[arg(long, default_value = ".")]
+        project: std::path::PathBuf,
+    },
+    /// Create or check a golden instruction snapshot.
+    Snapshot {
+        #[arg(long, default_value = ".")]
+        path: std::path::PathBuf,
+        #[arg(long)]
+        output: Option<std::path::PathBuf>,
+        #[arg(long)]
+        check: bool,
+    },
+    /// Validate compiled instruction files (doctor check).
+    Doctor {
+        #[arg(long, default_value = ".")]
+        project: std::path::PathBuf,
+    },
+}
+
+#[derive(Subcommand)]
+enum PolicyAction {
+    /// Run policy tests.
+    Test {
+        #[arg(long)]
+        file: Option<String>,
+        #[arg(long, default_value = ".")]
+        project: std::path::PathBuf,
+        #[arg(long)]
+        ci: bool,
+    },
+    /// Install seed policy test file.
+    Seed {
+        #[arg(long, default_value = ".")]
+        project: std::path::PathBuf,
+    },
+}
+
+#[derive(Subcommand)]
+enum BenchAction {
+    /// Run a benchmark task.
+    Run {
+        #[arg(long)]
+        task: String,
+        #[arg(long, default_value = "claude")]
+        provider: String,
+    },
+    /// Compare current benchmark results against a baseline.
+    Compare {
+        #[arg(long)]
+        base_ref: Option<String>,
+        #[arg(long, default_value = "claude")]
+        provider: String,
+    },
+    /// Install seed benchmark tasks.
+    Seed,
 }
 
 #[derive(Subcommand)]
@@ -744,6 +987,144 @@ async fn main() -> Result<()> {
                 DaemonConfig::new(None, args.data_dir, Some("error".to_string()), None, None);
             run_account(&config, cmd).await?;
         }
+        Some(Command::SignRun { task_id, sha, notes }) => {
+            let config =
+                DaemonConfig::new(None, args.data_dir, Some("error".to_string()), None, None);
+            clawd::cli::sign_run::run_sign_run_cli(
+                &task_id,
+                &sha,
+                &notes,
+                &config.data_dir,
+            )?;
+        }
+        Some(Command::Chat {
+            resume,
+            session_list,
+            non_interactive,
+            provider,
+        }) => {
+            let config =
+                DaemonConfig::new(None, args.data_dir, Some("error".to_string()), None, None);
+            let opts = clawd::cli::chat::ChatOpts {
+                resume,
+                session_list,
+                non_interactive,
+                provider: Some(provider),
+            };
+            clawd::cli::chat::run_chat(opts, &config).await?;
+        }
+        Some(Command::Explain {
+            file,
+            line,
+            lines,
+            stdin,
+            error,
+            format,
+            provider,
+        }) => {
+            let config =
+                DaemonConfig::new(None, args.data_dir, Some("error".to_string()), None, None);
+            let fmt = if format == "json" {
+                clawd::cli::explain::ExplainFormat::Json
+            } else {
+                clawd::cli::explain::ExplainFormat::Text
+            };
+            let opts = clawd::cli::explain::ExplainOpts {
+                file,
+                line,
+                lines,
+                stdin,
+                error,
+                format: fmt,
+                provider: Some(provider),
+            };
+            clawd::cli::explain::run_explain(opts, &config).await?;
+        }
+        Some(Command::Instructions { action }) => {
+            let config =
+                DaemonConfig::new(None, args.data_dir, Some("error".to_string()), None, None);
+            let port = config.port;
+            let data_dir = config.data_dir.clone();
+            match action {
+                InstructionsAction::Compile { target, project, dry_run } => {
+                    let opts = clawd::cli::instructions::CompileOpts {
+                        target,
+                        project,
+                        dry_run,
+                    };
+                    clawd::cli::instructions::compile(opts, &data_dir, port).await?;
+                }
+                InstructionsAction::Explain { path } => {
+                    clawd::cli::instructions::explain(path, &data_dir, port).await?;
+                }
+                InstructionsAction::Lint { project, ci } => {
+                    clawd::cli::instructions::lint(project, ci, &data_dir, port).await?;
+                }
+                InstructionsAction::Import { project } => {
+                    clawd::cli::instructions::import(project, &data_dir, port).await?;
+                }
+                InstructionsAction::Snapshot { path, output, check } => {
+                    clawd::cli::instructions::snapshot(path, output, check, &data_dir, port).await?;
+                }
+                InstructionsAction::Doctor { project } => {
+                    clawd::cli::instructions::doctor(project, &data_dir, port).await?;
+                }
+            }
+        }
+        Some(Command::Policy { action }) => {
+            let config =
+                DaemonConfig::new(None, args.data_dir, Some("error".to_string()), None, None);
+            let port = config.port;
+            let data_dir = config.data_dir.clone();
+            match action {
+                PolicyAction::Test { file, project: _, ci } => {
+                    clawd::cli::policy::test(file.map(std::path::PathBuf::from), ci, &data_dir, port).await?;
+                }
+                PolicyAction::Seed { project } => {
+                    clawd::cli::policy::install_seed_tests(&project).await?;
+                }
+            }
+        }
+        Some(Command::Bench { action }) => {
+            let config =
+                DaemonConfig::new(None, args.data_dir, Some("error".to_string()), None, None);
+            let port = config.port;
+            let data_dir = config.data_dir.clone();
+            match action {
+                BenchAction::Run { task, provider } => {
+                    clawd::cli::bench::run(Some(task), Some(provider), &data_dir, port).await?;
+                }
+                BenchAction::Compare { base_ref, provider: _ } => {
+                    let br = base_ref.unwrap_or_else(|| "HEAD~1".to_string());
+                    clawd::cli::bench::compare(br, &data_dir, port).await?;
+                }
+                BenchAction::Seed => {
+                    // Seed via RPC
+                    let token = clawd::cli::client::read_auth_token(&data_dir)?;
+                    let client = clawd::cli::client::DaemonClient::new(port, token);
+                    let res = client.call_once("bench.seedTasks", serde_json::json!({})).await?;
+                    let created = res["created"].as_u64().unwrap_or(0);
+                    let skipped = res["skipped"].as_u64().unwrap_or(0);
+                    println!("Seed complete: {created} tasks created, {skipped} already present.");
+                }
+            }
+        }
+        Some(Command::Observe { session }) => {
+            let config =
+                DaemonConfig::new(None, args.data_dir, Some("error".to_string()), None, None);
+            clawd::cli::observe::observe(session, &config.data_dir, config.port).await?;
+        }
+        Some(Command::Providers) => {
+            let config =
+                DaemonConfig::new(None, args.data_dir, Some("error".to_string()), None, None);
+            clawd::cli::providers::list_capabilities(&config.data_dir, config.port).await?;
+        }
+        Some(Command::DiffRisk { path }) => {
+            let config =
+                DaemonConfig::new(None, args.data_dir, Some("error".to_string()), None, None);
+            let worktree = path.unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+            clawd::cli::diff_risk::diff_risk_score(worktree, &config.data_dir, config.port).await?;
+        }
         None | Some(Command::Serve) => {
             run_server(
                 args.port,
@@ -751,6 +1132,7 @@ async fn main() -> Result<()> {
                 args.log,
                 args.max_sessions,
                 args.bind_address,
+                args.no_migrate,
             )
             .await?;
         }
@@ -1800,6 +2182,7 @@ async fn run_server(
     log: Option<String>,
     max_sessions: Option<usize>,
     bind_address: Option<String>,
+    no_migrate: bool,
 ) -> Result<()> {
     // Warn when a non-default port is used (dev-only scenario per F55.5.01).
     if let Some(p) = port {
@@ -1858,13 +2241,15 @@ async fn run_server(
         }
     }
 
-    let storage = Arc::new(
+    let storage = Arc::new(if no_migrate {
+        clawd::storage::Storage::new_no_migrate(&config.data_dir).await?
+    } else {
         Storage::new_with_slow_query(
             &config.data_dir,
             config.observability.slow_query_threshold_ms,
         )
-        .await?,
-    );
+        .await?
+    });
 
     // ── Apply SQLite WAL tuning (Sprint Z — Z.3) ─────────────────────────────
     if let Err(e) = clawd::perf::wal_tuning::apply_wal_tuning(&storage.pool()).await {
@@ -2025,7 +2410,19 @@ async fn run_server(
         metrics: std::sync::Arc::new(clawd::metrics::DaemonMetrics::new()),
         version_watcher: version_watcher.clone(),
         ide_bridge: clawd::ide::new_shared_bridge(),
+        provider_sessions: clawd::agents::provider_session::new_shared_registry(),
+        recovery_mode: no_migrate,
+        automation_engine: clawd::automations::engine::AutomationEngine::new(
+            clawd::automations::builtins::all(),
+        ),
     });
+
+    // ── Spawn automation engine dispatcher (Sprint CC CA.1) ──────────────────
+    {
+        let engine = Arc::clone(&ctx.automation_engine);
+        let ctx_for_auto = (**ctx).clone();
+        clawd::automations::engine::AutomationEngine::start_dispatcher(engine, ctx_for_auto);
+    }
 
     // ── Spawn version bump watcher (D64.T16) ─────────────────────────────────
     version_watcher.spawn();
@@ -2043,6 +2440,12 @@ async fn run_server(
     {
         let ts = task_storage.clone();
         tokio::spawn(clawd::tasks::jobs::run_activity_log_pruner(ts, 30));
+    }
+
+    // ── Lease janitor — release expired task leases every 30s (LH.T03) ─────
+    {
+        let storage = ctx.storage.clone();
+        tokio::spawn(clawd::tasks::janitor::run_lease_janitor(storage));
     }
 
     // ── Background drift scanner (V02.T25) ───────────────────────────────────

@@ -1,0 +1,43 @@
+name: feature-to-pr
+description: Complete feature branch workflow — branch, implement, test, PR
+
+steps:
+  - id: create-branch
+    name: Create feature branch
+    action:
+      type: shell
+      command: "git checkout -b feat/{{ticket_id}}-{{feature_slug}}"
+
+  - id: implement
+    name: Implement feature
+    prompt: |
+      Implement: {{task_description}}
+      Ticket: {{ticket_id}}
+      Follow the project conventions in memory/.
+    wait_for_approval: false
+
+  - id: test
+    name: Run tests
+    action:
+      type: shell
+      command: "{{test_command}}"
+
+  - id: commit
+    name: Commit changes
+    action:
+      type: shell
+      command: "git add -p && git commit -m 'feat({{scope}}): {{task_description}}'"
+
+  - id: push
+    name: Push branch
+    action:
+      type: shell
+      command: "git push -u origin HEAD"
+
+  - id: open-pr
+    name: Open pull request
+    prompt: |
+      Write a pull request description for the feature you just implemented.
+      Include: what changed, why, and how to test it.
+      Use Conventional Commits style for the PR title.
+    wait_for_approval: true

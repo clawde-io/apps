@@ -1,0 +1,42 @@
+name: tdd
+description: Test-Driven Development workflow — write failing test first, then implement
+
+steps:
+  - id: write-test
+    name: Write failing test
+    description: Write a test for the target behavior. Run it — confirm it fails (red).
+    prompt: |
+      Write a failing test for: {{task_description}}
+      - Follow the AAA pattern (Arrange, Act, Assert)
+      - Use the naming convention: test_{unit}_{condition}_{expected}
+      - Do NOT implement the function yet
+    wait_for_approval: false
+
+  - id: run-tests-red
+    name: Confirm test fails
+    action:
+      type: shell
+      command: "{{test_command}} 2>&1 | tail -15"
+
+  - id: implement
+    name: Implement minimum code to pass
+    description: Write the simplest implementation that makes the test pass. No gold-plating.
+    prompt: |
+      The test is failing. Now implement the minimum code to make it pass.
+      Target function/module: {{task_description}}
+      Do not add features beyond what the test requires.
+    wait_for_approval: false
+
+  - id: run-tests-green
+    name: Confirm test passes
+    action:
+      type: shell
+      command: "{{test_command}} 2>&1 | tail -15"
+
+  - id: refactor
+    name: Refactor
+    description: Clean up the implementation. All tests must still pass.
+    prompt: |
+      Tests are passing. Now refactor the implementation for clarity and maintainability.
+      Do not change behavior — only clean up structure, naming, and duplication.
+    wait_for_approval: false

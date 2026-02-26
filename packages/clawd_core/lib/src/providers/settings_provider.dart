@@ -6,6 +6,8 @@ const _kDaemonUrl = 'settings.daemon_url';
 const _kDefaultProvider = 'settings.default_provider';
 const _kAutoReconnect = 'settings.auto_reconnect';
 const _kTheme = 'settings.theme';
+const _kBackgroundMode = 'settings.background_mode';
+const _kStartAtLogin = 'settings.start_at_login';
 
 const _defaultDaemonUrl = 'ws://127.0.0.1:4300';
 const _defaultTheme = 'dark';
@@ -15,12 +17,18 @@ class AppSettings {
   final ProviderType defaultProvider;
   final bool autoReconnect;
   final String theme;
+  /// Keep daemon running when the app window is closed. Default: true.
+  final bool backgroundMode;
+  /// Launch the daemon automatically at login via the OS service manager. Default: false.
+  final bool startAtLogin;
 
   const AppSettings({
     this.daemonUrl = _defaultDaemonUrl,
     this.defaultProvider = ProviderType.claude,
     this.autoReconnect = true,
     this.theme = _defaultTheme,
+    this.backgroundMode = true,
+    this.startAtLogin = false,
   });
 
   AppSettings copyWith({
@@ -28,12 +36,16 @@ class AppSettings {
     ProviderType? defaultProvider,
     bool? autoReconnect,
     String? theme,
+    bool? backgroundMode,
+    bool? startAtLogin,
   }) =>
       AppSettings(
         daemonUrl: daemonUrl ?? this.daemonUrl,
         defaultProvider: defaultProvider ?? this.defaultProvider,
         autoReconnect: autoReconnect ?? this.autoReconnect,
         theme: theme ?? this.theme,
+        backgroundMode: backgroundMode ?? this.backgroundMode,
+        startAtLogin: startAtLogin ?? this.startAtLogin,
       );
 }
 
@@ -53,6 +65,8 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
       }(),
       autoReconnect: prefs.getBool(_kAutoReconnect) ?? true,
       theme: prefs.getString(_kTheme) ?? _defaultTheme,
+      backgroundMode: prefs.getBool(_kBackgroundMode) ?? true,
+      startAtLogin: prefs.getBool(_kStartAtLogin) ?? false,
     );
   }
 
@@ -78,6 +92,18 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kTheme, theme);
     state = AsyncValue.data((state.valueOrNull ?? const AppSettings()).copyWith(theme: theme));
+  }
+
+  Future<void> setBackgroundMode(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kBackgroundMode, value);
+    state = AsyncValue.data((state.valueOrNull ?? const AppSettings()).copyWith(backgroundMode: value));
+  }
+
+  Future<void> setStartAtLogin(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kStartAtLogin, value);
+    state = AsyncValue.data((state.valueOrNull ?? const AppSettings()).copyWith(startAtLogin: value));
   }
 }
 

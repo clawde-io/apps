@@ -23,6 +23,10 @@ pub async fn search(params: Value, ctx: &AppContext) -> Result<Value> {
     crate::packs::handlers::pack_search(params, ctx).await
 }
 
+pub async fn publish(params: Value, ctx: &AppContext) -> Result<Value> {
+    crate::packs::handlers::pack_publish(params, ctx).await
+}
+
 pub async fn list_installed(params: Value, ctx: &AppContext) -> Result<Value> {
     crate::packs::handlers::pack_list_installed(params, ctx).await
 }

@@ -1,0 +1,10 @@
+{
+  "name": "auto-test",
+  "version": "0.1.0",
+  "description": "WASM plugin — runs tests automatically on every task_done event",
+  "author": "clawde-io",
+  "runtime": "wasm",
+  "entry": "auto_test.wasm",
+  "capabilities": ["fs.read", "daemon.rpc"],
+  "signature": ""
+}

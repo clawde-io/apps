@@ -585,6 +585,8 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
         "daemon.setUpdatePolicy" => handlers::daemon::set_update_policy(params, ctx).await,
         "daemon.checkProvider" => handlers::provider::check_provider(params, ctx).await,
         "daemon.providers" => handlers::daemon::providers(params, ctx).await,
+        // Sprint BB UX.3
+        "daemon.changelog" => handlers::daemon::changelog(params, ctx).await,
         "repo.list" => handlers::repo::list(params, ctx).await,
         "repo.open" => handlers::repo::open(params, ctx).await,
         "repo.close" => handlers::repo::close(params, ctx).await,
@@ -803,6 +805,7 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
         "packs.update" => handlers::packs::update(params, ctx).await,
         "packs.remove" => handlers::packs::remove(params, ctx).await,
         "packs.search" => handlers::packs::search(params, ctx).await,
+        "packs.publish" => handlers::packs::publish(params, ctx).await,
         "packs.list" => handlers::packs::list_installed(params, ctx).await,
 
         // ─── Sprint N: Multi-Repo Orchestration ───────────────────────────────
@@ -838,6 +841,64 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
         "analytics.achievements" => {
             crate::analytics::handlers::achievements_list(params, ctx).await
         }
+        // Sprint BB PV.18
+        "analytics.budget" => crate::analytics::handlers::budget(params, ctx).await,
+
+        // Sprint BC DL.3 — dead-letter queue
+        "dead_letter.list" => handlers::dead_letter::list(params, ctx).await,
+        "dead_letter.retry" => handlers::dead_letter::retry(params, ctx).await,
+
+        // ─── Sprint CC: Quality Infrastructure ───────────────────────────────
+        // CA — Task Automations
+        "automation.list" => handlers::automations::list(params, ctx).await,
+        "automation.trigger" => handlers::automations::trigger(params, ctx).await,
+        "automation.disable" => handlers::automations::disable(params, ctx).await,
+        // EV — Session Evals
+        "eval.list" => handlers::evals::eval_list(params, ctx).await,
+        "eval.run" => handlers::evals::eval_run(params, ctx).await,
+        // TG — Task Genealogy
+        "task.spawn" => handlers::tasks::spawn(params, &ctx).await,
+        "task.lineage" => handlers::tasks::lineage(params, &ctx).await,
+        // AM — Attention Map
+        "session.attentionMap" => handlers::session::attention_map(params, ctx).await,
+        // IE — Intent vs Execution
+        "session.intentSummary" => handlers::session::intent_summary(params, ctx).await,
+        // GD — Ghost Diff
+        "ghost_diff.check" => handlers::ghost_diff::check(params, ctx).await,
+
+        // ─── Sprint DD: Workflow Recipes ──────────────────────────────────────
+        "workflow.create" => handlers::workflow::create(params, ctx).await,
+        "workflow.list" => handlers::workflow::list(params, ctx).await,
+        "workflow.run" => handlers::workflow::run(params, ctx).await,
+        "workflow.delete" => handlers::workflow::delete(params, ctx).await,
+
+        // ─── Sprint DD: Tool Sovereignty ──────────────────────────────────────
+        "sovereignty.report" => handlers::sovereignty::report(params, ctx).await,
+        "sovereignty.events" => handlers::sovereignty::events(params, ctx).await,
+
+        // ─── Sprint DD: Project Pulse ─────────────────────────────────────────
+        "project.pulse" => handlers::pulse::pulse(params, ctx).await,
+
+        // ─── Sprint DD: Session Replay ────────────────────────────────────────
+        "session.export" => handlers::replay::export(params, ctx).await,
+        "session.import" => handlers::replay::import_bundle(params, ctx).await,
+        "session.replay" => handlers::replay::replay(params, ctx).await,
+
+        // ─── Sprint DD: Natural Language Git ─────────────────────────────────
+        "git.query" => handlers::nl_git::query(params, ctx).await,
+
+        // ─── Sprint EE: CI Runner ─────────────────────────────────────────────
+        "ci.run" => handlers::ci::run(params, ctx).await,
+        "ci.status" => handlers::ci::status(params, ctx).await,
+        "ci.cancel" => handlers::ci::cancel(params, ctx).await,
+
+        // ─── Sprint EE: Session Sharing ───────────────────────────────────────
+        "session.share" => handlers::session_share::share(params, ctx).await,
+        "session.revokeShare" => handlers::session_share::revoke_share(params, ctx).await,
+        "session.shareList" => handlers::session_share::share_list(params, ctx).await,
+
+        // ─── Sprint EE: Daily Digest ──────────────────────────────────────────
+        "digest.today" => handlers::digest::today(params, ctx).await,
 
         // ─── Sprint S: LSP + VS Code compatibility ────────────────────────────
         "lsp.start" => crate::lsp::handlers::lsp_start(params, ctx).await,
@@ -861,6 +922,115 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
         "ide.syncSettings" => crate::ide::handlers::sync_settings(params, ctx).await,
         "ide.listConnections" => crate::ide::handlers::list_connections(params, ctx).await,
         "ide.latestContext" => crate::ide::handlers::latest_context(params, ctx).await,
+
+        // ─── Sprint JJ: Direct + VPN Connectivity ────────────────────────────
+        "connectivity.status" => handlers::connectivity::status(params, ctx).await,
+
+        // ─── Sprint OO: AI Memory + Personalization ───────────────────────────
+        "memory.list" => handlers::memory::list(params, ctx).await,
+        "memory.add" => handlers::memory::add(params, ctx).await,
+        "memory.remove" => handlers::memory::remove(params, ctx).await,
+        "memory.update" => handlers::memory::update(params, ctx).await,
+
+        // ─── Sprint PP: Observability + Metrics ─────────────────────────────
+        "metrics.list" => handlers::metrics::list(params, ctx).await,
+        "metrics.summary" => handlers::metrics::summary(params, ctx).await,
+        "metrics.rollups" => handlers::metrics::rollups(params, ctx).await,
+
+        // ─── Sprint RR: Push notifications ──────────────────────────────────
+        "push.register" => handlers::push::register(ctx, params).await,
+        "push.unregister" => handlers::push::unregister(ctx, params).await,
+
+        // ─── Sprint TT: Pack ratings ─────────────────────────────────────────
+        "pack.rate" => handlers::pack_ratings::rate(ctx, params).await,
+
+        // ─── Sprint ZZ: Agent OS ──────────────────────────────────────────────
+        // Instruction graph
+        "instructions.compile" => handlers::instructions::compile(ctx, params).await,
+        "instructions.explain" => handlers::instructions::explain(ctx, params).await,
+        "instructions.budgetReport" => handlers::instructions::budget_report(ctx, params).await,
+        "instructions.import" => handlers::instructions::import_project(ctx, params).await,
+        "instructions.lint" => handlers::instructions::lint(ctx, params).await,
+        "instructions.propose" => handlers::instructions::propose(ctx, params).await,
+        "instructions.accept" => handlers::instructions::accept(ctx, params).await,
+        "instructions.dismiss" => handlers::instructions::dismiss(ctx, params).await,
+        "instructions.snapshot" => handlers::instructions::snapshot(ctx, params).await,
+        "instructions.snapshotCheck" => handlers::instructions::snapshot_check(ctx, params).await,
+        "instructions.doctor" => handlers::instructions::doctor(ctx, params).await,
+        // Lease heartbeat + ownership (LH.T02, FO.T04)
+        "task.heartbeat" => {
+            let task_id = params["task_id"].as_str().unwrap_or("").to_string();
+            let extend_secs = params["extend_secs"].as_i64().unwrap_or(300);
+            let new_expires = crate::tasks::janitor::extend_lease(&ctx.storage, &task_id, extend_secs).await?;
+            Ok(serde_json::json!({ "task_id": task_id, "lease_expires_at": new_expires }))
+        },
+        "task.expandOwnership" => {
+            let task_id = params["task_id"].as_str()
+                .ok_or_else(|| anyhow::anyhow!("missing task_id"))?.to_string();
+            let new_patterns: Vec<String> = params["patterns"]
+                .as_array()
+                .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                .unwrap_or_default();
+            let ownership = crate::tasks::ownership::OwnershipStorage::new(&ctx.storage);
+            let expanded = ownership.expand_ownership(&task_id, &new_patterns).await?;
+            Ok(serde_json::json!({ "task_id": task_id, "owned_paths_json": expanded }))
+        },
+        // Evidence packs
+        "task.evidencePack" => handlers::artifacts::evidence_pack(ctx, params).await,
+        // Security / injection defense
+        "security.analyzeContent" => handlers::security::analyze_content_rpc(ctx, params).await,
+        "security.testInjection" => handlers::security::test_injection(ctx, params).await,
+        // Diff risk
+        "review.diffRisk" => handlers::review_risk::diff_risk(ctx, params).await,
+        // Policy tests
+        "policy.test" => handlers::policy::test(ctx, params).await,
+        "policy.seedTests" => handlers::policy::seed_tests(ctx, params).await,
+        // Benchmark harness
+        "bench.run" => handlers::bench::run(ctx, params).await,
+        "bench.compare" => handlers::bench::compare(ctx, params).await,
+        "bench.list" => handlers::bench::list(ctx, params).await,
+        "bench.seedTasks" => handlers::bench::seed_tasks(ctx, params).await,
+        // OpenTelemetry traces
+        "session.trace" => {
+            let session_id = params["session_id"].as_str().unwrap_or("").to_string();
+            let spans = crate::session::telemetry::get_session_trace(&ctx.storage, &session_id).await?;
+            Ok(serde_json::json!({ "spans": spans.iter().map(|s| serde_json::json!({
+                "span_id": s.span_id,
+                "parent_span_id": s.parent_span_id,
+                "trace_id": s.trace_id,
+                "name": s.name,
+                "attributes": s.attributes,
+                "started_at_ms": s.started_at_ms,
+                "duration_ms": s.duration_ms,
+                "status": format!("{:?}", s.status),
+            })).collect::<Vec<_>>() }))
+        },
+        // EP.T04 — Evidence pack retrieval
+        "artifacts.evidencePack" => handlers::artifacts::evidence_pack(ctx, params).await,
+
+        // Provider capability matrix
+        "providers.listCapabilities" => {
+            use crate::agents::capabilities::{Provider, ProviderCapabilities};
+            let provider_pairs = [
+                ("claude", Provider::Claude),
+                ("codex", Provider::Codex),
+            ];
+            let list = provider_pairs.iter().map(|(name, p)| {
+                let caps = ProviderCapabilities::for_provider(p);
+                serde_json::json!({
+                    "name": name,
+                    "supports_fork": caps.supports_fork,
+                    "supports_resume": caps.supports_resume,
+                    "supports_mcp": caps.supports_mcp,
+                    "supports_sandbox": caps.supports_sandbox,
+                    "supports_worktree": caps.supports_worktree,
+                    "max_context_tokens": caps.max_context_tokens,
+                    "cost_per_1k_in": caps.cost_per_1k_tokens_in,
+                    "cost_per_1k_out": caps.cost_per_1k_tokens_out,
+                })
+            }).collect::<Vec<_>>();
+            Ok(serde_json::json!({ "providers": list }))
+        },
 
         _ => Err(anyhow::anyhow!("METHOD_NOT_FOUND:{}", method)),
     }

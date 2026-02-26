@@ -1,0 +1,36 @@
+# Full-Stack Developer Memory Template (Next.js + Node.js + Postgres)
+
+[[entries]]
+scope = "global"
+key = "preferences.stack"
+value = "Next.js App Router (frontend) + Node.js/Express (API) + Postgres + Hasura"
+weight = 9
+source = "template:fullstack"
+
+[[entries]]
+scope = "global"
+key = "style.data_fetching"
+value = "Server components for initial load. React Query for client-side mutations. ISR for static-ish pages."
+weight = 8
+source = "template:fullstack"
+
+[[entries]]
+scope = "global"
+key = "style.db"
+value = "Parameterized queries only. Migrations tracked in hasura/migrations/. Never raw string concat in SQL."
+weight = 9
+source = "template:fullstack"
+
+[[entries]]
+scope = "global"
+key = "style.auth"
+value = "JWT with short expiry (15m). Refresh tokens in httpOnly cookies. Session fixation: regenerate on login."
+weight = 8
+source = "template:fullstack"
+
+[[entries]]
+scope = "global"
+key = "testing.approach"
+value = "Jest for unit. Supertest for API integration. Playwright for E2E. Min 80% line coverage."
+weight = 7
+source = "template:fullstack"

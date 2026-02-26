@@ -1,0 +1,37 @@
+# Rust Developer Memory Template
+# Install with: clawd pack install @clawde/rust (includes this template)
+
+[[entries]]
+scope = "global"
+key = "preferences.language"
+value = "Rust"
+weight = 9
+source = "template:rust"
+
+[[entries]]
+scope = "global"
+key = "style.error_handling"
+value = "Use ? operator. No unwrap() in production. thiserror for library errors, anyhow for application errors."
+weight = 9
+source = "template:rust"
+
+[[entries]]
+scope = "global"
+key = "style.async"
+value = "Tokio runtime. Use async/await. Avoid blocking I/O in async context — use spawn_blocking."
+weight = 8
+source = "template:rust"
+
+[[entries]]
+scope = "global"
+key = "testing.approach"
+value = "Unit tests in #[cfg(test)] module at bottom of file. Integration tests in tests/ directory. Use #[tokio::test] for async."
+weight = 8
+source = "template:rust"
+
+[[entries]]
+scope = "global"
+key = "style.comments"
+value = "Document public API with ///. Skip obvious implementation details."
+weight = 6
+source = "template:rust"
