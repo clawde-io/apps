@@ -44,7 +44,11 @@ impl PackInstaller {
         data_dir: &Path,
     ) -> Result<InstalledPack> {
         let resolved_version = version.unwrap_or("latest");
-        debug!(name, version = resolved_version, "pack.install from registry");
+        debug!(
+            name,
+            version = resolved_version,
+            "pack.install from registry"
+        );
 
         // Download the tarball from the registry.
         let (tarball_bytes, expected_sha256, signature, publisher_key) =
@@ -60,7 +64,11 @@ impl PackInstaller {
                 );
             }
         } else {
-            warn!(name, version = resolved_version, "registry did not provide X-Pack-SHA256 header — skipping digest check");
+            warn!(
+                name,
+                version = resolved_version,
+                "registry did not provide X-Pack-SHA256 header — skipping digest check"
+            );
         }
 
         // Build install path.
@@ -70,9 +78,7 @@ impl PackInstaller {
 
         tokio::fs::create_dir_all(&install_path)
             .await
-            .with_context(|| {
-                format!("failed to create install dir {}", install_path.display())
-            })?;
+            .with_context(|| format!("failed to create install dir {}", install_path.display()))?;
 
         // Extract the tarball.
         extract_tarball(&tarball_bytes, &install_path)?;
@@ -99,8 +105,9 @@ impl PackInstaller {
         }
 
         // Read the extracted manifest.
-        let manifest = PackManifest::load_from_dir(&install_path)
-            .with_context(|| format!("failed to load manifest for '{name}@{resolved_version}' after extraction"))?;
+        let manifest = PackManifest::load_from_dir(&install_path).with_context(|| {
+            format!("failed to load manifest for '{name}@{resolved_version}' after extraction")
+        })?;
 
         // Determine the actual version from the manifest (in case "latest" was resolved).
         let actual_version = manifest.version.clone();
@@ -145,9 +152,7 @@ impl PackInstaller {
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().await.unwrap_or_default();
-            anyhow::bail!(
-                "registry returned {status} for pack '{name}@{version}': {body}"
-            );
+            anyhow::bail!("registry returned {status} for pack '{name}@{version}': {body}");
         }
 
         let sha256 = resp
@@ -265,7 +270,10 @@ fn extract_tarball(tarball_bytes: &[u8], dest_dir: &Path) -> Result<()> {
     let mut archive = Archive::new(gz);
 
     // Strip the top-level directory component that tarballs typically include.
-    for entry in archive.entries().context("failed to read tarball entries")? {
+    for entry in archive
+        .entries()
+        .context("failed to read tarball entries")?
+    {
         let mut entry = entry.context("corrupt tarball entry")?;
         let entry_path = entry.path().context("invalid path in tarball")?;
 

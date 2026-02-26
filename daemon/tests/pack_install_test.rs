@@ -1,7 +1,6 @@
 /// pack_install_test.rs — Integration tests for pack installation from registry.
 ///
 /// Tests: local pack install, tarball extraction, registry URL construction.
-use std::fs;
 use std::path::PathBuf;
 
 #[cfg(test)]
@@ -33,9 +32,7 @@ tags = ["rust"]
         let pack_version = "0.1.0";
 
         // Encode @ and / for URL
-        let encoded_name = pack_name
-            .replace('@', "%40")
-            .replace('/', "%2F");
+        let encoded_name = pack_name.replace('@', "%40").replace('/', "%2F");
         let download_url = format!(
             "{}/v1/packs/{}/{}/download",
             registry_url, encoded_name, pack_version

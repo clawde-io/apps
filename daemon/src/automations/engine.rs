@@ -106,9 +106,7 @@ impl Automation {
 /// Evaluate a simple condition string like `"session_duration_secs>300"`.
 fn evaluate_condition(condition: &str, event: &TriggerEvent) -> bool {
     if let Some(rest) = condition.strip_prefix("session_duration_secs>") {
-        if let (Ok(threshold), Some(actual)) =
-            (rest.parse::<u64>(), event.session_duration_secs)
-        {
+        if let (Ok(threshold), Some(actual)) = (rest.parse::<u64>(), event.session_duration_secs) {
             return actual > threshold;
         }
     }
@@ -162,7 +160,8 @@ impl AutomationEngine {
                                 let event2 = event.clone();
                                 tokio::spawn(async move {
                                     if let Err(e) =
-                                        crate::automations::builtins::execute(&auto, &event2, &ctx2).await
+                                        crate::automations::builtins::execute(&auto, &event2, &ctx2)
+                                            .await
                                     {
                                         warn!(
                                             name = %auto.name,

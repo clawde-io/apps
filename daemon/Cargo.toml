@@ -126,6 +126,11 @@ wasmtime = { version = "28", default-features = false, features = ["cranelift", 
 # clawd_plugin_abi: stable C ABI types shared with plugins
 clawd_plugin_abi = { path = "../packages/clawd_plugin_abi" }
 
+# HTTP REST server (Sprint QQ RA.1 — Axum on port 4301)
+axum = "0.8"
+tower-http = { version = "0.6", features = ["cors"] }
+tokio-stream = "0.1"
+
 # Sprint II CH.1-CH.2 — Terminal chat + explain UI
 ratatui = "0.28"
 indicatif = "0.17"

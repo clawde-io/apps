@@ -2,7 +2,6 @@
 ///
 /// Unit tests verify ConnectivityConfig parsing and monitor defaults.
 /// Integration tests (marked `#[ignore]`) require a live daemon.
-
 #[cfg(test)]
 mod connectivity_config_tests {
     use clawd::config::ConnectivityConfig;
@@ -21,6 +20,8 @@ mod connectivity_config_tests {
             prefer_direct: true,
             vpn_host: Some("10.0.1.5".to_string()),
             air_gap: false,
+            license_path: None,
+            local_registry: None,
         };
         let json = serde_json::to_string(&cfg).expect("serialize");
         assert!(json.contains("prefer_direct"));
@@ -42,7 +43,7 @@ air_gap = false
 
 #[cfg(test)]
 mod monitor_tests {
-    use clawd::connectivity::monitor::{ConnectionMode, QualitySnapshot, new_shared_quality};
+    use clawd::connectivity::monitor::{new_shared_quality, ConnectionMode, QualitySnapshot};
 
     #[test]
     fn default_quality_snapshot() {

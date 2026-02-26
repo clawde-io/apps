@@ -16,15 +16,15 @@ use uuid::Uuid;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct MemoryEntry {
     pub id: String,
-    pub scope: String,    // "global" | sha256(repo_path)
+    pub scope: String, // "global" | sha256(repo_path)
     pub key: String,
     pub value: String,
-    pub weight: i64,      // 1-10 (10 = highest priority)
-    pub source: String,   // "user" | "auto" | "pack:<name>"
-    pub created_at: i64,  // unix seconds
+    pub weight: i64,     // 1-10 (10 = highest priority)
+    pub source: String,  // "user" | "auto" | "pack:<name>"
+    pub created_at: i64, // unix seconds
     pub updated_at: i64,
 }
 
@@ -39,6 +39,7 @@ pub struct AddMemoryRequest {
 
 // ─── Store ────────────────────────────────────────────────────────────────────
 
+#[derive(Clone)]
 pub struct MemoryStore {
     pool: SqlitePool,
 }
@@ -75,16 +76,13 @@ impl MemoryStore {
 
     /// List memory entries for a scope, sorted by weight descending.
     pub async fn list(&self, scope: &str) -> Result<Vec<MemoryEntry>> {
-        let rows = sqlx::query_as!(
-            MemoryEntry,
-            r#"
-            SELECT id, scope, key, value, weight, source, created_at, updated_at
-            FROM memory_entries
-            WHERE scope = ?
-            ORDER BY weight DESC, updated_at DESC
-            "#,
-            scope
+        let rows = sqlx::query_as::<_, MemoryEntry>(
+            "SELECT id, scope, key, value, weight, source, created_at, updated_at
+             FROM memory_entries
+             WHERE scope = ?
+             ORDER BY weight DESC, updated_at DESC",
         )
+        .bind(scope)
         .fetch_all(&self.pool)
         .await
         .context("Fetching memory entries")?;
@@ -93,16 +91,13 @@ impl MemoryStore {
 
     /// List all entries (global + project scope combined).
     pub async fn list_all(&self, project_scope: &str) -> Result<Vec<MemoryEntry>> {
-        let rows = sqlx::query_as!(
-            MemoryEntry,
-            r#"
-            SELECT id, scope, key, value, weight, source, created_at, updated_at
-            FROM memory_entries
-            WHERE scope = 'global' OR scope = ?
-            ORDER BY weight DESC, updated_at DESC
-            "#,
-            project_scope
+        let rows = sqlx::query_as::<_, MemoryEntry>(
+            "SELECT id, scope, key, value, weight, source, created_at, updated_at
+             FROM memory_entries
+             WHERE scope = 'global' OR scope = ?
+             ORDER BY weight DESC, updated_at DESC",
         )
+        .bind(project_scope)
         .fetch_all(&self.pool)
         .await
         .context("Fetching all memory entries")?;
@@ -116,39 +111,34 @@ impl MemoryStore {
         let weight = req.weight.unwrap_or(5).clamp(1, 10);
         let source = req.source.unwrap_or_else(|| "user".to_string());
 
-        sqlx::query!(
-            r#"
-            INSERT INTO memory_entries (id, scope, key, value, weight, source, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(scope, key) DO UPDATE SET
-                value = excluded.value,
-                weight = excluded.weight,
-                source = excluded.source,
-                updated_at = excluded.updated_at
-            "#,
-            id,
-            req.scope,
-            req.key,
-            req.value,
-            weight,
-            source,
-            now,
-            now
+        sqlx::query(
+            "INSERT INTO memory_entries (id, scope, key, value, weight, source, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(scope, key) DO UPDATE SET
+                 value = excluded.value,
+                 weight = excluded.weight,
+                 source = excluded.source,
+                 updated_at = excluded.updated_at",
         )
+        .bind(&id)
+        .bind(&req.scope)
+        .bind(&req.key)
+        .bind(&req.value)
+        .bind(weight)
+        .bind(&source)
+        .bind(now)
+        .bind(now)
         .execute(&self.pool)
         .await
         .context("Upserting memory entry")?;
 
         // Return the final row (may have had a conflict — fetch by scope+key)
-        let entry = sqlx::query_as!(
-            MemoryEntry,
-            r#"
-            SELECT id, scope, key, value, weight, source, created_at, updated_at
-            FROM memory_entries WHERE scope = ? AND key = ?
-            "#,
-            req.scope,
-            req.key
+        let entry = sqlx::query_as::<_, MemoryEntry>(
+            "SELECT id, scope, key, value, weight, source, created_at, updated_at
+             FROM memory_entries WHERE scope = ? AND key = ?",
         )
+        .bind(&req.scope)
+        .bind(&req.key)
         .fetch_one(&self.pool)
         .await
         .context("Fetching upserted entry")?;
@@ -158,7 +148,8 @@ impl MemoryStore {
 
     /// Remove a memory entry by ID.
     pub async fn remove(&self, id: &str) -> Result<bool> {
-        let result = sqlx::query!("DELETE FROM memory_entries WHERE id = ?", id)
+        let result = sqlx::query("DELETE FROM memory_entries WHERE id = ?")
+            .bind(id)
             .execute(&self.pool)
             .await
             .context("Deleting memory entry")?;
@@ -167,15 +158,12 @@ impl MemoryStore {
 
     /// Get a single entry by scope + key.
     pub async fn get(&self, scope: &str, key: &str) -> Result<Option<MemoryEntry>> {
-        let entry = sqlx::query_as!(
-            MemoryEntry,
-            r#"
-            SELECT id, scope, key, value, weight, source, created_at, updated_at
-            FROM memory_entries WHERE scope = ? AND key = ?
-            "#,
-            scope,
-            key
+        let entry = sqlx::query_as::<_, MemoryEntry>(
+            "SELECT id, scope, key, value, weight, source, created_at, updated_at
+             FROM memory_entries WHERE scope = ? AND key = ?",
         )
+        .bind(scope)
+        .bind(key)
         .fetch_optional(&self.pool)
         .await
         .context("Fetching memory entry")?;

@@ -95,7 +95,9 @@ pub async fn get_report(pool: &SqlitePool) -> Result<Vec<ToolSummary>> {
         let tool_id: String = row.get("tool_id");
         let event_count: i64 = row.get("event_count");
         let last_seen: String = row.get("last_seen");
-        let paths_blob: String = row.get::<Option<String>, _>("paths_blob").unwrap_or_default();
+        let paths_blob: String = row
+            .get::<Option<String>, _>("paths_blob")
+            .unwrap_or_default();
 
         // Collect unique file paths across all events for this tool.
         let mut files: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -122,12 +124,18 @@ mod tests {
 
     #[test]
     fn test_detect_copilot() {
-        assert_eq!(detect_tool("/project/.copilot/config.json"), Some("copilot"));
+        assert_eq!(
+            detect_tool("/project/.copilot/config.json"),
+            Some("copilot")
+        );
     }
 
     #[test]
     fn test_detect_cursor() {
-        assert_eq!(detect_tool("/project/.cursor/settings.json"), Some("cursor"));
+        assert_eq!(
+            detect_tool("/project/.cursor/settings.json"),
+            Some("cursor")
+        );
     }
 
     #[test]

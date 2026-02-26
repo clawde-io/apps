@@ -9,7 +9,9 @@ pub async fn list_capabilities(data_dir: &Path, port: u16) -> Result<()> {
     let token = super::client::read_auth_token(data_dir)?;
     let client = super::client::DaemonClient::new(port, token);
 
-    let result = client.call_once("providers.listCapabilities", json!({})).await?;
+    let result = client
+        .call_once("providers.listCapabilities", json!({}))
+        .await?;
 
     let providers = result["providers"].as_array().cloned().unwrap_or_default();
 

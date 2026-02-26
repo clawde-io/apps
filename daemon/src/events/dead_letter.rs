@@ -86,7 +86,7 @@ pub async fn push_to_dead_letter(
     .bind(&now)
     .bind(&now)
     .bind(MAX_RETRIES)
-    .fetch_one(&storage.pool())
+    .fetch_one(storage.pool())
     .await
     .context("insert dead_letter_events")?;
 
@@ -99,7 +99,7 @@ pub async fn list_dead_letter(
     status_filter: Option<&str>,
     limit: i64,
 ) -> Result<Vec<DeadLetterEvent>> {
-    let pool = storage.pool();
+    let pool = storage.clone_pool();
 
     let rows = if let Some(status) = status_filter {
         sqlx::query(
@@ -159,7 +159,7 @@ pub async fn mark_for_retry(storage: &Storage, id: &str) -> Result<bool> {
         "#,
     )
     .bind(id)
-    .execute(&storage.pool())
+    .execute(storage.pool())
     .await?
     .rows_affected();
 
@@ -223,7 +223,7 @@ async fn run_retry_cycle(storage: &Storage) -> Result<()> {
         .bind(new_status)
         .bind(&now)
         .bind(&event.id)
-        .execute(&storage.pool())
+        .execute(storage.pool())
         .await
         .context("update dead_letter retry")?;
     }
@@ -245,7 +245,7 @@ mod tests {
 
     async fn test_storage() -> (Storage, TempDir) {
         let dir = TempDir::new().expect("tempdir");
-        let s = Storage::new_with_slow_query(dir.path())
+        let s = Storage::new_with_slow_query(dir.path(), 200)
             .await
             .expect("storage");
         (s, dir)

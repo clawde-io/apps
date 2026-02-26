@@ -60,10 +60,7 @@ pub async fn list_resources(ctx: &Arc<AppContext>) -> Vec<ResourceDescriptor> {
             resources.push(ResourceDescriptor {
                 uri: format!("clawd://session/{}/messages", s.id),
                 name: format!("Session {} Messages", &s.id[..8.min(s.id.len())]),
-                description: format!(
-                    "Message history for session {} ({})",
-                    s.id, s.status
-                ),
+                description: format!("Message history for session {} ({})", s.id, s.status),
                 mime_type: "application/json".to_string(),
             });
         }
@@ -86,7 +83,10 @@ pub async fn read_resource(ctx: &Arc<AppContext>, uri: &str) -> Result<Value, St
     if uri == "clawd://tasks" {
         return read_tasks(ctx).await;
     }
-    if let Some(session_id) = uri.strip_prefix("clawd://session/").and_then(|s| s.strip_suffix("/messages")) {
+    if let Some(session_id) = uri
+        .strip_prefix("clawd://session/")
+        .and_then(|s| s.strip_suffix("/messages"))
+    {
         return read_session_messages(ctx, session_id).await;
     }
     if let Some(task_id) = uri.strip_prefix("clawd://task/") {
@@ -123,7 +123,11 @@ async fn read_sessions(ctx: &Arc<AppContext>) -> Result<Value, String> {
         })
         .collect();
 
-    Ok(make_text_content("clawd://sessions", "application/json", &serde_json::to_string_pretty(&data).unwrap_or_default()))
+    Ok(make_text_content(
+        "clawd://sessions",
+        "application/json",
+        &serde_json::to_string_pretty(&data).unwrap_or_default(),
+    ))
 }
 
 async fn read_tasks(ctx: &Arc<AppContext>) -> Result<Value, String> {
@@ -154,7 +158,11 @@ async fn read_tasks(ctx: &Arc<AppContext>) -> Result<Value, String> {
         })
         .collect();
 
-    Ok(make_text_content("clawd://tasks", "application/json", &serde_json::to_string_pretty(&data).unwrap_or_default()))
+    Ok(make_text_content(
+        "clawd://tasks",
+        "application/json",
+        &serde_json::to_string_pretty(&data).unwrap_or_default(),
+    ))
 }
 
 async fn read_session_messages(ctx: &Arc<AppContext>, session_id: &str) -> Result<Value, String> {
@@ -178,7 +186,11 @@ async fn read_session_messages(ctx: &Arc<AppContext>, session_id: &str) -> Resul
         .collect();
 
     let uri = format!("clawd://session/{session_id}/messages");
-    Ok(make_text_content(&uri, "application/json", &serde_json::to_string_pretty(&data).unwrap_or_default()))
+    Ok(make_text_content(
+        &uri,
+        "application/json",
+        &serde_json::to_string_pretty(&data).unwrap_or_default(),
+    ))
 }
 
 async fn read_task(ctx: &Arc<AppContext>, task_id: &str) -> Result<Value, String> {
@@ -188,8 +200,7 @@ async fn read_task(ctx: &Arc<AppContext>, task_id: &str) -> Result<Value, String
         .await
         .map_err(|e| format!("failed to get task {task_id}: {e}"))?;
 
-    let task = maybe_task
-        .ok_or_else(|| format!("task {task_id} not found"))?;
+    let task = maybe_task.ok_or_else(|| format!("task {task_id} not found"))?;
 
     let data = json!({
         "id": task.id,
@@ -206,7 +217,11 @@ async fn read_task(ctx: &Arc<AppContext>, task_id: &str) -> Result<Value, String
     });
 
     let uri = format!("clawd://task/{task_id}");
-    Ok(make_text_content(&uri, "application/json", &serde_json::to_string_pretty(&data).unwrap_or_default()))
+    Ok(make_text_content(
+        &uri,
+        "application/json",
+        &serde_json::to_string_pretty(&data).unwrap_or_default(),
+    ))
 }
 
 async fn read_repo_file(ctx: &Arc<AppContext>, rel_path: &str) -> Result<Value, String> {

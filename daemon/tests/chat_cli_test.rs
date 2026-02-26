@@ -24,7 +24,10 @@ fn chat_opts_non_interactive() {
         provider: Some("claude".to_string()),
         ..Default::default()
     };
-    assert_eq!(opts.non_interactive.as_deref(), Some("What does this code do?"));
+    assert_eq!(
+        opts.non_interactive.as_deref(),
+        Some("What does this code do?")
+    );
     assert!(!opts.session_list);
 }
 

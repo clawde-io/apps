@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::memory::store::{AddMemoryRequest, MemoryStore};
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize, Serialize)]
 struct ExtractedFact {
     key: String,
@@ -49,9 +50,18 @@ pub async fn extract_memories(
     // Look for explicit user statements about preferences
     let patterns = [
         ("language", &["prefer Rust", "use Rust", "Rust only"][..]),
-        ("style.verbosity", &["keep it brief", "be concise", "short responses"]),
-        ("testing.framework", &["use jest", "use pytest", "use cargo test"]),
-        ("style.comments", &["add comments", "no comments", "minimal comments"]),
+        (
+            "style.verbosity",
+            &["keep it brief", "be concise", "short responses"],
+        ),
+        (
+            "testing.framework",
+            &["use jest", "use pytest", "use cargo test"],
+        ),
+        (
+            "style.comments",
+            &["add comments", "no comments", "minimal comments"],
+        ),
     ];
 
     let content = &session.content_preview;

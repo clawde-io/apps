@@ -21,13 +21,13 @@ use serde_json::{json, Value};
 /// - `air_gap` — config flag value
 /// - `lan_peers` — array of discovered LAN peers (empty when no direct browse)
 pub async fn status(_params: Value, ctx: &AppContext) -> Result<Value> {
-    let snap = ctx
-        .quality
-        .read()
-        .await;
+    let snap = ctx.quality.read().await;
 
     let peers: Vec<Value> = {
-        let reg = ctx.peer_registry.read().map_err(|e| anyhow::anyhow!("{e}"))?;
+        let reg = ctx
+            .peer_registry
+            .read()
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
         reg.values()
             .map(|p| {
                 json!({

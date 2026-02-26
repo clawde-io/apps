@@ -38,17 +38,15 @@ pub fn cmd_info(license_path: Option<PathBuf>) -> Result<()> {
             return Ok(());
         }
         // Parse bundle (no signature verify — info only)
-        let content = std::fs::read_to_string(&path)
-            .with_context(|| format!("Reading {:?}", path))?;
+        let content =
+            std::fs::read_to_string(&path).with_context(|| format!("Reading {:?}", path))?;
         let lines: Vec<&str> = content.trim().lines().collect();
-        if lines.len() < 1 {
+        if lines.is_empty() {
             println!("License file is empty.");
             return Ok(());
         }
         use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-        let payload_bytes = URL_SAFE_NO_PAD
-            .decode(lines[0].trim())
-            .unwrap_or_default();
+        let payload_bytes = URL_SAFE_NO_PAD.decode(lines[0].trim()).unwrap_or_default();
         if let Ok(bundle) = serde_json::from_slice::<LicenseBundle>(&payload_bytes) {
             println!("License bundle (unverified metadata):");
             println!("  Tier:    {}", bundle.tier);

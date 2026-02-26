@@ -70,7 +70,7 @@ pub async fn scan(params: Value, ctx: &AppContext) -> Result<Value> {
     let profile = tokio::task::spawn_blocking(move || scanner::scan(Path::new(&repo_path))).await?;
 
     // Persist to DB
-    let pool = ctx.storage.pool();
+    let pool = ctx.storage.clone_pool();
     storage::upsert(&pool, &profile).await?;
 
     Ok(serde_json::to_value(&profile)?)
@@ -82,7 +82,7 @@ pub async fn scan(params: Value, ctx: &AppContext) -> Result<Value> {
 pub async fn profile(params: Value, ctx: &AppContext) -> Result<Value> {
     let p: RepoPathParams = serde_json::from_value(params)?;
     validate_repo_path(&p.repo_path)?;
-    let pool = ctx.storage.pool();
+    let pool = ctx.storage.clone_pool();
     match storage::load(&pool, &p.repo_path).await? {
         Some(profile) => Ok(serde_json::to_value(&profile)?),
         None => Ok(json!({ "repoPath": p.repo_path, "profile": null })),
@@ -98,7 +98,7 @@ pub async fn generate_artifacts(params: Value, ctx: &AppContext) -> Result<Value
     validate_repo_path(&p.repo_path)?;
 
     // Load existing profile or scan fresh
-    let pool = ctx.storage.pool();
+    let pool = ctx.storage.clone_pool();
     let profile = match storage::load(&pool, &p.repo_path).await? {
         Some(existing) => existing,
         None => {
@@ -159,7 +159,7 @@ pub async fn validators_list(params: Value, ctx: &AppContext) -> Result<Value> {
     let p: RepoPathParams = serde_json::from_value(params)?;
     validate_repo_path(&p.repo_path)?;
 
-    let pool = ctx.storage.pool();
+    let pool = ctx.storage.clone_pool();
     let lang = match storage::load(&pool, &p.repo_path).await? {
         Some(profile) => profile.primary_lang,
         None => {
@@ -183,7 +183,7 @@ pub async fn validators_run(params: Value, ctx: &AppContext) -> Result<Value> {
     validate_repo_path(&p.repo_path)?;
 
     // Verify the command matches a known validator (security guard)
-    let pool = ctx.storage.pool();
+    let pool = ctx.storage.clone_pool();
     let lang = match storage::load(&pool, &p.repo_path).await? {
         Some(profile) => profile.primary_lang,
         None => {
@@ -206,7 +206,7 @@ pub async fn validators_run(params: Value, ctx: &AppContext) -> Result<Value> {
             )
         })?;
 
-    let pool = ctx.storage.pool();
+    let pool = ctx.storage.clone_pool();
     let run = validator::run_validator(&pool, &p.repo_path, &config).await?;
     Ok(serde_json::to_value(&run)?)
 }
@@ -218,7 +218,7 @@ pub async fn validators_run(params: Value, ctx: &AppContext) -> Result<Value> {
 /// Called by the session handler when a `repo_path` is provided. Returns `None`
 /// if no profile exists or conventions are unknown.
 pub async fn convention_injection(repo_path: &str, ctx: &AppContext) -> Option<String> {
-    let pool = ctx.storage.pool();
+    let pool = ctx.storage.clone_pool();
     let profile = storage::load(&pool, repo_path).await.ok()??;
     let conv = &profile.conventions;
 

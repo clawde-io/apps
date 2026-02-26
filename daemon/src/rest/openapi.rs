@@ -7,8 +7,8 @@ use axum::{extract::State, Json};
 use serde_json::{json, Value};
 use std::sync::Arc;
 
-use crate::AppContext;
 use super::REST_PORT;
+use crate::AppContext;
 
 pub async fn openapi_spec(State(_ctx): State<Arc<AppContext>>) -> Json<Value> {
     Json(json!({

@@ -14,6 +14,8 @@ jobs:
   sync:
     name: Push .wiki/ to GitHub Wiki
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 

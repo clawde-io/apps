@@ -144,14 +144,16 @@ pub async fn search(params: Value, ctx: &AppContext) -> Result<Value> {
 
     let results: Vec<SearchResult> = rows
         .into_iter()
-        .map(|(session_id, message_id, snippet, role, created_at, rank)| SearchResult {
-            session_id,
-            message_id,
-            snippet,
-            role,
-            created_at,
-            rank: rank as f32,
-        })
+        .map(
+            |(session_id, message_id, snippet, role, created_at, rank)| SearchResult {
+                session_id,
+                message_id,
+                snippet,
+                role,
+                created_at,
+                rank: rank as f32,
+            },
+        )
         .collect();
 
     let total = results.len();

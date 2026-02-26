@@ -82,14 +82,7 @@ pub struct CopilotResponse {
 /// Run `gh copilot suggest` with a prompt.
 pub async fn suggest(prompt: &str, target: &SuggestTarget) -> Result<CopilotResponse> {
     let output = tokio::process::Command::new("gh")
-        .args([
-            "copilot",
-            "suggest",
-            "-t",
-            target.as_str(),
-            "--",
-            prompt,
-        ])
+        .args(["copilot", "suggest", "-t", target.as_str(), "--", prompt])
         .output()
         .await
         .context("Failed to run gh copilot suggest")?;

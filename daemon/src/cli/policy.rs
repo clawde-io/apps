@@ -8,12 +8,7 @@ use serde_json::json;
 use std::path::{Path, PathBuf};
 
 /// PT.T02 — `clawd policy test [--file <yaml>]`
-pub async fn test(
-    file: Option<PathBuf>,
-    ci: bool,
-    data_dir: &Path,
-    port: u16,
-) -> Result<()> {
+pub async fn test(file: Option<PathBuf>, ci: bool, data_dir: &Path, port: u16) -> Result<()> {
     let token = super::client::read_auth_token(data_dir)?;
     let client = super::client::DaemonClient::new(port, token);
 
@@ -37,9 +32,7 @@ pub async fn test(
             let expected = case["expected"].as_str().unwrap_or("?");
             let actual = case["actual"].as_str().unwrap_or("?");
             let rule = case["triggered_rule"].as_str().unwrap_or("none");
-            eprintln!(
-                "FAIL  [{expected} expected, got {actual}] rule={rule}  \"{command}\""
-            );
+            eprintln!("FAIL  [{expected} expected, got {actual}] rule={rule}  \"{command}\"");
         }
     }
 
@@ -69,11 +62,7 @@ pub async fn install_seed_tests(project_path: &Path) -> Result<()> {
 
     let seed_path = policy_dir.join("seed.yaml");
     if !seed_path.exists() {
-        tokio::fs::write(
-            &seed_path,
-            crate::policy::tester::SEED_POLICY_TESTS_YAML,
-        )
-        .await?;
+        tokio::fs::write(&seed_path, crate::policy::tester::SEED_POLICY_TESTS_YAML).await?;
         println!("Installed seed policy tests at {}", seed_path.display());
     } else {
         println!("Seed tests already exist at {}", seed_path.display());

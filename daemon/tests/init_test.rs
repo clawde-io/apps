@@ -13,7 +13,13 @@ async fn init_creates_required_directories() {
     let dir = TempDir::new().unwrap();
     claw_init::init_claw_dir(dir.path()).await.unwrap();
 
-    for sub in ["tasks", "policies", "templates", "evals/datasets", "worktrees"] {
+    for sub in [
+        "tasks",
+        "policies",
+        "templates",
+        "evals/datasets",
+        "worktrees",
+    ] {
         assert!(
             dir.path().join(".claw").join(sub).exists(),
             "missing directory: .claw/{sub}"
@@ -35,8 +41,14 @@ async fn init_creates_policy_files() {
     // tool-risk.json must be valid JSON with expected keys.
     let tr: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(&tool_risk).unwrap()).unwrap();
-    assert!(tr.get("shell_exec").is_some(), "tool-risk must contain shell_exec");
-    assert!(tr.get("read_file").is_some(), "tool-risk must contain read_file");
+    assert!(
+        tr.get("shell_exec").is_some(),
+        "tool-risk must contain shell_exec"
+    );
+    assert!(
+        tr.get("read_file").is_some(),
+        "tool-risk must contain read_file"
+    );
 
     // mcp-trust.json must be valid JSON with a "servers" array.
     let mt: serde_json::Value =
@@ -58,7 +70,10 @@ async fn init_is_idempotent() {
     claw_init::init_claw_dir(dir.path()).await.unwrap();
     let second_tool_risk =
         fs::read_to_string(dir.path().join(".claw/policies/tool-risk.json")).unwrap();
-    assert_eq!(first_tool_risk, second_tool_risk, "idempotent: tool-risk.json unchanged");
+    assert_eq!(
+        first_tool_risk, second_tool_risk,
+        "idempotent: tool-risk.json unchanged"
+    );
 }
 
 #[tokio::test]

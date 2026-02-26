@@ -6,7 +6,7 @@ use serde_json::{json, Value};
 use uuid::Uuid;
 
 /// `workflow.create` — store a new workflow recipe from YAML.
-pub async fn create(params: Value, ctx: AppContext) -> Result<Value> {
+pub async fn create(params: Value, ctx: &AppContext) -> Result<Value> {
     let name = params
         .get("name")
         .and_then(|v| v.as_str())
@@ -19,10 +19,7 @@ pub async fn create(params: Value, ctx: AppContext) -> Result<Value> {
         .get("description")
         .and_then(|v| v.as_str())
         .unwrap_or("");
-    let tags = params
-        .get("tags")
-        .cloned()
-        .unwrap_or_else(|| json!([]));
+    let tags = params.get("tags").cloned().unwrap_or_else(|| json!([]));
 
     // Validate YAML parses correctly.
     crate::workflows::engine::parse_recipe_yaml(yaml)?;
@@ -46,7 +43,7 @@ pub async fn create(params: Value, ctx: AppContext) -> Result<Value> {
 }
 
 /// `workflow.list` — list all workflow recipes (built-ins + user-defined).
-pub async fn list(_params: Value, ctx: AppContext) -> Result<Value> {
+pub async fn list(_params: Value, ctx: &AppContext) -> Result<Value> {
     let rows = sqlx::query(
         "SELECT id, name, description, tags, is_builtin, run_count, created_at
          FROM workflow_recipes ORDER BY is_builtin DESC, name ASC",
@@ -78,7 +75,7 @@ pub async fn list(_params: Value, ctx: AppContext) -> Result<Value> {
 /// Executes each step sequentially, creating a session per step and feeding
 /// `inherit_from` for chained context. Pushes `workflow.stepCompleted` after
 /// each step and `workflow.ran` when all steps complete.
-pub async fn run(params: Value, ctx: AppContext) -> Result<Value> {
+pub async fn run(params: Value, ctx: &AppContext) -> Result<Value> {
     let recipe_id = params
         .get("recipeId")
         .and_then(|v| v.as_str())
@@ -152,25 +149,33 @@ pub async fn run(params: Value, ctx: AppContext) -> Result<Value> {
             // Create session for this step.
             match ctx_bg
                 .session_manager
-                .create(provider, &repo_path_owned, &format!("{} — step {}", recipe_name_bg, i + 1), 0, None, Some(&prompt))
+                .create(
+                    provider,
+                    &repo_path_owned,
+                    &format!("{} — step {}", recipe_name_bg, i + 1),
+                    0,
+                    None,
+                    Some(&prompt),
+                )
                 .await
             {
                 Ok(session) => {
                     if inherit.is_some() {
                         // Send prompt as first message so it runs immediately.
-                        let _ = ctx_bg.session_manager.send_message(&session.id, &prompt, &ctx_bg).await;
+                        let _ = ctx_bg
+                            .session_manager
+                            .send_message(&session.id, &prompt, &ctx_bg)
+                            .await;
                     }
 
                     prev_session_id = Some(session.id.clone());
 
                     // Update run state.
-                    let _ = sqlx::query(
-                        "UPDATE workflow_runs SET current_step = ? WHERE id = ?",
-                    )
-                    .bind(i as i64 + 1)
-                    .bind(&run_id_bg)
-                    .execute(ctx_bg.storage.pool())
-                    .await;
+                    let _ = sqlx::query("UPDATE workflow_runs SET current_step = ? WHERE id = ?")
+                        .bind(i as i64 + 1)
+                        .bind(&run_id_bg)
+                        .execute(ctx_bg.storage.pool())
+                        .await;
 
                     ctx_bg.broadcaster.broadcast(
                         "workflow.stepCompleted",
@@ -227,18 +232,16 @@ pub async fn run(params: Value, ctx: AppContext) -> Result<Value> {
 }
 
 /// `workflow.delete` — remove a user-defined workflow recipe.
-pub async fn delete(params: Value, ctx: AppContext) -> Result<Value> {
+pub async fn delete(params: Value, ctx: &AppContext) -> Result<Value> {
     let recipe_id = params
         .get("recipeId")
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("recipeId required"))?;
 
-    sqlx::query(
-        "DELETE FROM workflow_recipes WHERE id = ? AND is_builtin = 0",
-    )
-    .bind(recipe_id)
-    .execute(ctx.storage.pool())
-    .await?;
+    sqlx::query("DELETE FROM workflow_recipes WHERE id = ? AND is_builtin = 0")
+        .bind(recipe_id)
+        .execute(ctx.storage.pool())
+        .await?;
 
     Ok(json!({ "deleted": true }))
 }

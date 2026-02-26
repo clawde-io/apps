@@ -20,7 +20,7 @@ use uuid::Uuid;
 ///   "allowSend": false (optional, default false)
 /// }
 /// ```
-pub async fn share(params: Value, ctx: AppContext) -> Result<Value> {
+pub async fn share(params: Value, ctx: &AppContext) -> Result<Value> {
     use sqlx::Row as _;
 
     let session_id = params
@@ -63,12 +63,10 @@ pub async fn share(params: Value, ctx: AppContext) -> Result<Value> {
     .await?;
 
     // Read back with computed expiry
-    let row = sqlx::query(
-        "SELECT expires_at FROM session_shares WHERE id = ?",
-    )
-    .bind(&id)
-    .fetch_one(ctx.storage.pool())
-    .await?;
+    let row = sqlx::query("SELECT expires_at FROM session_shares WHERE id = ?")
+        .bind(&id)
+        .fetch_one(ctx.storage.pool())
+        .await?;
 
     let expires_at: String = row.get("expires_at");
 
@@ -83,7 +81,7 @@ pub async fn share(params: Value, ctx: AppContext) -> Result<Value> {
 }
 
 /// `session.revokeShare` — Revoke all share tokens for a session.
-pub async fn revoke_share(params: Value, ctx: AppContext) -> Result<Value> {
+pub async fn revoke_share(params: Value, ctx: &AppContext) -> Result<Value> {
     let session_id = params
         .get("sessionId")
         .and_then(|v| v.as_str())
@@ -104,7 +102,7 @@ pub async fn revoke_share(params: Value, ctx: AppContext) -> Result<Value> {
 }
 
 /// `session.shareList` — List active share tokens for a session.
-pub async fn share_list(params: Value, ctx: AppContext) -> Result<Value> {
+pub async fn share_list(params: Value, ctx: &AppContext) -> Result<Value> {
     use sqlx::Row as _;
 
     let session_id = params

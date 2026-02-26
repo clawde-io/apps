@@ -46,15 +46,12 @@ pub fn build_memory_prefix(entries: &[MemoryEntry], token_budget: usize) -> Stri
         return String::new();
     }
 
-    format!(
-        "<clawd_memory>\n{}\n</clawd_memory>\n",
-        lines.join("\n")
-    )
+    format!("<clawd_memory>\n{}\n</clawd_memory>\n", lines.join("\n"))
 }
 
 /// Estimated token count for a memory prefix string.
 pub fn estimate_tokens(prefix: &str) -> usize {
-    (prefix.len() + CHARS_PER_TOKEN - 1) / CHARS_PER_TOKEN
+    prefix.len().div_ceil(CHARS_PER_TOKEN)
 }
 
 #[cfg(test)]

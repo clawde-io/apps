@@ -74,8 +74,10 @@ fn extract_expected_behaviors(content: &str) -> Vec<String> {
 
         // Detect section headers.
         if line.starts_with('#') {
-            in_section = lower.contains("expected") || lower.contains("specification")
-                || lower.contains("behavior") || lower.contains("requirements");
+            in_section = lower.contains("expected")
+                || lower.contains("specification")
+                || lower.contains("behavior")
+                || lower.contains("requirements");
             continue;
         }
 

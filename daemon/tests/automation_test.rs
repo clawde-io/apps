@@ -2,7 +2,7 @@
 
 use clawd::automations::{
     builtins,
-    engine::{Automation, AutomationEngine, TriggerEvent, TriggerType},
+    engine::{AutomationEngine, TriggerEvent, TriggerType},
 };
 
 fn make_test_engine() -> std::sync::Arc<AutomationEngine> {
@@ -38,7 +38,10 @@ fn disabled_automation_does_not_match() {
         session_output: None,
         session_duration_secs: None,
     };
-    assert!(!run_tests.matches(&event), "disabled automation should not match");
+    assert!(
+        !run_tests.matches(&event),
+        "disabled automation should not match"
+    );
 }
 
 #[test]
@@ -46,7 +49,10 @@ fn todo_extractor_matches_session_complete() {
     let engine = make_test_engine();
     let autos = engine.automations.blocking_read();
     let extractor = autos.iter().find(|a| a.name == "todo-extractor").unwrap();
-    assert!(extractor.enabled, "todo-extractor should be enabled by default");
+    assert!(
+        extractor.enabled,
+        "todo-extractor should be enabled by default"
+    );
 
     let event = TriggerEvent {
         kind: TriggerType::SessionComplete,
@@ -77,7 +83,10 @@ fn long_session_notifier_condition_filtering() {
         session_output: None,
         session_duration_secs: Some(60),
     };
-    assert!(!notifier.matches(&short_event), "60s session should not trigger notifier");
+    assert!(
+        !notifier.matches(&short_event),
+        "60s session should not trigger notifier"
+    );
 
     // Long session: should match.
     let long_event = TriggerEvent {
@@ -88,7 +97,10 @@ fn long_session_notifier_condition_filtering() {
         session_output: None,
         session_duration_secs: Some(400),
     };
-    assert!(notifier.matches(&long_event), "400s session should trigger notifier");
+    assert!(
+        notifier.matches(&long_event),
+        "400s session should trigger notifier"
+    );
 }
 
 #[test]

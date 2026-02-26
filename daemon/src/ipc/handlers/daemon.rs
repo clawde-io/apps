@@ -82,8 +82,7 @@ pub async fn changelog(_params: Value, ctx: &AppContext) -> Result<Value> {
         .unwrap_or(None);
 
     // Parse the embedded changelog
-    let all_entries: Vec<Value> =
-        serde_json::from_str(CHANGELOG_JSON).unwrap_or_default();
+    let all_entries: Vec<Value> = serde_json::from_str(CHANGELOG_JSON).unwrap_or_default();
 
     // Filter to entries newer than what was last seen
     let new_entries: Vec<Value> = if let Some(ref seen) = last_seen {

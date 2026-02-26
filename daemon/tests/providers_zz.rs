@@ -15,13 +15,19 @@ fn claude_has_full_session_support() {
     let caps = ProviderCapabilities::for_provider(&Provider::Claude);
     assert!(caps.supports_fork, "Claude must support fork");
     assert!(caps.supports_mcp, "Claude must support MCP");
-    assert!(caps.max_context_tokens >= 100_000, "Claude context must be >= 100k tokens");
+    assert!(
+        caps.max_context_tokens >= 100_000,
+        "Claude context must be >= 100k tokens"
+    );
 }
 
 #[test]
 fn codex_has_session_support() {
     let caps = ProviderCapabilities::for_provider(&Provider::Codex);
-    assert!(caps.max_context_tokens > 0, "Codex must have a context limit");
+    assert!(
+        caps.max_context_tokens > 0,
+        "Codex must have a context limit"
+    );
 }
 
 #[test]

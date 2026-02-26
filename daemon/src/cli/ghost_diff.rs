@@ -68,10 +68,7 @@ pub async fn run(
             .get("divergenceSummary")
             .and_then(|v| v.as_str())
             .unwrap_or("");
-        let severity = w
-            .get("severity")
-            .and_then(|v| v.as_str())
-            .unwrap_or("low");
+        let severity = w.get("severity").and_then(|v| v.as_str()).unwrap_or("low");
 
         println!(
             "  {}. [{}] {} (spec: {})",
@@ -87,4 +84,3 @@ pub async fn run(
 
     Ok(())
 }
-

@@ -26,10 +26,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 // Replace with real key bytes before production use.
 // Generated with: openssl genpkey -algorithm ed25519 | openssl pkey -pubout -outform DER
 const CLAWD_PUBLIC_KEY: &[u8; 32] = &[
-    0x3b, 0x6a, 0x27, 0xbc, 0xce, 0xb6, 0xa4, 0x2d,
-    0x62, 0xa3, 0xa8, 0xd0, 0x2a, 0x6f, 0x0d, 0x73,
-    0x65, 0x32, 0x15, 0x77, 0x1d, 0xe2, 0x43, 0xa6,
-    0x3a, 0xc0, 0x48, 0xa1, 0x8b, 0x59, 0xda, 0x29,
+    0x3b, 0x6a, 0x27, 0xbc, 0xce, 0xb6, 0xa4, 0x2d, 0x62, 0xa3, 0xa8, 0xd0, 0x2a, 0x6f, 0x0d, 0x73,
+    0x65, 0x32, 0x15, 0x77, 0x1d, 0xe2, 0x43, 0xa6, 0x3a, 0xc0, 0x48, 0xa1, 0x8b, 0x59, 0xda, 0x29,
 ];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,7 +59,9 @@ impl LicenseBundle {
 
         let lines: Vec<&str> = content.trim().lines().collect();
         if lines.len() < 2 {
-            bail!("Invalid license bundle format — expected payload and signature on separate lines");
+            bail!(
+                "Invalid license bundle format — expected payload and signature on separate lines"
+            );
         }
 
         let payload_b64 = lines[0].trim();
@@ -75,10 +75,9 @@ impl LicenseBundle {
             .context("Decoding license signature")?;
 
         // Verify signature
-        let verifying_key = VerifyingKey::from_bytes(CLAWD_PUBLIC_KEY)
-            .context("Loading ClawDE public key")?;
-        let signature = Signature::from_slice(&sig_bytes)
-            .context("Parsing Ed25519 signature")?;
+        let verifying_key =
+            VerifyingKey::from_bytes(CLAWD_PUBLIC_KEY).context("Loading ClawDE public key")?;
+        let signature = Signature::from_slice(&sig_bytes).context("Parsing Ed25519 signature")?;
         verifying_key
             .verify(&payload_bytes, &signature)
             .context("License signature verification failed — bundle may be tampered")?;
@@ -125,7 +124,10 @@ mod tests {
         writeln!(f, "not-valid-bundle-format").unwrap();
         let result = LicenseBundle::load_and_verify(f.path(), "test-daemon");
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Invalid license bundle format"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid license bundle format"));
     }
 
     #[test]

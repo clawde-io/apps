@@ -4,19 +4,26 @@
 
 use anyhow::Result;
 use serde_json::json;
+use std::path::Path;
 
-use super::client::DaemonClient;
+use super::client::{read_auth_token, DaemonClient};
 
 /// `clawd memory list [--scope global|proj:...]`
-pub async fn cmd_list(scope: Option<String>, repo_path: Option<String>) -> Result<()> {
-    let client = DaemonClient::connect().await?;
+pub async fn cmd_list(
+    scope: Option<String>,
+    repo_path: Option<String>,
+    data_dir: &Path,
+    port: u16,
+) -> Result<()> {
+    let token = read_auth_token(data_dir)?;
+    let client = DaemonClient::new(port, token);
     let params = if let Some(path) = repo_path {
         json!({ "repo_path": path, "include_global": true })
     } else {
         json!({ "scope": scope.unwrap_or_else(|| "global".to_string()), "include_global": false })
     };
 
-    let result = client.call("memory.list", params).await?;
+    let result = client.call_once("memory.list", params).await?;
     let entries = result["entries"].as_array().cloned().unwrap_or_default();
 
     if entries.is_empty() {
@@ -24,7 +31,7 @@ pub async fn cmd_list(scope: Option<String>, repo_path: Option<String>) -> Resul
         return Ok(());
     }
 
-    println!("{:<40} {:<10} {:<8} {}", "Key", "Scope", "Weight", "Value");
+    println!("{:<40} {:<10} {:<8} Value", "Key", "Scope", "Weight");
     println!("{}", "-".repeat(80));
     for entry in &entries {
         let key = entry["key"].as_str().unwrap_or("");
@@ -43,10 +50,18 @@ pub async fn cmd_list(scope: Option<String>, repo_path: Option<String>) -> Resul
 }
 
 /// `clawd memory add <key> <value> [--scope global] [--weight 5]`
-pub async fn cmd_add(key: String, value: String, scope: String, weight: i64) -> Result<()> {
-    let client = DaemonClient::connect().await?;
+pub async fn cmd_add(
+    key: String,
+    value: String,
+    scope: String,
+    weight: i64,
+    data_dir: &Path,
+    port: u16,
+) -> Result<()> {
+    let token = read_auth_token(data_dir)?;
+    let client = DaemonClient::new(port, token);
     let result = client
-        .call(
+        .call_once(
             "memory.add",
             json!({ "scope": scope, "key": key, "value": value, "weight": weight }),
         )
@@ -63,10 +78,11 @@ pub async fn cmd_add(key: String, value: String, scope: String, weight: i64) -> 
 }
 
 /// `clawd memory remove <id>`
-pub async fn cmd_remove(id: String) -> Result<()> {
-    let client = DaemonClient::connect().await?;
+pub async fn cmd_remove(id: String, data_dir: &Path, port: u16) -> Result<()> {
+    let token = read_auth_token(data_dir)?;
+    let client = DaemonClient::new(port, token);
     let result = client
-        .call("memory.remove", json!({ "id": id }))
+        .call_once("memory.remove", json!({ "id": id }))
         .await?;
     if result["removed"].as_bool().unwrap_or(false) {
         println!("✓ Removed memory entry: {}", id);
@@ -77,10 +93,11 @@ pub async fn cmd_remove(id: String) -> Result<()> {
 }
 
 /// `clawd memory show <key> [--scope global]`
-pub async fn cmd_show(key: String, scope: String) -> Result<()> {
-    let client = DaemonClient::connect().await?;
+pub async fn cmd_show(key: String, scope: String, data_dir: &Path, port: u16) -> Result<()> {
+    let token = read_auth_token(data_dir)?;
+    let client = DaemonClient::new(port, token);
     let result = client
-        .call("memory.list", json!({ "scope": scope }))
+        .call_once("memory.list", json!({ "scope": scope }))
         .await?;
     let entries = result["entries"].as_array().cloned().unwrap_or_default();
     let entry = entries.iter().find(|e| e["key"].as_str() == Some(&key));

@@ -7,11 +7,8 @@ use serde_json::{json, Value};
 /// `project.pulse` — semantic change velocity for the project.
 ///
 /// Returns a structured pulse report for the last N days.
-pub async fn pulse(params: Value, ctx: AppContext) -> Result<Value> {
-    let days = params
-        .get("days")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(7);
+pub async fn pulse(params: Value, ctx: &AppContext) -> Result<Value> {
+    let days = params.get("days").and_then(|v| v.as_i64()).unwrap_or(7);
 
     let events = crate::analysis::semantic_delta::get_pulse(ctx.storage.pool(), days).await?;
 

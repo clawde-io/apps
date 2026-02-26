@@ -60,7 +60,8 @@ fn is_import_line(line: &str, ext: &str) -> bool {
     match ext {
         "rs" => trimmed.starts_with("use "),
         "ts" | "tsx" | "js" | "jsx" | "mjs" => {
-            trimmed.starts_with("import ") || trimmed.starts_with("const ") && trimmed.contains("require(")
+            trimmed.starts_with("import ")
+                || trimmed.starts_with("const ") && trimmed.contains("require(")
         }
         "dart" => trimmed.starts_with("import "),
         "py" | "pyw" => trimmed.starts_with("import ") || trimmed.starts_with("from "),
@@ -118,10 +119,15 @@ fn is_definition_line(line: &str, ext: &str) -> bool {
                 || line.starts_with("extension ")
                 || (line.contains('(') && !line.starts_with("//") && !line.starts_with("*"))
         }
-        "py" | "pyw" => line.starts_with("def ") || line.starts_with("async def ") || line.starts_with("class "),
+        "py" | "pyw" => {
+            line.starts_with("def ") || line.starts_with("async def ") || line.starts_with("class ")
+        }
         "go" => line.starts_with("func ") || line.starts_with("type "),
         "java" | "kt" | "kts" => {
-            line.contains("class ") || line.contains("fun ") || line.contains("void ") || line.contains("interface ")
+            line.contains("class ")
+                || line.contains("fun ")
+                || line.contains("void ")
+                || line.contains("interface ")
         }
         _ => false,
     }
@@ -137,7 +143,10 @@ mod tests {
     fn import_extraction_rust() {
         let content = "use std::io;\nuse anyhow::Result;\n\nfn main() {\n    let x = 1;\n}";
         let ctx = extract_context(content, 4, "main.rs");
-        assert!(ctx.contains("use std::io;"), "should include use statements");
+        assert!(
+            ctx.contains("use std::io;"),
+            "should include use statements"
+        );
         assert!(ctx.contains("use anyhow::Result;"));
     }
 
@@ -145,7 +154,10 @@ mod tests {
     fn enclosing_fn_extracted() {
         let content = "fn compute(x: i32) -> i32 {\n    let y = x + 1;\n    y\n}";
         let ctx = extract_context(content, 2, "lib.rs");
-        assert!(ctx.contains("fn compute"), "should include nearest fn signature");
+        assert!(
+            ctx.contains("fn compute"),
+            "should include nearest fn signature"
+        );
     }
 
     #[test]
@@ -169,7 +181,8 @@ mod tests {
 
     #[test]
     fn dart_import_detection() {
-        let content = "import 'dart:io';\nimport 'package:flutter/material.dart';\n\nvoid main() {}";
+        let content =
+            "import 'dart:io';\nimport 'package:flutter/material.dart';\n\nvoid main() {}";
         let ctx = extract_context(content, 3, "main.dart");
         assert!(ctx.contains("import 'dart:io';"));
     }

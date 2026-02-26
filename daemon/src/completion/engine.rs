@@ -168,7 +168,10 @@ mod tests {
         let pi = prompt.find(FIM_PREFIX_TOKEN).unwrap();
         let si = prompt.find(FIM_SUFFIX_TOKEN).unwrap();
         let mi = prompt.find(FIM_MIDDLE_TOKEN).unwrap();
-        assert!(pi < si && si < mi, "FIM tokens must be in prefix→suffix→middle order");
+        assert!(
+            pi < si && si < mi,
+            "FIM tokens must be in prefix→suffix→middle order"
+        );
     }
 
     #[test]
@@ -187,7 +190,10 @@ mod tests {
 
     #[test]
     fn extract_strips_fences() {
-        assert_eq!(extract_completion_text("```rust\nfn f(){}\n```"), "fn f(){}");
+        assert_eq!(
+            extract_completion_text("```rust\nfn f(){}\n```"),
+            "fn f(){}"
+        );
         assert_eq!(extract_completion_text("fn f(){}"), "fn f(){}");
     }
 

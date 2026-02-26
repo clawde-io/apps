@@ -1,20 +1,19 @@
 pub mod account;
 pub mod agents;
 pub mod analysis;
-pub mod autostart;
-pub mod connectivity;
 pub mod automations;
+pub mod autostart;
 pub mod ci;
 pub mod claw_init;
-pub mod plugins;
 pub mod cli;
 pub mod config;
+pub mod connectivity;
 pub mod context_manager;
 pub mod doctor;
 pub mod drift;
 pub mod evals;
-pub mod ghost_diff;
 pub mod events;
+pub mod ghost_diff;
 pub mod identity;
 pub mod init_templates;
 pub mod instructions;
@@ -22,8 +21,9 @@ pub mod intelligence;
 pub mod ipc;
 pub mod license;
 pub mod mcp;
-pub mod memory;
 pub mod mdns;
+pub mod memory;
+pub mod plugins;
 // metrics/mod.rs supersedes metrics.rs (Sprint PP OB.1). Use #[path] to resolve
 // the E0761 ambiguity — metrics.rs is kept for git history but is no longer used.
 #[path = "metrics/mod.rs"]
@@ -50,8 +50,8 @@ pub mod telemetry;
 pub mod threads;
 pub mod tools;
 pub mod update;
-pub mod worktree;
 pub mod workflows;
+pub mod worktree;
 
 // Re-export auth so main.rs can use clawd::auth directly.
 pub use ipc::auth;
@@ -60,7 +60,7 @@ use std::sync::Arc;
 
 use account::AccountRegistry;
 use agents::orchestrator::{Orchestrator, SharedOrchestrator};
-use agents::provider_session::{new_shared_registry, SharedProviderSessionRegistry};
+use agents::provider_session::SharedProviderSessionRegistry;
 use config::DaemonConfig;
 use doctor::version_watcher::VersionWatcher;
 use intelligence::token_tracker::TokenTracker;

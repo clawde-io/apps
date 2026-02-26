@@ -29,7 +29,7 @@ pub const DEVICE_NOT_FOUND: i64 = -32020;
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 fn pairing_storage(ctx: &AppContext) -> PairingStorage {
-    PairingStorage::new(ctx.storage.pool())
+    PairingStorage::new(ctx.storage.clone_pool())
 }
 
 /// Resolve the human-readable hostname to display in the pairing UI.

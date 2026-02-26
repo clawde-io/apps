@@ -357,10 +357,8 @@ impl TaskStorage {
                 .unwrap_or_default();
 
                 for (other_id, other_paths) in &active_tasks {
-                    let overlaps = crate::tasks::ownership::check_ownership_overlap(
-                        new_paths,
-                        other_paths,
-                    );
+                    let overlaps =
+                        crate::tasks::ownership::check_ownership_overlap(new_paths, other_paths);
                     if !overlaps.is_empty() {
                         tracing::warn!(
                             task_id,

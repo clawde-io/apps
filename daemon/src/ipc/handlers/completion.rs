@@ -7,7 +7,7 @@
 use crate::completion::cache::{CacheEntry, CompletionCache};
 use crate::completion::context::extract_context;
 use crate::completion::engine::{
-    build_fim_prompt, extract_completion_text, truncate_prefix, truncate_suffix, CompletionRequest,
+    build_fim_prompt, extract_completion_text, truncate_prefix, truncate_suffix,
     CompletionResponse, Insertion,
 };
 use crate::AppContext;
@@ -93,7 +93,10 @@ pub async fn complete(params: Value, ctx: &AppContext) -> Result<Value> {
     let fim_prompt = if context_block.is_empty() {
         build_fim_prompt(prefix, suffix, &p.file_path)
     } else {
-        format!("{context_block}\n{}", build_fim_prompt(prefix, suffix, &p.file_path))
+        format!(
+            "{context_block}\n{}",
+            build_fim_prompt(prefix, suffix, &p.file_path)
+        )
     };
 
     debug!(
@@ -107,7 +110,11 @@ pub async fn complete(params: Value, ctx: &AppContext) -> Result<Value> {
     // If no sessionId provided, create a one-shot ephemeral session with
     // the first available provider.  For now we use the session directly.
     let response_text = if !p.session_id.is_empty() {
-        match ctx.session_manager.send_message(&p.session_id, &fim_prompt, ctx).await {
+        match ctx
+            .session_manager
+            .send_message(&p.session_id, &fim_prompt, ctx)
+            .await
+        {
             Ok(msg) => msg.content.clone(),
             Err(e) => {
                 return Err(anyhow::anyhow!("provider error: {e}"));

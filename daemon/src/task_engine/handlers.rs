@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 use super::storage::TaskEngineStorage;
 
 fn te_storage(ctx: &AppContext) -> TaskEngineStorage {
-    TaskEngineStorage::new(ctx.storage.pool())
+    TaskEngineStorage::new(ctx.storage.clone_pool())
 }
 
 // ─── Phase handlers ───────────────────────────────────────────────────────────

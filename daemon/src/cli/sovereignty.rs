@@ -47,10 +47,7 @@ pub async fn report(data_dir: &Path, port: u16) -> Result<()> {
 
     for tool in &tools {
         let tool_id = tool.get("toolId").and_then(|v| v.as_str()).unwrap_or("?");
-        let event_count = tool
-            .get("eventCount")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
+        let event_count = tool.get("eventCount").and_then(|v| v.as_u64()).unwrap_or(0);
         let last_seen = tool
             .get("lastSeen")
             .and_then(|v| v.as_str())
@@ -58,11 +55,7 @@ pub async fn report(data_dir: &Path, port: u16) -> Result<()> {
         let files: Vec<&str> = tool
             .get("filesTouched")
             .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str())
-                    .collect()
-            })
+            .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect())
             .unwrap_or_default();
 
         println!("  {tool_id}");

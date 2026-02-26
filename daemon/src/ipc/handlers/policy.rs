@@ -10,7 +10,6 @@ use anyhow::Result;
 use serde_json::{json, Value};
 use std::path::Path;
 
-
 /// policy.test — run policy YAML test files.
 /// If `file` param is given, runs that single file.
 /// Otherwise scans `project_path/.clawd/tests/policy/` for *.yaml/*.yml.

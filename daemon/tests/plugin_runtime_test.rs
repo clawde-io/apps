@@ -55,7 +55,11 @@ mod plugin_runtime_tests {
         std::fs::write(tmp.path(), b"not a real plugin").unwrap();
         let (_, pub_hex) = generate_keypair();
         let result = verify_plugin_signature(tmp.path(), "aabbccdd", &pub_hex);
-        assert!(result.is_ok(), "placeholder sig should be accepted: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "placeholder sig should be accepted: {:?}",
+            result
+        );
     }
 
     #[test]

@@ -81,11 +81,11 @@ pub fn inspect_file_for_suggestions(
     let file_str = file_path.to_string_lossy().to_string();
 
     // Skip non-source files (binaries, lock files, build artefacts).
-    let ext = file_path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("");
-    if !matches!(ext, "rs" | "dart" | "ts" | "tsx" | "js" | "py" | "go" | "md" | "toml") {
+    let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    if !matches!(
+        ext,
+        "rs" | "dart" | "ts" | "tsx" | "js" | "py" | "go" | "md" | "toml"
+    ) {
         return None;
     }
 
@@ -224,7 +224,7 @@ mod tests {
         let f = write_temp("fn ok() {}\n");
         let path_str = f.path().to_string_lossy().to_string();
         // Pass a fragment of the path as an "active task path".
-        let result = inspect_file_for_suggestions(f.path(), &[path_str.clone()]);
+        let result = inspect_file_for_suggestions(f.path(), std::slice::from_ref(&path_str));
         assert!(result.is_some());
         assert!(matches!(
             result.unwrap().reason,
@@ -235,7 +235,8 @@ mod tests {
     #[test]
     fn skips_lock_file() {
         let mut f = NamedTempFile::with_suffix(".lock").unwrap();
-        f.write_all(b"some lock content // TODO: should be skipped").unwrap();
+        f.write_all(b"some lock content // TODO: should be skipped")
+            .unwrap();
         let result = inspect_file_for_suggestions(f.path(), &[]);
         assert!(result.is_none());
     }

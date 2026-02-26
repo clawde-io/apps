@@ -14,7 +14,7 @@ pub const PROJECT_NOT_FOUND: i64 = -32023;
 pub const REPO_ALREADY_IN_PROJECT: i64 = -32024;
 
 fn proj_storage(ctx: &AppContext) -> ProjectStorage {
-    ProjectStorage::new(ctx.storage.pool())
+    ProjectStorage::new(ctx.storage.clone_pool())
 }
 
 // ─── Project handlers ─────────────────────────────────────────────────────────

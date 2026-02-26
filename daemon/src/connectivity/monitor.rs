@@ -89,7 +89,8 @@ pub async fn run_monitor(
         .unwrap_or_default();
 
     // Rolling window: track last 10 ping outcomes (true = success, false = loss)
-    let mut window: std::collections::VecDeque<bool> = std::collections::VecDeque::with_capacity(10);
+    let mut window: std::collections::VecDeque<bool> =
+        std::collections::VecDeque::with_capacity(10);
     let mut was_degraded = false;
 
     loop {
@@ -122,8 +123,7 @@ pub async fn run_monitor(
         };
 
         let measured_rtt = if success { rtt_ms } else { u64::MAX };
-        let degraded =
-            measured_rtt > DEGRADED_RTT_MS || packet_loss_pct > DEGRADED_LOSS_PCT;
+        let degraded = measured_rtt > DEGRADED_RTT_MS || packet_loss_pct > DEGRADED_LOSS_PCT;
 
         debug!(
             rtt_ms = measured_rtt,
@@ -144,7 +144,11 @@ pub async fn run_monitor(
 
         // Fire event if degradation state changed
         if degraded && !was_degraded {
-            warn!(rtt_ms = measured_rtt, loss_pct = packet_loss_pct, "connectivity degraded");
+            warn!(
+                rtt_ms = measured_rtt,
+                loss_pct = packet_loss_pct,
+                "connectivity degraded"
+            );
             broadcaster.broadcast(
                 "connectivity_degraded",
                 json!({

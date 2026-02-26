@@ -19,7 +19,7 @@ fn automation_to_json(a: &crate::automations::engine::Automation) -> Value {
 }
 
 /// `automation.list` — returns all automations (built-in + user-configured).
-pub async fn list(_params: Value, ctx: AppContext) -> Result<Value> {
+pub async fn list(_params: Value, ctx: &AppContext) -> Result<Value> {
     let engine = &ctx.automation_engine;
     let automations = engine.automations.read().await;
     let list: Vec<Value> = automations.iter().map(automation_to_json).collect();
@@ -27,7 +27,7 @@ pub async fn list(_params: Value, ctx: AppContext) -> Result<Value> {
 }
 
 /// `automation.trigger` — fire a named automation immediately (for testing).
-pub async fn trigger(params: Value, ctx: AppContext) -> Result<Value> {
+pub async fn trigger(params: Value, ctx: &AppContext) -> Result<Value> {
     let name = params
         .get("name")
         .and_then(|v| v.as_str())
@@ -46,7 +46,10 @@ pub async fn trigger(params: Value, ctx: AppContext) -> Result<Value> {
     // Fire a synthetic trigger event.
     engine.fire(crate::automations::engine::TriggerEvent {
         kind: crate::automations::engine::TriggerType::SessionComplete,
-        session_id: params.get("sessionId").and_then(|v| v.as_str()).map(String::from),
+        session_id: params
+            .get("sessionId")
+            .and_then(|v| v.as_str())
+            .map(String::from),
         task_id: None,
         file_path: None,
         session_output: None,
@@ -57,7 +60,7 @@ pub async fn trigger(params: Value, ctx: AppContext) -> Result<Value> {
 }
 
 /// `automation.disable` — enable or disable an automation by name.
-pub async fn disable(params: Value, ctx: AppContext) -> Result<Value> {
+pub async fn disable(params: Value, ctx: &AppContext) -> Result<Value> {
     let name = params
         .get("name")
         .and_then(|v| v.as_str())

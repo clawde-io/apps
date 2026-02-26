@@ -106,9 +106,7 @@ pub async fn compare(base_ref: String, data_dir: &Path, port: u16) -> Result<()>
         "Mean turns       │ {base_turns_mean:>8.1} │ {current_turns_mean:>8.1} │ {:>+10.1}",
         turns_delta
     );
-    println!(
-        "Mean diff lines  │ {base_diff_lines_mean:>8.1} │ {current_diff_lines_mean:>8.1} │",
-    );
+    println!("Mean diff lines  │ {base_diff_lines_mean:>8.1} │ {current_diff_lines_mean:>8.1} │",);
     println!("─────────────────────────────────────────────");
 
     // EH.T06 — Regression gate thresholds

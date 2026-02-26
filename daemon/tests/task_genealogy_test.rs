@@ -55,14 +55,42 @@ async fn task_genealogy_parent_child_chain() {
 
     // Create parent.
     let parent = storage
-        .add_task("parent-1", "Parent Task", None, None, None, None, None, None, None, None, None, None, "")
+        .add_task(
+            "parent-1",
+            "Parent Task",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            "",
+        )
         .await
         .unwrap();
     assert_eq!(parent.id, "parent-1");
 
     // Create child.
     let child = storage
-        .add_task("child-1", "Child Task", None, None, None, Some("parent-1"), None, None, None, None, None, None, "")
+        .add_task(
+            "child-1",
+            "Child Task",
+            None,
+            None,
+            None,
+            Some("parent-1"),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            "",
+        )
         .await
         .unwrap();
     assert_eq!(child.id, "child-1");
@@ -80,7 +108,21 @@ async fn task_genealogy_parent_child_chain() {
 
     // Create grandchild.
     let grandchild = storage
-        .add_task("grandchild-1", "Grandchild Task", None, None, None, Some("child-1"), None, None, None, None, None, None, "")
+        .add_task(
+            "grandchild-1",
+            "Grandchild Task",
+            None,
+            None,
+            None,
+            Some("child-1"),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            "",
+        )
         .await
         .unwrap();
     assert_eq!(grandchild.id, "grandchild-1");
@@ -96,38 +138,43 @@ async fn task_genealogy_parent_child_chain() {
     .unwrap();
 
     // Query lineage of child: should have parent as ancestor, grandchild as descendant.
-    let ancestors = sqlx::query(
-        "SELECT parent_task_id FROM task_genealogy WHERE child_task_id = ?",
-    )
-    .bind("child-1")
-    .fetch_all(storage.pool())
-    .await
-    .unwrap();
+    let ancestors =
+        sqlx::query("SELECT parent_task_id FROM task_genealogy WHERE child_task_id = ?")
+            .bind("child-1")
+            .fetch_all(storage.pool())
+            .await
+            .unwrap();
 
     assert_eq!(ancestors.len(), 1);
     use sqlx::Row;
     assert_eq!(ancestors[0].get::<String, _>("parent_task_id"), "parent-1");
 
-    let descendants = sqlx::query(
-        "SELECT child_task_id FROM task_genealogy WHERE parent_task_id = ?",
-    )
-    .bind("child-1")
-    .fetch_all(storage.pool())
-    .await
-    .unwrap();
+    let descendants =
+        sqlx::query("SELECT child_task_id FROM task_genealogy WHERE parent_task_id = ?")
+            .bind("child-1")
+            .fetch_all(storage.pool())
+            .await
+            .unwrap();
     assert_eq!(descendants.len(), 1);
-    assert_eq!(descendants[0].get::<String, _>("child_task_id"), "grandchild-1");
+    assert_eq!(
+        descendants[0].get::<String, _>("child_task_id"),
+        "grandchild-1"
+    );
 }
 
 #[tokio::test]
 async fn task_genealogy_duplicate_link_ignored() {
     let (storage, _dir) = make_storage().await;
     storage
-        .add_task("p-2", "Parent", None, None, None, None, None, None, None, None, None, None, "")
+        .add_task(
+            "p-2", "Parent", None, None, None, None, None, None, None, None, None, None, "",
+        )
         .await
         .unwrap();
     storage
-        .add_task("c-2", "Child", None, None, None, None, None, None, None, None, None, None, "")
+        .add_task(
+            "c-2", "Child", None, None, None, None, None, None, None, None, None, None, "",
+        )
         .await
         .unwrap();
 
@@ -143,11 +190,10 @@ async fn task_genealogy_duplicate_link_ignored() {
         .unwrap();
     }
 
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM task_genealogy WHERE parent_task_id = 'p-2'",
-    )
-    .fetch_one(storage.pool())
-    .await
-    .unwrap();
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM task_genealogy WHERE parent_task_id = 'p-2'")
+            .fetch_one(storage.pool())
+            .await
+            .unwrap();
     assert_eq!(count, 1, "duplicate genealogy links should be ignored");
 }

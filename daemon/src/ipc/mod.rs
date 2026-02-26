@@ -512,7 +512,8 @@ pub(crate) async fn dispatch_text(text: &str, ctx: &AppContext, client_token: &s
     if !ctx.auth_token.is_empty() {
         let is_daemon_token = tokens_equal(client_token, &ctx.auth_token);
         let is_device_token = if !is_daemon_token && !client_token.is_empty() {
-            let pairing_storage = crate::pairing::storage::PairingStorage::new(ctx.storage.pool());
+            let pairing_storage =
+                crate::pairing::storage::PairingStorage::new(ctx.storage.clone_pool());
             pairing_storage
                 .get_by_token(client_token)
                 .await
@@ -857,8 +858,8 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
         "eval.list" => handlers::evals::eval_list(params, ctx).await,
         "eval.run" => handlers::evals::eval_run(params, ctx).await,
         // TG — Task Genealogy
-        "task.spawn" => handlers::tasks::spawn(params, &ctx).await,
-        "task.lineage" => handlers::tasks::lineage(params, &ctx).await,
+        "task.spawn" => handlers::tasks::spawn(params, ctx).await,
+        "task.lineage" => handlers::tasks::lineage(params, ctx).await,
         // AM — Attention Map
         "session.attentionMap" => handlers::session::attention_map(params, ctx).await,
         // IE — Intent vs Execution
@@ -938,11 +939,11 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
         "metrics.rollups" => handlers::metrics::rollups(params, ctx).await,
 
         // ─── Sprint RR: Push notifications ──────────────────────────────────
-        "push.register" => handlers::push::register(ctx, params).await,
-        "push.unregister" => handlers::push::unregister(ctx, params).await,
+        "push.register" => handlers::push::register(params, ctx).await,
+        "push.unregister" => handlers::push::unregister(params, ctx).await,
 
         // ─── Sprint TT: Pack ratings ─────────────────────────────────────────
-        "pack.rate" => handlers::pack_ratings::rate(ctx, params).await,
+        "pack.rate" => handlers::pack_ratings::rate(params, ctx).await,
 
         // ─── Sprint ZZ: Agent OS ──────────────────────────────────────────────
         // Instruction graph
@@ -961,20 +962,27 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
         "task.heartbeat" => {
             let task_id = params["task_id"].as_str().unwrap_or("").to_string();
             let extend_secs = params["extend_secs"].as_i64().unwrap_or(300);
-            let new_expires = crate::tasks::janitor::extend_lease(&ctx.storage, &task_id, extend_secs).await?;
+            let new_expires =
+                crate::tasks::janitor::extend_lease(&ctx.storage, &task_id, extend_secs).await?;
             Ok(serde_json::json!({ "task_id": task_id, "lease_expires_at": new_expires }))
-        },
+        }
         "task.expandOwnership" => {
-            let task_id = params["task_id"].as_str()
-                .ok_or_else(|| anyhow::anyhow!("missing task_id"))?.to_string();
+            let task_id = params["task_id"]
+                .as_str()
+                .ok_or_else(|| anyhow::anyhow!("missing task_id"))?
+                .to_string();
             let new_patterns: Vec<String> = params["patterns"]
                 .as_array()
-                .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect()
+                })
                 .unwrap_or_default();
             let ownership = crate::tasks::ownership::OwnershipStorage::new(&ctx.storage);
             let expanded = ownership.expand_ownership(&task_id, &new_patterns).await?;
             Ok(serde_json::json!({ "task_id": task_id, "owned_paths_json": expanded }))
-        },
+        }
         // Evidence packs
         "task.evidencePack" => handlers::artifacts::evidence_pack(ctx, params).await,
         // Security / injection defense
@@ -993,8 +1001,10 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
         // OpenTelemetry traces
         "session.trace" => {
             let session_id = params["session_id"].as_str().unwrap_or("").to_string();
-            let spans = crate::session::telemetry::get_session_trace(&ctx.storage, &session_id).await?;
-            Ok(serde_json::json!({ "spans": spans.iter().map(|s| serde_json::json!({
+            let spans =
+                crate::session::telemetry::get_session_trace(&ctx.storage, &session_id).await?;
+            Ok(
+                serde_json::json!({ "spans": spans.iter().map(|s| serde_json::json!({
                 "span_id": s.span_id,
                 "parent_span_id": s.parent_span_id,
                 "trace_id": s.trace_id,
@@ -1003,34 +1013,35 @@ async fn dispatch(method: &str, params: Value, ctx: &AppContext) -> anyhow::Resu
                 "started_at_ms": s.started_at_ms,
                 "duration_ms": s.duration_ms,
                 "status": format!("{:?}", s.status),
-            })).collect::<Vec<_>>() }))
-        },
+            })).collect::<Vec<_>>() }),
+            )
+        }
         // EP.T04 — Evidence pack retrieval
         "artifacts.evidencePack" => handlers::artifacts::evidence_pack(ctx, params).await,
 
         // Provider capability matrix
         "providers.listCapabilities" => {
             use crate::agents::capabilities::{Provider, ProviderCapabilities};
-            let provider_pairs = [
-                ("claude", Provider::Claude),
-                ("codex", Provider::Codex),
-            ];
-            let list = provider_pairs.iter().map(|(name, p)| {
-                let caps = ProviderCapabilities::for_provider(p);
-                serde_json::json!({
-                    "name": name,
-                    "supports_fork": caps.supports_fork,
-                    "supports_resume": caps.supports_resume,
-                    "supports_mcp": caps.supports_mcp,
-                    "supports_sandbox": caps.supports_sandbox,
-                    "supports_worktree": caps.supports_worktree,
-                    "max_context_tokens": caps.max_context_tokens,
-                    "cost_per_1k_in": caps.cost_per_1k_tokens_in,
-                    "cost_per_1k_out": caps.cost_per_1k_tokens_out,
+            let provider_pairs = [("claude", Provider::Claude), ("codex", Provider::Codex)];
+            let list = provider_pairs
+                .iter()
+                .map(|(name, p)| {
+                    let caps = ProviderCapabilities::for_provider(p);
+                    serde_json::json!({
+                        "name": name,
+                        "supports_fork": caps.supports_fork,
+                        "supports_resume": caps.supports_resume,
+                        "supports_mcp": caps.supports_mcp,
+                        "supports_sandbox": caps.supports_sandbox,
+                        "supports_worktree": caps.supports_worktree,
+                        "max_context_tokens": caps.max_context_tokens,
+                        "cost_per_1k_in": caps.cost_per_1k_tokens_in,
+                        "cost_per_1k_out": caps.cost_per_1k_tokens_out,
+                    })
                 })
-            }).collect::<Vec<_>>();
+                .collect::<Vec<_>>();
             Ok(serde_json::json!({ "providers": list }))
-        },
+        }
 
         _ => Err(anyhow::anyhow!("METHOD_NOT_FOUND:{}", method)),
     }

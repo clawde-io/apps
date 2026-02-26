@@ -12,7 +12,6 @@ use crate::AppContext;
 use anyhow::Result;
 use serde_json::{json, Value};
 
-
 /// PI.T03 — `security.analyzeContent(content, source_type)` RPC
 pub async fn analyze_content_rpc(ctx: &AppContext, params: Value) -> Result<Value> {
     let content = params["content"]
@@ -21,7 +20,7 @@ pub async fn analyze_content_rpc(ctx: &AppContext, params: Value) -> Result<Valu
     let source_type_str = params["source_type"].as_str().unwrap_or("file");
     let session_id = params["session_id"].as_str().unwrap_or("unknown");
 
-    let source_type = SourceType::from_str(source_type_str);
+    let source_type = SourceType::parse(source_type_str);
     let analysis = analyze_content(content, &source_type);
 
     // PI.T04 — For high-risk content: sanitize + log security event
@@ -49,11 +48,14 @@ pub async fn analyze_content_rpc(ctx: &AppContext, params: Value) -> Result<Valu
         let _ = record_content_label(&ctx.storage, session_id, &source_type, &analysis).await;
 
         // Push `security.contentSanitized` event to clients
-        ctx.broadcaster.broadcast("security.contentSanitized", json!({
-            "session_id": session_id,
-            "patterns_found": &analysis.patterns_found,
-            "source_type": source_type_str,
-        }));
+        ctx.broadcaster.broadcast(
+            "security.contentSanitized",
+            json!({
+                "session_id": session_id,
+                "patterns_found": &analysis.patterns_found,
+                "source_type": source_type_str,
+            }),
+        );
 
         Some(sanitized_content)
     } else {

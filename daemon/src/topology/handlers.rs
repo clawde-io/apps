@@ -54,7 +54,7 @@ struct CrossValidateParams {
 
 /// `topology.get` — return the full topology graph (nodes + edges).
 pub async fn topology_get(_params: Value, ctx: &AppContext) -> Result<Value> {
-    let storage = TopologyStorage::new(ctx.storage.pool());
+    let storage = TopologyStorage::new(ctx.storage.clone_pool());
     let graph = storage.get_topology().await?;
     Ok(serde_json::to_value(&graph)?)
 }
@@ -64,7 +64,7 @@ pub async fn topology_get(_params: Value, ctx: &AppContext) -> Result<Value> {
 /// `topology.validate` — detect circular dependencies and report repos that are
 /// referenced in edges but not registered with the daemon.
 pub async fn topology_validate(_params: Value, ctx: &AppContext) -> Result<Value> {
-    let storage = TopologyStorage::new(ctx.storage.pool());
+    let storage = TopologyStorage::new(ctx.storage.clone_pool());
     let graph = storage.get_topology().await?;
     let cycles = storage.find_cycles().await?;
 
@@ -105,7 +105,7 @@ pub async fn topology_add_dependency(params: Value, ctx: &AppContext) -> Result<
     }
 
     let dep_type = DepType::from_str(&p.dep_type);
-    let storage = TopologyStorage::new(ctx.storage.pool());
+    let storage = TopologyStorage::new(ctx.storage.clone_pool());
     let dep = storage
         .add_dependency(&p.from_repo, &p.to_repo, &dep_type, p.confidence, false)
         .await?;
@@ -121,7 +121,7 @@ pub async fn topology_remove_dependency(params: Value, ctx: &AppContext) -> Resu
     if p.id.is_empty() {
         bail!("id is required");
     }
-    let storage = TopologyStorage::new(ctx.storage.pool());
+    let storage = TopologyStorage::new(ctx.storage.clone_pool());
     storage.remove_dependency(&p.id).await?;
     Ok(json!({ "removed": true, "id": p.id }))
 }
@@ -137,7 +137,7 @@ pub async fn topology_remove_dependency(params: Value, ctx: &AppContext) -> Resu
 pub async fn topology_cross_validate(params: Value, ctx: &AppContext) -> Result<Value> {
     let p: CrossValidateParams =
         serde_json::from_value(params).unwrap_or(CrossValidateParams { repo_path: None });
-    let storage = TopologyStorage::new(ctx.storage.pool());
+    let storage = TopologyStorage::new(ctx.storage.clone_pool());
     let graph = storage.get_topology().await?;
 
     let edges_to_check: Vec<_> = if let Some(ref rp) = p.repo_path {

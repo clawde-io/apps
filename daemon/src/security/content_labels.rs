@@ -50,7 +50,7 @@ impl SourceType {
         }
     }
 
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse(s: &str) -> Self {
         match s {
             "git_log" => Self::GitLog,
             "git_diff" => Self::GitDiff,
@@ -201,7 +201,10 @@ pub fn sanitize_content(content: &str, analysis: &ContentAnalysis) -> (String, V
                 .unwrap_or(sanitized.len());
 
             let stripped_segment = sanitized[idx..end].to_string();
-            stripped.push(format!("Stripped injection attempt: '{}'", &stripped_segment[..stripped_segment.len().min(80)]));
+            stripped.push(format!(
+                "Stripped injection attempt: '{}'",
+                &stripped_segment[..stripped_segment.len().min(80)]
+            ));
             sanitized = format!("{}[SANITIZED]{}", &sanitized[..idx], &sanitized[end..]);
         }
     }

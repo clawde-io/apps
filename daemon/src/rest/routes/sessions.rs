@@ -12,13 +12,13 @@ use std::sync::Arc;
 use crate::AppContext;
 
 pub async fn list_sessions(State(ctx): State<Arc<AppContext>>) -> Json<Value> {
-    let sessions = ctx.session_manager.list_sessions().await;
+    let sessions = ctx.session_manager.list().await.unwrap_or_default();
     let list: Vec<Value> = sessions
         .iter()
         .map(|s| {
             json!({
                 "id": s.id,
-                "status": format!("{:?}", s.status).to_lowercase(),
+                "status": s.status,
                 "provider": s.provider,
                 "repo_path": s.repo_path,
                 "created_at": s.created_at,
@@ -32,16 +32,16 @@ pub async fn get_session(
     State(ctx): State<Arc<AppContext>>,
     Path(id): Path<String>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
-    match ctx.session_manager.get_session(&id).await {
-        Some(s) => Ok(Json(json!({
+    match ctx.session_manager.get(&id).await {
+        Ok(s) => Ok(Json(json!({
             "id": s.id,
-            "status": format!("{:?}", s.status).to_lowercase(),
+            "status": s.status,
             "provider": s.provider,
             "repo_path": s.repo_path,
             "created_at": s.created_at,
             "model_override": s.model_override,
         }))),
-        None => Err((
+        Err(_) => Err((
             StatusCode::NOT_FOUND,
             Json(json!({ "error": "Session not found" })),
         )),
@@ -63,7 +63,7 @@ pub async fn create_session(
         "repo_path": body.repo_path.unwrap_or_default(),
     });
 
-    match crate::ipc::handlers::session::create(params, ctx).await {
+    match crate::ipc::handlers::session::create(params, &ctx).await {
         Ok(result) => Ok(Json(result)),
         Err(e) => Err((
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -88,7 +88,7 @@ pub async fn submit_task(
         "role": "user",
     });
 
-    match crate::ipc::handlers::session::send_message(params, ctx).await {
+    match crate::ipc::handlers::session::send_message(params, &ctx).await {
         Ok(result) => Ok(Json(result)),
         Err(e) => Err((
             StatusCode::INTERNAL_SERVER_ERROR,

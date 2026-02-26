@@ -12,7 +12,7 @@ use clawd::tasks::storage::{
 async fn make_ts() -> (TaskStorage, tempfile::TempDir) {
     let dir = tempfile::tempdir().expect("tempdir failed");
     let storage = Storage::new(dir.path()).await.expect("Storage::new failed");
-    let ts = TaskStorage::new(storage.pool());
+    let ts = TaskStorage::new(storage.clone_pool());
     (ts, dir)
 }
 

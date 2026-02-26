@@ -62,7 +62,7 @@ pub async fn start_thread(ctx: &AppContext, params: Value) -> Result<Value> {
 
     let model_config = params.get("model_config").cloned().unwrap_or(json!({}));
 
-    let pool = ctx.storage.pool();
+    let pool = ctx.storage.clone_pool();
 
     let thread = match thread_type_str {
         "control" => {
@@ -127,7 +127,7 @@ pub async fn start_thread(ctx: &AppContext, params: Value) -> Result<Value> {
 pub async fn resume_thread(ctx: &AppContext, params: Value) -> Result<Value> {
     let thread_id = sv(&params, "thread_id").ok_or_else(|| anyhow::anyhow!("missing thread_id"))?;
 
-    let pool = ctx.storage.pool();
+    let pool = ctx.storage.clone_pool();
     let thread = fetch_thread(&pool, thread_id).await?;
 
     // Fetch latest session snapshots for this thread (all vendors).
@@ -179,7 +179,7 @@ pub async fn resume_thread(ctx: &AppContext, params: Value) -> Result<Value> {
 pub async fn fork_thread(ctx: &AppContext, params: Value) -> Result<Value> {
     let parent_id = sv(&params, "thread_id").ok_or_else(|| anyhow::anyhow!("missing thread_id"))?;
 
-    let pool = ctx.storage.pool();
+    let pool = ctx.storage.clone_pool();
 
     // Verify parent thread exists.
     let parent = fetch_thread(&pool, parent_id).await?;
@@ -225,7 +225,7 @@ pub async fn fork_thread(ctx: &AppContext, params: Value) -> Result<Value> {
 ///
 /// Returns: `{ "threads": [...] }`
 pub async fn list_threads(ctx: &AppContext, params: Value) -> Result<Value> {
-    let pool = ctx.storage.pool();
+    let pool = ctx.storage.clone_pool();
 
     // Build a dynamic query. We use a fixed query with optional filters via
     // sqlx's parameterised binding (no string interpolation — no SQL injection).

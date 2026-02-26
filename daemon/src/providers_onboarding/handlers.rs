@@ -393,7 +393,7 @@ async fn load_or_synthesise_profile(
 ) -> crate::repo_intelligence::RepoProfile {
     use crate::repo_intelligence::profile::{CodeConventions, PrimaryLanguage, RepoProfile};
 
-    match crate::repo_intelligence::storage::load(&ctx.storage.pool(), repo_path).await {
+    match crate::repo_intelligence::storage::load(ctx.storage.pool(), repo_path).await {
         Ok(Some(profile)) => profile,
         _ => RepoProfile {
             repo_path: repo_path.to_string(),

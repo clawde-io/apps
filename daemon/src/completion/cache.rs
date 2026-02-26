@@ -167,10 +167,28 @@ mod tests {
         let k2 = "key2".to_string();
         let k3 = "key3".to_string();
 
-        cache.insert(k1.clone(), CacheEntry { insertions: vec![], created_at: std::time::Instant::now() });
-        cache.insert(k2.clone(), CacheEntry { insertions: vec![], created_at: std::time::Instant::now() });
+        cache.insert(
+            k1.clone(),
+            CacheEntry {
+                insertions: vec![],
+                created_at: std::time::Instant::now(),
+            },
+        );
+        cache.insert(
+            k2.clone(),
+            CacheEntry {
+                insertions: vec![],
+                created_at: std::time::Instant::now(),
+            },
+        );
         // k1 is LRU — inserting k3 should evict k1
-        cache.insert(k3.clone(), CacheEntry { insertions: vec![], created_at: std::time::Instant::now() });
+        cache.insert(
+            k3.clone(),
+            CacheEntry {
+                insertions: vec![],
+                created_at: std::time::Instant::now(),
+            },
+        );
 
         assert_eq!(cache.len(), 2);
         assert!(cache.map.contains_key(&k2));
@@ -185,7 +203,13 @@ mod tests {
 
         let k = CompletionCache::cache_key("a", "b");
         cache.get(&k); // miss
-        cache.insert(k.clone(), CacheEntry { insertions: vec![], created_at: std::time::Instant::now() });
+        cache.insert(
+            k.clone(),
+            CacheEntry {
+                insertions: vec![],
+                created_at: std::time::Instant::now(),
+            },
+        );
         cache.get(&k); // hit
         assert!((cache.hit_rate() - 0.5).abs() < 1e-9);
     }

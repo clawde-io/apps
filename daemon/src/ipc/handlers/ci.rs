@@ -19,7 +19,7 @@ fn ci_runs() -> &'static Arc<Mutex<HashMap<String, crate::ci::runner::CiRunStatu
 /// `ci.run` — Start a CI run for the given repo.
 ///
 /// Params: `{ repoPath: String, step?: String }`
-pub async fn run(params: Value, ctx: AppContext) -> Result<Value> {
+pub async fn run(params: Value, ctx: &AppContext) -> Result<Value> {
     let repo_path = params
         .get("repoPath")
         .and_then(|v| v.as_str())
@@ -37,10 +37,7 @@ pub async fn run(params: Value, ctx: AppContext) -> Result<Value> {
     // Register run as active
     {
         let mut runs = ci_runs().lock().await;
-        runs.insert(
-            run_id.clone(),
-            crate::ci::runner::CiRunStatus::Running,
-        );
+        runs.insert(run_id.clone(), crate::ci::runner::CiRunStatus::Running);
     }
 
     let run_id_clone = run_id.clone();
@@ -50,11 +47,7 @@ pub async fn run(params: Value, ctx: AppContext) -> Result<Value> {
     // Filter steps if requested
     let mut config = config;
     if let Some(step_name) = filter_step {
-        config.steps = config
-            .steps
-            .into_iter()
-            .filter(|s| s.name == step_name)
-            .collect();
+        config.steps.retain(|s| s.name == step_name);
         if config.steps.is_empty() {
             anyhow::bail!("Step '{step_name}' not found in CI config");
         }
@@ -82,7 +75,7 @@ pub async fn run(params: Value, ctx: AppContext) -> Result<Value> {
 }
 
 /// `ci.status` — Get the status of a CI run.
-pub async fn status(params: Value, _ctx: AppContext) -> Result<Value> {
+pub async fn status(params: Value, _ctx: &AppContext) -> Result<Value> {
     let run_id = params
         .get("runId")
         .and_then(|v| v.as_str())
@@ -100,7 +93,7 @@ pub async fn status(params: Value, _ctx: AppContext) -> Result<Value> {
 }
 
 /// `ci.cancel` — Cancel a running CI run.
-pub async fn cancel(params: Value, ctx: AppContext) -> Result<Value> {
+pub async fn cancel(params: Value, ctx: &AppContext) -> Result<Value> {
     let run_id = params
         .get("runId")
         .and_then(|v| v.as_str())
@@ -109,10 +102,7 @@ pub async fn cancel(params: Value, ctx: AppContext) -> Result<Value> {
     {
         let mut runs = ci_runs().lock().await;
         if runs.contains_key(run_id) {
-            runs.insert(
-                run_id.to_string(),
-                crate::ci::runner::CiRunStatus::Canceled,
-            );
+            runs.insert(run_id.to_string(), crate::ci::runner::CiRunStatus::Canceled);
         } else {
             anyhow::bail!("Run '{run_id}' not found");
         }

@@ -11,8 +11,7 @@ use anyhow::{bail, Context, Result};
 use libloading::{Library, Symbol};
 
 use clawd_plugin_abi::{
-    ClawaContext, ClawaError, ClawaPlugin, CLAWD_PLUGIN_ABI_VERSION,
-    CLAWD_PLUGIN_INIT_SYMBOL,
+    ClawaContext, ClawaError, ClawaPlugin, CLAWD_PLUGIN_ABI_VERSION, CLAWD_PLUGIN_INIT_SYMBOL,
 };
 
 use super::signing::verify_plugin_signature;
@@ -104,6 +103,7 @@ impl DylibPlugin {
     }
 
     /// Call `on_load` if the plugin provides it.
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn call_on_load(&self, ctx: *mut ClawaContext) -> ClawaError {
         let plugin = unsafe { &*self.plugin };
         if let Some(on_load) = plugin.on_load {
@@ -114,6 +114,7 @@ impl DylibPlugin {
     }
 
     /// Call `on_session_start` with the given session ID.
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn call_on_session_start(
         &self,
         ctx: *mut ClawaContext,
@@ -128,6 +129,7 @@ impl DylibPlugin {
     }
 
     /// Call `on_unload` if the plugin provides it.
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn call_on_unload(&self, ctx: *mut ClawaContext) {
         let plugin = unsafe { &*self.plugin };
         if let Some(on_unload) = plugin.on_unload {

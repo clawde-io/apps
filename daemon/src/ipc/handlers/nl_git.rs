@@ -17,7 +17,7 @@ use serde_json::{json, Value};
 use std::process::Stdio;
 
 /// `git.query` — natural language git history query.
-pub async fn query(params: Value, _ctx: AppContext) -> Result<Value> {
+pub async fn query(params: Value, _ctx: &AppContext) -> Result<Value> {
     let question = params
         .get("question")
         .and_then(|v| v.as_str())
@@ -148,7 +148,12 @@ fn synthesize_narrative(question: &str, commits: &[Value]) -> String {
         "recently"
     };
 
-    let mut parts = vec![format!("{} commit{} {}", count, if count == 1 { "" } else { "s" }, period)];
+    let mut parts = vec![format!(
+        "{} commit{} {}",
+        count,
+        if count == 1 { "" } else { "s" },
+        period
+    )];
 
     // List up to 3 commits by name.
     for (i, commit) in commits.iter().take(3).enumerate() {

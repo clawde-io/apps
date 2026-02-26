@@ -34,7 +34,10 @@ pub async fn list(data_dir: &Path, port: u16) -> Result<()> {
         let id = r.get("id").and_then(|v| v.as_str()).unwrap_or("?");
         let name = r.get("name").and_then(|v| v.as_str()).unwrap_or("?");
         let desc = r.get("description").and_then(|v| v.as_str()).unwrap_or("");
-        let builtin = r.get("isBuiltin").and_then(|v| v.as_bool()).unwrap_or(false);
+        let builtin = r
+            .get("isBuiltin")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
         let runs = r.get("runCount").and_then(|v| v.as_u64()).unwrap_or(0);
         let badge = if builtin { " [built-in]" } else { "" };
 

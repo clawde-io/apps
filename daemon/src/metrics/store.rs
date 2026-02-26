@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct MetricEntry {
     pub id: i64,
     pub session_id: String,
@@ -19,7 +19,7 @@ pub struct MetricEntry {
     pub cost_usd: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct MetricRollup {
     pub id: i64,
     pub session_id: Option<String>,
@@ -41,6 +41,7 @@ pub struct MetricsSummary {
     pub period_end: i64,
 }
 
+#[derive(Clone)]
 pub struct MetricsStore {
     pool: SqlitePool,
 }
@@ -142,19 +143,14 @@ impl MetricsStore {
     }
 
     /// List recent metric entries for a session.
-    pub async fn list_session(
-        &self,
-        session_id: &str,
-        limit: i64,
-    ) -> Result<Vec<MetricEntry>> {
-        let rows = sqlx::query_as!(
-            MetricEntry,
-            r"SELECT id, session_id, timestamp, tokens_in, tokens_out, tool_calls, cost_usd
-              FROM metrics WHERE session_id = ?1
-              ORDER BY timestamp DESC LIMIT ?2",
-            session_id,
-            limit,
+    pub async fn list_session(&self, session_id: &str, limit: i64) -> Result<Vec<MetricEntry>> {
+        let rows = sqlx::query_as::<_, MetricEntry>(
+            "SELECT id, session_id, timestamp, tokens_in, tokens_out, tool_calls, cost_usd
+             FROM metrics WHERE session_id = ?1
+             ORDER BY timestamp DESC LIMIT ?2",
         )
+        .bind(session_id)
+        .bind(limit)
         .fetch_all(&self.pool)
         .await
         .context("Listing session metrics")?;
@@ -163,17 +159,26 @@ impl MetricsStore {
 
     /// Aggregate summary over a time window (Unix seconds).
     pub async fn summary(&self, since: i64, until: i64) -> Result<MetricsSummary> {
-        let row = sqlx::query!(
-            r"SELECT
+        #[derive(sqlx::FromRow)]
+        struct SummaryRow {
+            total_tokens_in: i64,
+            total_tokens_out: i64,
+            total_tool_calls: i64,
+            total_cost_usd: f64,
+            session_count: i64,
+        }
+
+        let row = sqlx::query_as::<_, SummaryRow>(
+            "SELECT
                 COALESCE(SUM(tokens_in), 0) as total_tokens_in,
                 COALESCE(SUM(tokens_out), 0) as total_tokens_out,
                 COALESCE(SUM(tool_calls), 0) as total_tool_calls,
                 COALESCE(SUM(cost_usd), 0.0) as total_cost_usd,
                 COUNT(DISTINCT session_id) as session_count
               FROM metrics WHERE timestamp >= ?1 AND timestamp <= ?2",
-            since,
-            until,
         )
+        .bind(since)
+        .bind(until)
         .fetch_one(&self.pool)
         .await
         .context("Querying metrics summary")?;
@@ -217,14 +222,13 @@ impl MetricsStore {
 
     /// List hourly rollups for a time window (for graphing).
     pub async fn rollups(&self, since: i64, until: i64) -> Result<Vec<MetricRollup>> {
-        let rows = sqlx::query_as!(
-            MetricRollup,
-            r"SELECT id, session_id, hour_bucket, tokens_in, tokens_out, tool_calls, cost_usd
-              FROM metric_rollups WHERE hour_bucket >= ?1 AND hour_bucket <= ?2
-              ORDER BY hour_bucket ASC",
-            since,
-            until,
+        let rows = sqlx::query_as::<_, MetricRollup>(
+            "SELECT id, session_id, hour_bucket, tokens_in, tokens_out, tool_calls, cost_usd
+             FROM metric_rollups WHERE hour_bucket >= ?1 AND hour_bucket <= ?2
+             ORDER BY hour_bucket ASC",
         )
+        .bind(since)
+        .bind(until)
         .fetch_all(&self.pool)
         .await
         .context("Listing metric rollups")?;

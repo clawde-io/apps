@@ -2,7 +2,6 @@
 
 use anyhow::Result;
 use serde_json::{json, Value};
-use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::AppContext;
@@ -19,7 +18,7 @@ fn now_secs() -> i64 {
 /// Params:
 ///   `session_id`: string (required)
 ///   `limit`: int (optional, default 100)
-pub async fn list(params: Value, ctx: Arc<AppContext>) -> Result<Value> {
+pub async fn list(params: Value, ctx: &AppContext) -> Result<Value> {
     let session_id = params["session_id"]
         .as_str()
         .ok_or_else(|| anyhow::anyhow!("session_id required"))?;
@@ -49,7 +48,7 @@ pub async fn list(params: Value, ctx: Arc<AppContext>) -> Result<Value> {
 /// Params:
 ///   `since`: int (optional, default 24h ago)
 ///   `until`: int (optional, default now)
-pub async fn summary(params: Value, ctx: Arc<AppContext>) -> Result<Value> {
+pub async fn summary(params: Value, ctx: &AppContext) -> Result<Value> {
     let now = now_secs();
     let since = params["since"].as_i64().unwrap_or(now - 86400);
     let until = params["until"].as_i64().unwrap_or(now);
@@ -72,7 +71,7 @@ pub async fn summary(params: Value, ctx: Arc<AppContext>) -> Result<Value> {
 /// Params:
 ///   `since`: int (optional, default 7 days ago)
 ///   `until`: int (optional, default now)
-pub async fn rollups(params: Value, ctx: Arc<AppContext>) -> Result<Value> {
+pub async fn rollups(params: Value, ctx: &AppContext) -> Result<Value> {
     let now = now_secs();
     let since = params["since"].as_i64().unwrap_or(now - 86400 * 7);
     let until = params["until"].as_i64().unwrap_or(now);

@@ -9,7 +9,7 @@
 //! - Isolating plugin crashes — a panicking plugin is disabled, daemon continues.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -106,7 +106,7 @@ impl PluginManager {
     }
 
     /// Load a single plugin from its directory.
-    pub async fn load_plugin(&self, plugin_dir: &PathBuf) -> Result<()> {
+    pub async fn load_plugin(&self, plugin_dir: &Path) -> Result<()> {
         let manifest_json = tokio::fs::read_to_string(plugin_dir.join("clawd-plugin.json"))
             .await
             .context("failed to read clawd-plugin.json")?;
@@ -127,12 +127,9 @@ impl PluginManager {
                 LoadedPlugin::Dylib(plugin)
             }
             ManifestRuntime::Wasm => {
-                let plugin = WasmPlugin::load(
-                    &binary_path,
-                    &manifest.name,
-                    manifest.capabilities.clone(),
-                )
-                .context("failed to load WASM plugin")?;
+                let plugin =
+                    WasmPlugin::load(&binary_path, &manifest.name, manifest.capabilities.clone())
+                        .context("failed to load WASM plugin")?;
                 LoadedPlugin::Wasm(plugin)
             }
         };
@@ -147,8 +144,14 @@ impl PluginManager {
         };
 
         tracing::info!(plugin = %manifest.name, "plugin loaded");
-        self.plugins.lock().await.insert(manifest.name.clone(), loaded);
-        self.registry.lock().await.insert(manifest.name.clone(), info);
+        self.plugins
+            .lock()
+            .await
+            .insert(manifest.name.clone(), loaded);
+        self.registry
+            .lock()
+            .await
+            .insert(manifest.name.clone(), info);
         Ok(())
     }
 
@@ -188,10 +191,8 @@ impl PluginManager {
                 LoadedPlugin::Dylib(p) => {
                     // We don't have a real ClawaContext in this scaffold —
                     // pass null; dylib plugins should handle null gracefully.
-                    let result = p.call_on_session_start(
-                        std::ptr::null_mut(),
-                        session_cstr.as_ptr(),
-                    );
+                    let result =
+                        p.call_on_session_start(std::ptr::null_mut(), session_cstr.as_ptr());
                     if result != clawd_plugin_abi::ClawaError::None {
                         tracing::warn!(plugin = %name, "on_session_start returned error");
                     }

@@ -55,14 +55,12 @@ pub fn start_browse(registry: PeerRegistry) -> Option<BrowseGuard> {
             };
 
             let registry_clone = Arc::clone(&registry);
-            std::thread::spawn(move || {
-                loop {
-                    match receiver.recv() {
-                        Ok(event) => handle_event(event, &registry_clone),
-                        Err(_) => {
-                            debug!("mDNS browse channel closed — stopping peer discovery");
-                            break;
-                        }
+            std::thread::spawn(move || loop {
+                match receiver.recv() {
+                    Ok(event) => handle_event(event, &registry_clone),
+                    Err(_) => {
+                        debug!("mDNS browse channel closed — stopping peer discovery");
+                        break;
                     }
                 }
             });
@@ -92,12 +90,12 @@ fn handle_event(event: ServiceEvent, registry: &PeerRegistry) {
             let props = info.get_properties();
             let version = props
                 .get("version")
-                .and_then(|v| v.val_str())
+                .map(|v| v.val_str())
                 .unwrap_or("unknown")
                 .to_owned();
             let daemon_id = props
                 .get("daemon_id")
-                .and_then(|v| v.val_str())
+                .map(|v| v.val_str())
                 .unwrap_or("")
                 .to_owned();
 

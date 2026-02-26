@@ -123,7 +123,11 @@ pub async fn lint(project: PathBuf, ci: bool, data_dir: &Path, port: u16) -> Res
         let severity = issue["severity"].as_str().unwrap_or("warning");
         let rule = issue["rule"].as_str().unwrap_or("?");
         let message = issue["message"].as_str().unwrap_or("?");
-        let prefix = if severity == "error" { "ERROR" } else { "WARN " };
+        let prefix = if severity == "error" {
+            "ERROR"
+        } else {
+            "WARN "
+        };
         eprintln!("{prefix} [{rule}] {message}");
     }
 

@@ -31,7 +31,7 @@ use crate::config::DaemonConfig;
 /// A single message in the chat history.
 #[derive(Debug, Clone)]
 struct ChatMessage {
-    role: String,   // "user" | "assistant" | "tool"
+    role: String, // "user" | "assistant" | "tool"
     content: String,
     is_tool_call: bool,
     expanded: bool,
@@ -77,13 +77,11 @@ impl ChatUi {
         let token = crate::cli::client::read_auth_token(&self.config.data_dir)?;
         let url = format!("ws://127.0.0.1:{}", self.config.port);
 
-        let (mut ws, _) = tokio::time::timeout(
-            std::time::Duration::from_secs(5),
-            connect_async(&url),
-        )
-        .await
-        .context("timed out connecting to daemon")?
-        .context("failed to connect")?;
+        let (mut ws, _) =
+            tokio::time::timeout(std::time::Duration::from_secs(5), connect_async(&url))
+                .await
+                .context("timed out connecting to daemon")?
+                .context("failed to connect")?;
 
         // Authenticate.
         ws.send(Message::Text(serde_json::to_string(
@@ -100,13 +98,7 @@ impl ChatUi {
         loop {
             // Draw UI.
             terminal.draw(|f| {
-                draw_ui(
-                    f,
-                    &messages,
-                    &input_buf,
-                    &status_line,
-                    is_streaming,
-                );
+                draw_ui(f, &messages, &input_buf, &status_line, is_streaming);
             })?;
 
             // Poll for terminal events (non-blocking, 50ms timeout).
@@ -205,10 +197,7 @@ impl ChatUi {
                             let name = v["params"]["name"].as_str().unwrap_or("tool");
                             messages.push(ChatMessage {
                                 role: "tool".to_owned(),
-                                content: format!(
-                                    "Tool call: {name}\n{}",
-                                    v["params"]["arguments"]
-                                ),
+                                content: format!("Tool call: {name}\n{}", v["params"]["arguments"]),
                                 is_tool_call: true,
                                 expanded: false,
                             });
@@ -237,10 +226,10 @@ fn draw_ui(
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1),  // header
-            Constraint::Min(3),     // message list
-            Constraint::Length(3),  // input area
-            Constraint::Length(1),  // help line
+            Constraint::Length(1), // header
+            Constraint::Min(3),    // message list
+            Constraint::Length(3), // input area
+            Constraint::Length(1), // help line
         ])
         .split(area);
 
@@ -264,15 +253,16 @@ fn render_messages(f: &mut ratatui::Frame, area: Rect, messages: &[ChatMessage])
             let (label, style) = match m.role.as_str() {
                 "user" => (
                     "You",
-                    Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
                 ),
-                "tool" => (
-                    "Tool",
-                    Style::default().fg(Color::Yellow),
-                ),
+                "tool" => ("Tool", Style::default().fg(Color::Yellow)),
                 _ => (
                     "Assistant",
-                    Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(Color::Green)
+                        .add_modifier(Modifier::BOLD),
                 ),
             };
 

@@ -49,7 +49,7 @@ fn default_limit() -> usize {
 /// `prompt.suggest` — return heuristic prompt suggestions.
 pub async fn prompt_suggest(params: Value, ctx: &AppContext) -> Result<Value> {
     let p: SuggestParams = serde_json::from_value(params)?;
-    let pool = ctx.storage.pool();
+    let pool = ctx.storage.clone_pool();
 
     // Load repo profile if a path was supplied.
     let profile = if let Some(ref rp) = p.repo_path {
@@ -84,7 +84,7 @@ pub async fn prompt_record_used(params: Value, ctx: &AppContext) -> Result<Value
     if p.prompt.is_empty() {
         anyhow::bail!("prompt must not be empty");
     }
-    let pool = ctx.storage.pool();
+    let pool = ctx.storage.clone_pool();
     PromptSuggester::record_prompt_used(&pool, &p.prompt, &p.session_id).await?;
     Ok(json!({ "recorded": true }))
 }

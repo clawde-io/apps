@@ -40,12 +40,16 @@ struct AutomationEntry {
     #[serde(default)]
     condition: String,
     action: String,
-    #[serde(default)]
+    #[serde(default = "default_toml_table")]
     action_config: toml::Value,
 }
 
 fn default_true() -> bool {
     true
+}
+
+fn default_toml_table() -> toml::Value {
+    toml::Value::Table(toml::map::Map::new())
 }
 
 // ─── Loader ────────────────────────────────────────────────────────────────
@@ -70,12 +74,14 @@ pub fn load_from_repo(repo_path: &Path) -> Vec<Automation> {
 }
 
 fn load_file(path: &Path) -> Result<Vec<Automation>> {
-    let raw = std::fs::read_to_string(path)
-        .with_context(|| format!("read {}", path.display()))?;
+    let raw = std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
     let cfg: ConfigFile =
         toml::from_str(&raw).with_context(|| format!("parse {}", path.display()))?;
 
-    cfg.automations.into_iter().map(entry_to_automation).collect()
+    cfg.automations
+        .into_iter()
+        .map(entry_to_automation)
+        .collect()
 }
 
 fn entry_to_automation(e: AutomationEntry) -> Result<Automation> {

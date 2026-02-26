@@ -9,14 +9,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct InstructionProposal {
-    pub id:              String,
+    pub id: String,
     pub from_review_ids: Vec<String>,
     pub suggested_scope: String,
     pub suggested_content: String,
-    pub confidence:      f64,  // 0.0–1.0
+    pub confidence: f64, // 0.0–1.0
     pub recurrence_count: u32,
-    pub status:          ProposalStatus,
-    pub created_at:      String,
+    pub status: ProposalStatus,
+    pub created_at: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -106,24 +106,20 @@ impl<'a> ProposalEngine<'a> {
         .context("insert accepted instruction node")?;
 
         // Mark proposal accepted
-        sqlx::query(
-            "UPDATE instruction_proposals SET status = 'accepted' WHERE id = ?",
-        )
-        .bind(proposal_id)
-        .execute(self.storage.pool())
-        .await?;
+        sqlx::query("UPDATE instruction_proposals SET status = 'accepted' WHERE id = ?")
+            .bind(proposal_id)
+            .execute(self.storage.pool())
+            .await?;
 
         Ok(node_id)
     }
 
     /// Dismiss a proposal.
     pub async fn dismiss(&self, proposal_id: &str) -> Result<()> {
-        sqlx::query(
-            "UPDATE instruction_proposals SET status = 'dismissed' WHERE id = ?",
-        )
-        .bind(proposal_id)
-        .execute(self.storage.pool())
-        .await?;
+        sqlx::query("UPDATE instruction_proposals SET status = 'dismissed' WHERE id = ?")
+            .bind(proposal_id)
+            .execute(self.storage.pool())
+            .await?;
         Ok(())
     }
 
@@ -145,9 +141,9 @@ impl<'a> ProposalEngine<'a> {
             confidence: row.confidence,
             recurrence_count: row.recurrence_count as u32,
             status: match row.status.as_str() {
-                "accepted"  => ProposalStatus::Accepted,
+                "accepted" => ProposalStatus::Accepted,
                 "dismissed" => ProposalStatus::Dismissed,
-                _           => ProposalStatus::Pending,
+                _ => ProposalStatus::Pending,
             },
             created_at: row.created_at,
         })

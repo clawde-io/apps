@@ -8,9 +8,8 @@
 use std::path::Path;
 
 use anyhow::Result;
-use serde_json::json;
 
-use crate::client::DaemonClient;
+use crate::cli::client::DaemonClient;
 use crate::plugins::signing::{generate_keypair, sign_plugin, verify_plugin_signature};
 
 // ─── scaffold ────────────────────────────────────────────────────────────────
@@ -95,7 +94,10 @@ pub unsafe extern "C" fn clawd_plugin_init() -> *mut ClawaPlugin {
     if plugin_type == "dylib" {
         println!("  Cargo.toml         — Rust dylib crate");
         println!("  src/lib.rs         — plugin entry point");
-        println!("\nBuild: cargo build --release --manifest-path {}/Cargo.toml", dir.display());
+        println!(
+            "\nBuild: cargo build --release --manifest-path {}/Cargo.toml",
+            dir.display()
+        );
     } else {
         println!("  README.md          — WASM plugin guide");
     }
@@ -150,7 +152,9 @@ pub async fn genkey() -> Result<()> {
 
 /// `clawd plugin list` — list installed plugins via daemon RPC.
 pub async fn list(client: &mut DaemonClient) -> Result<()> {
-    let result = client.call_once("plugin.list", serde_json::json!({})).await?;
+    let result = client
+        .call_once("plugin.list", serde_json::json!({}))
+        .await?;
     let plugins = result["plugins"].as_array().cloned().unwrap_or_default();
     if plugins.is_empty() {
         println!("No plugins installed.");

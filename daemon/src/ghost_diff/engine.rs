@@ -118,7 +118,7 @@ fn spec_applies_to_file(file_path: &str, spec: &SpecFile) -> bool {
         .to_lowercase()
         .trim_end_matches(".md")
         .replace('-', "_");
-    let file_lower = file_path.to_lowercase().replace('/', "_").replace('-', "_");
+    let file_lower = file_path.to_lowercase().replace(['/', '-'], "_");
     file_lower.contains(&spec_stem) || spec_stem.contains(file_lower.trim_end_matches(".rs"))
 }
 
@@ -130,8 +130,24 @@ fn extract_keywords(text: &str) -> Vec<&str> {
             // Filter out stop words, keep domain terms.
             !matches!(
                 w.trim_matches(|c: char| !c.is_alphabetic()),
-                "the" | "a" | "an" | "and" | "or" | "in" | "to" | "of" | "is" | "should"
-                    | "must" | "will" | "be" | "by" | "for" | "that" | "this" | "with"
+                "the"
+                    | "a"
+                    | "an"
+                    | "and"
+                    | "or"
+                    | "in"
+                    | "to"
+                    | "of"
+                    | "is"
+                    | "should"
+                    | "must"
+                    | "will"
+                    | "be"
+                    | "by"
+                    | "for"
+                    | "that"
+                    | "this"
+                    | "with"
             )
         })
         .map(|w| w.trim_matches(|c: char| !c.is_alphabetic()))

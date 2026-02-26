@@ -106,7 +106,8 @@ pub async fn create(params: Value, ctx: &AppContext) -> Result<Value> {
     // initial system message on the first turn.  We use the title channel
     // (non-persistent) rather than a new DB column to keep the migration surface
     // minimal; a future sprint can promote this to a dedicated field.
-    let effective_initial_message = build_inherit_primer(ctx, p.inherit_from.as_deref(), p.initial_message.as_deref()).await;
+    let effective_initial_message =
+        build_inherit_primer(ctx, p.inherit_from.as_deref(), p.initial_message.as_deref()).await;
 
     let session = ctx
         .session_manager
@@ -314,7 +315,7 @@ async fn build_inherit_primer(
 // ── Sprint CC AM.4 — Attention Map RPC ────────────────────────────────────────
 
 /// `session.attention_map` — top-N files by combined attention score for a session.
-pub async fn attention_map(params: Value, ctx: AppContext) -> Result<Value> {
+pub async fn attention_map(params: Value, ctx: &AppContext) -> Result<Value> {
     let session_id = params
         .get("sessionId")
         .and_then(|v| v.as_str())
@@ -359,7 +360,7 @@ pub async fn attention_map(params: Value, ctx: AppContext) -> Result<Value> {
 // ── Sprint CC IE.4 — Intent Summary RPC ──────────────────────────────────────
 
 /// `session.intent_summary` — intent vs execution diff for a session.
-pub async fn intent_summary(params: Value, ctx: AppContext) -> Result<Value> {
+pub async fn intent_summary(params: Value, ctx: &AppContext) -> Result<Value> {
     let session_id = params
         .get("sessionId")
         .and_then(|v| v.as_str())

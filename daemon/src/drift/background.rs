@@ -45,7 +45,7 @@ async fn run_scan_all(
 /// Return all registered project paths (from projects table if available).
 async fn list_registered_projects(storage: &Arc<Storage>) -> Vec<std::path::PathBuf> {
     // Query the projects table — if it doesn't exist yet return empty.
-    let pool = storage.pool();
+    let pool = storage.clone_pool();
     let rows: Vec<(String,)> = sqlx::query_as("SELECT path FROM projects LIMIT 50")
         .fetch_all(&pool)
         .await
@@ -66,7 +66,7 @@ pub async fn scan_project_and_notify(
     debug!(project = %project_str, "drift scan starting");
 
     // Count items before scan to detect new ones.
-    let before = storage::count_unresolved(&storage.pool(), &project_str)
+    let before = storage::count_unresolved(storage.pool(), &project_str)
         .await
         .unwrap_or(0);
 
@@ -74,18 +74,18 @@ pub async fn scan_project_and_notify(
         Err(e) => warn!(project = %project_str, error = %e, "drift scan error"),
         Ok(items) => {
             let count = items.len();
-            if let Err(e) = storage::clear_unresolved(&storage.pool(), &project_str).await {
+            if let Err(e) = storage::clear_unresolved(storage.pool(), &project_str).await {
                 warn!(error = %e, "failed to clear old drift items");
                 return;
             }
             if !items.is_empty() {
-                if let Err(e) = storage::upsert_items(&storage.pool(), &items).await {
+                if let Err(e) = storage::upsert_items(storage.pool(), &items).await {
                     warn!(error = %e, "failed to store drift items");
                     return;
                 }
             }
 
-            let after = storage::count_unresolved(&storage.pool(), &project_str)
+            let after = storage::count_unresolved(storage.pool(), &project_str)
                 .await
                 .unwrap_or(0);
 

@@ -28,10 +28,7 @@ pub struct WasmHostState {
 
 impl WasmHostState {
     pub fn new(plugin_name: impl Into<String>, capabilities: &[ManifestCapability]) -> Self {
-        let cap_set = capabilities
-            .iter()
-            .map(|c| format!("{:?}", c))
-            .collect();
+        let cap_set = capabilities.iter().map(|c| format!("{:?}", c)).collect();
         Self {
             queued_events: Vec::new(),
             queued_logs: Vec::new(),

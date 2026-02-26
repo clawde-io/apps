@@ -6,7 +6,6 @@ use crate::AppContext;
 use anyhow::Result;
 use serde_json::{json, Value};
 
-
 /// File criticality weights for diff risk scoring.
 /// Higher = riskier to change.
 const CRITICALITY_WEIGHTS: &[(&str, f64)] = &[
@@ -122,14 +121,23 @@ pub async fn diff_risk(ctx: &AppContext, params: Value) -> Result<Value> {
     // Format response
     let files_json: Vec<Value> = {
         let mut sorted = file_risks.iter().collect::<Vec<_>>();
-        sorted.sort_by(|a, b| b.risk_score.partial_cmp(&a.risk_score).unwrap_or(std::cmp::Ordering::Equal));
-        sorted.iter().map(|f| json!({
-            "path": f.path,
-            "lines_changed": f.lines_changed,
-            "criticality_weight": f.criticality_weight,
-            "risk_score": f.risk_score,
-            "category": f.category,
-        })).collect()
+        sorted.sort_by(|a, b| {
+            b.risk_score
+                .partial_cmp(&a.risk_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        sorted
+            .iter()
+            .map(|f| {
+                json!({
+                    "path": f.path,
+                    "lines_changed": f.lines_changed,
+                    "criticality_weight": f.criticality_weight,
+                    "risk_score": f.risk_score,
+                    "category": f.category,
+                })
+            })
+            .collect()
     };
 
     let status = if total_score >= block_threshold {

@@ -58,7 +58,10 @@ fn parse_confidence_low_value() {
 fn parse_confidence_returns_none_when_absent() {
     let msg = "Task completed successfully. All tests pass.";
     let result = parse_confidence(msg);
-    assert!(result.is_none(), "should not parse confidence when not present");
+    assert!(
+        result.is_none(),
+        "should not parse confidence when not present"
+    );
 }
 
 #[test]

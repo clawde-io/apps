@@ -149,11 +149,6 @@ impl Storage {
         Self::new_with_slow_query(data_dir, 0).await
     }
 
-    /// Expose the pool for direct queries (attention map, intent, etc.).
-    pub fn pool(&self) -> &SqlitePool {
-        &self.pool
-    }
-
     /// Open storage **without** running migrations — recovery mode (UX.2 — Sprint BB).
     ///
     /// Connects to the database but skips `migrate()`. Use when the daemon is
@@ -200,9 +195,17 @@ impl Storage {
         Ok(Self { pool })
     }
 
+    /// Expose the connection pool for direct queries (attention map, intent, etc.).
+    pub fn pool(&self) -> &SqlitePool {
+        &self.pool
+    }
+
     /// Return a clone of the connection pool (cheap — Arc-backed).
-    /// Used to create TaskStorage that shares the same SQLite connection.
-    pub fn pool(&self) -> SqlitePool {
+    ///
+    /// Use this when you need an **owned** `SqlitePool` — e.g. to construct a
+    /// sub-storage type (`TopologyStorage::new`, `PairingStorage::new`, …).
+    /// For direct query execution prefer [`Storage::pool`].
+    pub fn clone_pool(&self) -> SqlitePool {
         self.pool.clone()
     }
 

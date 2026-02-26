@@ -13,7 +13,7 @@ use anyhow::{anyhow, Result};
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime};
 use tracing::{info, warn};
 
 type HmacSha256 = Hmac<Sha256>;
@@ -74,7 +74,9 @@ pub fn verify_token(raw: &str, secret: &[u8]) -> Result<InstallToken> {
 // ─── Token file storage ───────────────────────────────────────────────────────
 
 fn token_path(data_dir: &Path, pack_slug: &str) -> PathBuf {
-    data_dir.join("pack_tokens").join(format!("{}.token", pack_slug))
+    data_dir
+        .join("pack_tokens")
+        .join(format!("{}.token", pack_slug))
 }
 
 pub fn save_token(data_dir: &Path, token: &InstallToken) -> Result<()> {
@@ -161,7 +163,10 @@ pub async fn ensure_pack_token(
                         let _ = save_token(data_dir, &new_token);
                     }
                 }
-                Err(e) => warn!(pack_slug, "token renewal failed: {e} — using existing token"),
+                Err(e) => warn!(
+                    pack_slug,
+                    "token renewal failed: {e} — using existing token"
+                ),
             }
         }
     }

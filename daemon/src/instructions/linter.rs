@@ -30,9 +30,19 @@ pub struct LintReport {
 
 /// Vague instruction words that make rules non-testable
 const AMBIGUOUS_WORDS: &[&str] = &[
-    "properly", "as needed", "best effort", "ideally", "when possible",
-    "appropriately", "reasonable", "should consider", "try to", "might want",
-    "feel free", "in most cases", "generally speaking",
+    "properly",
+    "as needed",
+    "best effort",
+    "ideally",
+    "when possible",
+    "appropriately",
+    "reasonable",
+    "should consider",
+    "try to",
+    "might want",
+    "feel free",
+    "in most cases",
+    "generally speaking",
 ];
 
 /// Package manager contradiction pairs
@@ -49,16 +59,18 @@ const LOG_PAIRS: &[(&str, &str, &str)] = &[
 ];
 
 pub fn lint_nodes(nodes: &[LintNode], budget_bytes: usize) -> LintReport {
-    let mut errors: Vec<LintIssue>   = Vec::new();
+    let mut errors: Vec<LintIssue> = Vec::new();
     let mut warnings: Vec<LintIssue> = Vec::new();
 
     // 1. Conflict detection
     for (a, b, domain) in PM_PAIRS.iter().chain(LOG_PAIRS.iter()) {
-        let a_nodes: Vec<String> = nodes.iter()
+        let a_nodes: Vec<String> = nodes
+            .iter()
             .filter(|n| n.content.to_lowercase().contains(a))
             .map(|n| n.id.clone())
             .collect();
-        let b_nodes: Vec<String> = nodes.iter()
+        let b_nodes: Vec<String> = nodes
+            .iter()
             .filter(|n| n.content.to_lowercase().contains(b))
             .map(|n| n.id.clone())
             .collect();
@@ -76,7 +88,8 @@ pub fn lint_nodes(nodes: &[LintNode], budget_bytes: usize) -> LintReport {
 
     // 2. Ambiguity linter
     for word in AMBIGUOUS_WORDS {
-        let affected: Vec<String> = nodes.iter()
+        let affected: Vec<String> = nodes
+            .iter()
             .filter(|n| n.content.to_lowercase().contains(word))
             .map(|n| n.id.clone())
             .collect();
@@ -112,14 +125,20 @@ pub fn lint_nodes(nodes: &[LintNode], budget_bytes: usize) -> LintReport {
             rule: "budget.near-limit".to_string(),
             message: format!(
                 "Instruction content at {}% of budget ({}/{} bytes)",
-                total_bytes * 100 / budget_bytes, total_bytes, budget_bytes
+                total_bytes * 100 / budget_bytes,
+                total_bytes,
+                budget_bytes
             ),
             node_ids: vec![],
         });
     }
 
     let passed = errors.is_empty();
-    LintReport { errors, warnings, passed }
+    LintReport {
+        errors,
+        warnings,
+        passed,
+    }
 }
 
 #[derive(Debug)]

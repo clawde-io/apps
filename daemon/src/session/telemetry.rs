@@ -69,7 +69,9 @@ impl SpanGuard {
     }
 
     pub fn set_attr(&mut self, key: &str, val: &str) {
-        self.span.attributes.insert(key.to_string(), val.to_string());
+        self.span
+            .attributes
+            .insert(key.to_string(), val.to_string());
     }
 }
 
@@ -240,7 +242,9 @@ impl DaemonMetrics {
 
     pub fn snapshot(&self) -> MetricsSnapshot {
         MetricsSnapshot {
-            sessions_total: self.sessions_total.load(std::sync::atomic::Ordering::Relaxed),
+            sessions_total: self
+                .sessions_total
+                .load(std::sync::atomic::Ordering::Relaxed),
             tools_allowed_total: self
                 .tools_allowed_total
                 .load(std::sync::atomic::Ordering::Relaxed),
@@ -295,6 +299,7 @@ pub async fn persist_span(storage: &crate::storage::Storage, span: &Span) -> any
 }
 
 /// Retrieve all spans for a session trace.
+#[allow(clippy::type_complexity)]
 pub async fn get_session_trace(
     storage: &crate::storage::Storage,
     session_id: &str,
@@ -315,20 +320,37 @@ pub async fn get_session_trace(
         None => return Ok(Vec::new()),
     };
 
-    let rows: Vec<(String, Option<String>, String, String, String, i64, Option<i64>, String)> =
-        sqlx::query_as(
-            "SELECT span_id, parent_span_id, trace_id, name, attributes_json, \
+    let rows: Vec<(
+        String,
+        Option<String>,
+        String,
+        String,
+        String,
+        i64,
+        Option<i64>,
+        String,
+    )> = sqlx::query_as(
+        "SELECT span_id, parent_span_id, trace_id, name, attributes_json, \
              started_at_ms, duration_ms, status \
              FROM telemetry_spans WHERE trace_id = ? ORDER BY started_at_ms ASC",
-        )
-        .bind(&trace_id)
-        .fetch_all(storage.pool())
-        .await?;
+    )
+    .bind(&trace_id)
+    .fetch_all(storage.pool())
+    .await?;
 
     let spans = rows
         .into_iter()
         .map(
-            |(span_id, parent_span_id, trace_id, name, attrs_json, started_ms, duration_ms, status)| {
+            |(
+                span_id,
+                parent_span_id,
+                trace_id,
+                name,
+                attrs_json,
+                started_ms,
+                duration_ms,
+                status,
+            )| {
                 let attributes: HashMap<String, String> =
                     serde_json::from_str(&attrs_json).unwrap_or_default();
                 let status = match status.as_str() {

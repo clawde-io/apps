@@ -45,7 +45,7 @@ impl Default for DiffRiskConfig {
 ///
 /// Controls how the daemon routes connections: relay (default), direct LAN
 /// (mDNS), or VPN/explicit IP.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct ConnectivityConfig {
     /// Try direct LAN connection first; fall back to relay within 2s. Default: false.
@@ -64,22 +64,10 @@ pub struct ConnectivityConfig {
     pub local_registry: Option<String>,
 }
 
-impl Default for ConnectivityConfig {
-    fn default() -> Self {
-        Self {
-            prefer_direct: false,
-            vpn_host: None,
-            air_gap: false,
-            license_path: None,
-            local_registry: None,
-        }
-    }
-}
-
 // ─── CommunityConfig ─────────────────────────────────────────────────────────
 
 /// Community integration opt-ins (`[community]` in config.toml). Sprint TT DC.3.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct CommunityConfig {
     /// Post session-created events to the ClawDE Discord #dev-activity channel.
@@ -88,31 +76,16 @@ pub struct CommunityConfig {
     pub discord_notify: bool,
 }
 
-impl Default for CommunityConfig {
-    fn default() -> Self {
-        Self { discord_notify: false }
-    }
-}
-
 // ─── LimitsConfig ────────────────────────────────────────────────────────────
 
 /// Cost budget limits (`[limits]` in config.toml). Sprint PP OB.6.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct LimitsConfig {
     /// Maximum daily AI spend in USD. None = no limit. Emits `budget_warning` at 80%.
     pub daily_cost_usd: Option<f64>,
     /// Maximum monthly AI spend in USD. None = no limit. Emits `budget_warning` at 80%.
     pub monthly_cost_usd: Option<f64>,
-}
-
-impl Default for LimitsConfig {
-    fn default() -> Self {
-        Self {
-            daily_cost_usd: None,
-            monthly_cost_usd: None,
-        }
-    }
 }
 
 // ─── ObservabilityConfig ─────────────────────────────────────────────────────
@@ -544,6 +517,12 @@ impl DaemonConfig {
     /// Get the provider profile for a specific provider name, if configured.
     pub fn provider_profile(&self, name: &str) -> Option<&ProviderProfile> {
         self.providers.get(name)
+    }
+}
+
+impl Default for DaemonConfig {
+    fn default() -> Self {
+        Self::new(None, None, None, None, None)
     }
 }
 

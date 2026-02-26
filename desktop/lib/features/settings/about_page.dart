@@ -43,10 +43,10 @@ class AboutPage extends ConsumerWidget {
             error: (_, __) => const SizedBox.shrink(),
           ),
           const SizedBox(height: 24),
-          _AboutSection(
+          const _AboutSection(
             title: 'Open Source',
             children: [
-              const _InfoRow(label: 'License', value: 'MIT'),
+              _InfoRow(label: 'License', value: 'MIT'),
               _LinkRow(
                 label: 'Source code',
                 url: 'https://github.com/clawde-io/apps',
@@ -90,7 +90,7 @@ class _ConnectionSection extends StatelessWidget {
           valueColor: _modeColor(status.mode),
         ),
         if (status.airGap)
-          _InfoRow(
+          const _InfoRow(
             label: 'Air-Gap',
             value: 'Enabled',
             valueColor: Colors.amber,

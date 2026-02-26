@@ -24,18 +24,13 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 use crate::config::DaemonConfig;
 
 /// Output format for `clawd explain`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum ExplainFormat {
     /// Plain text (default).
+    #[default]
     Text,
     /// Structured JSON with explanation + suggestions.
     Json,
-}
-
-impl Default for ExplainFormat {
-    fn default() -> Self {
-        Self::Text
-    }
 }
 
 /// Options for `clawd explain`.
@@ -172,13 +167,10 @@ async fn query_ai(prompt: &str, provider: Option<&str>, config: &DaemonConfig) -
     let token = crate::cli::client::read_auth_token(&config.data_dir)?;
     let url = format!("ws://127.0.0.1:{}", config.port);
 
-    let (mut ws, _) = tokio::time::timeout(
-        std::time::Duration::from_secs(5),
-        connect_async(&url),
-    )
-    .await
-    .context("timed out connecting to daemon")?
-    .context("failed to connect to daemon")?;
+    let (mut ws, _) = tokio::time::timeout(std::time::Duration::from_secs(5), connect_async(&url))
+        .await
+        .context("timed out connecting to daemon")?
+        .context("failed to connect to daemon")?;
 
     // Authenticate.
     ws_send(
@@ -230,14 +222,11 @@ async fn query_ai(prompt: &str, provider: Option<&str>, config: &DaemonConfig) -
     // Collect streaming deltas.
     let mut response = String::new();
     loop {
-        let msg = tokio::time::timeout(
-            std::time::Duration::from_secs(120),
-            ws.next(),
-        )
-        .await
-        .context("timed out waiting for explanation")?
-        .context("stream ended")?
-        .context("ws error")?;
+        let msg = tokio::time::timeout(std::time::Duration::from_secs(120), ws.next())
+            .await
+            .context("timed out waiting for explanation")?
+            .context("stream ended")?
+            .context("ws error")?;
 
         if let Message::Text(text) = msg {
             let v: Value = serde_json::from_str(&text)?;
@@ -257,9 +246,8 @@ async fn query_ai(prompt: &str, provider: Option<&str>, config: &DaemonConfig) -
 
 // ─── WebSocket helpers ────────────────────────────────────────────────────────
 
-type WsStream = tokio_tungstenite::WebSocketStream<
-    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
->;
+type WsStream =
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
 async fn ws_send(ws: &mut WsStream, value: &Value) -> Result<()> {
     ws.send(Message::Text(serde_json::to_string(value)?))
@@ -310,7 +298,10 @@ mod tests {
 
     #[test]
     fn extract_range_single_line_context() {
-        let content = (1..=30).map(|i| format!("line {i}")).collect::<Vec<_>>().join("\n");
+        let content = (1..=30)
+            .map(|i| format!("line {i}"))
+            .collect::<Vec<_>>()
+            .join("\n");
         let result = extract_range(&content, Some(15), &None);
         // Should include lines around 15 (±10 lines).
         assert!(result.contains("line 15"));

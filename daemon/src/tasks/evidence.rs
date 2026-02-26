@@ -98,7 +98,9 @@ pub async fn build_evidence_pack(
     let policy_hash = compute_policy_hash(storage).await?;
 
     // ── Store in DB ───────────────────────────────────────────────────────────
-    let pack_id = hex::encode(Sha256::digest(format!("{task_id}:{run_id}:{now}").as_bytes()));
+    let pack_id = hex::encode(Sha256::digest(
+        format!("{task_id}:{run_id}:{now}").as_bytes(),
+    ));
     let pack_id = &pack_id[..32]; // 32-char prefix
 
     let diff_json = serde_json::to_string(&diff_stats)?;
@@ -194,8 +196,7 @@ async fn query_test_results(storage: &Storage, task_id: &str) -> Result<TestResu
     .fetch_optional(storage.pool())
     .await?;
 
-    let (passed, failed, skipped, duration_ms, _total) =
-        row.unwrap_or((0, 0, 0, 0, 0));
+    let (passed, failed, skipped, duration_ms, _total) = row.unwrap_or((0, 0, 0, 0, 0));
 
     Ok(TestResults {
         passed: passed as u32,
@@ -227,10 +228,7 @@ async fn query_tool_trace(storage: &Storage, task_id: &str) -> Result<Vec<ToolCa
 
             let tool = action.trim_start_matches("tool.").to_string();
             let path = resource_id;
-            let decision = meta["decision"]
-                .as_str()
-                .unwrap_or("allow")
-                .to_string();
+            let decision = meta["decision"].as_str().unwrap_or("allow").to_string();
             let duration_ms = meta["duration_ms"].as_u64().unwrap_or(0);
 
             ToolCallEntry {
@@ -288,10 +286,9 @@ async fn compute_instruction_hash(storage: &Storage) -> Result<String> {
 /// Compute SHA-256 of policy configuration (stub: use instruction hash for now).
 async fn compute_policy_hash(storage: &Storage) -> Result<String> {
     // Policy hash = SHA-256 of the combined instruction node IDs (as a proxy for policy state)
-    let ids: Vec<String> =
-        sqlx::query_scalar("SELECT id FROM instruction_nodes ORDER BY id")
-            .fetch_all(storage.pool())
-            .await?;
+    let ids: Vec<String> = sqlx::query_scalar("SELECT id FROM instruction_nodes ORDER BY id")
+        .fetch_all(storage.pool())
+        .await?;
 
     let combined = ids.join(",");
     let hash = hex::encode(Sha256::digest(combined.as_bytes()));
@@ -299,10 +296,20 @@ async fn compute_policy_hash(storage: &Storage) -> Result<String> {
 }
 
 /// Retrieve an evidence pack by task_id.
+#[allow(clippy::type_complexity)]
 pub async fn get_evidence_pack(storage: &Storage, task_id: &str) -> Result<Option<EvidencePack>> {
     let row: Option<(
-        String, String, String, String, String,
-        Option<String>, String, String, String, Option<String>, i64,
+        String,
+        String,
+        String,
+        String,
+        String,
+        Option<String>,
+        String,
+        String,
+        String,
+        Option<String>,
+        i64,
     )> = sqlx::query_as(
         "SELECT id, task_id, run_id, instruction_hash, policy_hash, \
          worktree_commit, diff_stats_json, test_results_json, tool_trace_json, \
@@ -314,9 +321,17 @@ pub async fn get_evidence_pack(storage: &Storage, task_id: &str) -> Result<Optio
     .await?;
 
     if let Some((
-        _id, task_id, run_id, instruction_hash, policy_hash,
-        worktree_commit, diff_json, test_json, trace_json,
-        reviewer_verdict, created_at,
+        _id,
+        task_id,
+        run_id,
+        instruction_hash,
+        policy_hash,
+        worktree_commit,
+        diff_json,
+        test_json,
+        trace_json,
+        reviewer_verdict,
+        created_at,
     )) = row
     {
         let diff_stats: DiffStats = serde_json::from_str(&diff_json)?;

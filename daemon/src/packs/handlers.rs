@@ -18,7 +18,7 @@ use tracing::debug;
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
 fn make_installer(ctx: &AppContext) -> PackInstaller {
-    let pool = ctx.storage.pool();
+    let pool = ctx.storage.clone_pool();
     let storage = PackStorage::new(pool);
     PackInstaller::new(storage, &ctx.config.registry_url)
 }
@@ -274,7 +274,7 @@ pub async fn pack_publish(params: Value, ctx: &AppContext) -> Result<Value> {
 pub async fn pack_list_installed(_params: Value, ctx: &AppContext) -> Result<Value> {
     debug!("pack.listInstalled");
 
-    let pool = ctx.storage.pool();
+    let pool = ctx.storage.clone_pool();
     let storage = PackStorage::new(pool);
     let packs = storage.list_installed().await?;
 
@@ -304,14 +304,12 @@ fn build_tarball(pack_dir: &std::path::Path, name: &str, version: &str) -> Resul
         let mut archive = Builder::new(enc);
 
         let prefix = format!("{name}-{version}");
-        archive
-            .append_dir_all(&prefix, pack_dir)
-            .with_context(|| {
-                format!(
-                    "failed to add pack directory {} to archive",
-                    pack_dir.display()
-                )
-            })?;
+        archive.append_dir_all(&prefix, pack_dir).with_context(|| {
+            format!(
+                "failed to add pack directory {} to archive",
+                pack_dir.display()
+            )
+        })?;
 
         archive
             .into_inner()

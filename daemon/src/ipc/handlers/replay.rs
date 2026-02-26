@@ -9,17 +9,14 @@ use uuid::Uuid;
 const BUNDLE_VERSION: &str = "1.0";
 
 /// `session.export` — serialize a session to a portable `.clawbundle` (gzipped JSON).
-pub async fn export(params: Value, ctx: AppContext) -> Result<Value> {
+pub async fn export(params: Value, ctx: &AppContext) -> Result<Value> {
     let session_id = params
         .get("sessionId")
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("sessionId required"))?;
 
     // Load session metadata.
-    let session = ctx
-        .session_manager
-        .get(session_id)
-        .await?;
+    let session = ctx.session_manager.get(session_id).await?;
 
     // Load messages.
     let messages = ctx
@@ -60,7 +57,7 @@ pub async fn export(params: Value, ctx: AppContext) -> Result<Value> {
 }
 
 /// `session.import` — create a replay session from a `.clawbundle`.
-pub async fn import_bundle(params: Value, ctx: AppContext) -> Result<Value> {
+pub async fn import_bundle(params: Value, ctx: &AppContext) -> Result<Value> {
     let bundle_b64 = params
         .get("bundleB64")
         .and_then(|v| v.as_str())
@@ -71,10 +68,8 @@ pub async fn import_bundle(params: Value, ctx: AppContext) -> Result<Value> {
         .unwrap_or(".");
 
     // Decode + decompress.
-    let compressed = base64::Engine::decode(
-        &base64::engine::general_purpose::STANDARD,
-        bundle_b64,
-    )?;
+    let compressed =
+        base64::Engine::decode(&base64::engine::general_purpose::STANDARD, bundle_b64)?;
     let json_bytes = gzip_decompress(&compressed)?;
     let bundle: Value = serde_json::from_slice(&json_bytes)?;
 
@@ -140,7 +135,7 @@ pub async fn import_bundle(params: Value, ctx: AppContext) -> Result<Value> {
 ///
 /// Emits `session.messageCreated` push events at the requested speed so
 /// the UI can "watch" the session replay in real time.
-pub async fn replay(params: Value, ctx: AppContext) -> Result<Value> {
+pub async fn replay(params: Value, ctx: &AppContext) -> Result<Value> {
     let session_id = params
         .get("sessionId")
         .and_then(|v| v.as_str())

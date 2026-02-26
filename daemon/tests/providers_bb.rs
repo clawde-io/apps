@@ -19,60 +19,35 @@ use clawd::agents::{
 
 #[test]
 fn codex_router_role_routes_to_fast_model() {
-    let d = route_agent(
-        &AgentRole::Router,
-        "low",
-        None,
-        &[Provider::Codex],
-    );
+    let d = route_agent(&AgentRole::Router, "low", None, &[Provider::Codex]);
     assert_eq!(d.model, "codex-spark");
     assert_eq!(d.speed, ProviderSpeed::Fast);
 }
 
 #[test]
 fn codex_reviewer_role_routes_to_fast_model() {
-    let d = route_agent(
-        &AgentRole::Reviewer,
-        "medium",
-        None,
-        &[Provider::Codex],
-    );
+    let d = route_agent(&AgentRole::Reviewer, "medium", None, &[Provider::Codex]);
     assert_eq!(d.model, "codex-spark");
     assert_eq!(d.speed, ProviderSpeed::Fast);
 }
 
 #[test]
 fn codex_qa_executor_routes_to_fast_model() {
-    let d = route_agent(
-        &AgentRole::QaExecutor,
-        "low",
-        None,
-        &[Provider::Codex],
-    );
+    let d = route_agent(&AgentRole::QaExecutor, "low", None, &[Provider::Codex]);
     assert_eq!(d.model, "codex-spark");
     assert_eq!(d.speed, ProviderSpeed::Fast);
 }
 
 #[test]
 fn codex_planner_routes_to_full_model() {
-    let d = route_agent(
-        &AgentRole::Planner,
-        "high",
-        None,
-        &[Provider::Codex],
-    );
+    let d = route_agent(&AgentRole::Planner, "high", None, &[Provider::Codex]);
     assert_eq!(d.model, "gpt-5.3-codex");
     assert_eq!(d.speed, ProviderSpeed::Full);
 }
 
 #[test]
 fn codex_implementer_routes_to_full_model() {
-    let d = route_agent(
-        &AgentRole::Implementer,
-        "high",
-        None,
-        &[Provider::Codex],
-    );
+    let d = route_agent(&AgentRole::Implementer, "high", None, &[Provider::Codex]);
     assert_eq!(d.model, "gpt-5.3-codex");
     assert_eq!(d.speed, ProviderSpeed::Full);
 }
@@ -126,8 +101,8 @@ fn registry_chains_response_id_across_turns() {
 
 #[test]
 fn registry_evicts_stale_sessions() {
-    use std::time::Duration;
     use clawd::agents::provider_session::ProviderSessionRegistry as PSR;
+    use std::time::Duration;
 
     let mut reg = PSR::new();
     // Directly insert a session then immediately evict with a 0-duration timeout.

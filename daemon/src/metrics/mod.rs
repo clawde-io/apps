@@ -10,7 +10,7 @@ pub mod store;
 
 pub use budget::{evaluate_budget, BudgetStatus};
 pub use cost::calculate_cost;
-pub use store::{MetricEntry, MetricRollup, MetricsSummary, MetricsStore};
+pub use store::{MetricEntry, MetricRollup, MetricsStore, MetricsSummary};
 
 // ── Prometheus in-process counters (originally metrics.rs / DC.T49) ──────────
 
@@ -43,12 +43,24 @@ impl DaemonMetrics {
         }
     }
 
-    pub fn inc_sessions_created(&self) { self.sessions_created.fetch_add(1, Ordering::Relaxed); }
-    pub fn inc_messages_sent(&self) { self.messages_sent.fetch_add(1, Ordering::Relaxed); }
-    pub fn inc_tool_calls_approved(&self) { self.tool_calls_approved.fetch_add(1, Ordering::Relaxed); }
-    pub fn inc_tool_calls_rejected(&self) { self.tool_calls_rejected.fetch_add(1, Ordering::Relaxed); }
-    pub fn inc_ipc_rate_limit_hits(&self) { self.ipc_rate_limit_hits.fetch_add(1, Ordering::Relaxed); }
-    pub fn inc_rpc_requests(&self) { self.rpc_requests_total.fetch_add(1, Ordering::Relaxed); }
+    pub fn inc_sessions_created(&self) {
+        self.sessions_created.fetch_add(1, Ordering::Relaxed);
+    }
+    pub fn inc_messages_sent(&self) {
+        self.messages_sent.fetch_add(1, Ordering::Relaxed);
+    }
+    pub fn inc_tool_calls_approved(&self) {
+        self.tool_calls_approved.fetch_add(1, Ordering::Relaxed);
+    }
+    pub fn inc_tool_calls_rejected(&self) {
+        self.tool_calls_rejected.fetch_add(1, Ordering::Relaxed);
+    }
+    pub fn inc_ipc_rate_limit_hits(&self) {
+        self.ipc_rate_limit_hits.fetch_add(1, Ordering::Relaxed);
+    }
+    pub fn inc_rpc_requests(&self) {
+        self.rpc_requests_total.fetch_add(1, Ordering::Relaxed);
+    }
 
     pub fn render_prometheus(&self, active_sessions: u64) -> String {
         let uptime = self.started_at.elapsed().as_secs();
@@ -72,7 +84,9 @@ impl DaemonMetrics {
 }
 
 impl Default for DaemonMetrics {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// Shared handle — cheaply clonable.

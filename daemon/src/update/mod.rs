@@ -610,6 +610,7 @@ mod tests {
             security: Default::default(),
             log_format: "pretty".into(),
             observability: Default::default(),
+            ..Default::default()
         });
         let broadcaster = Arc::new(crate::ipc::event::EventBroadcaster::new());
         let updater = Updater::new(config, broadcaster);
@@ -647,6 +648,7 @@ mod tests {
             security: Default::default(),
             log_format: "pretty".into(),
             observability: Default::default(),
+            ..Default::default()
         });
         let broadcaster = Arc::new(crate::ipc::event::EventBroadcaster::new());
         let updater = Updater::new(config, broadcaster);

@@ -20,7 +20,9 @@ pub async fn observe(session_id: String, data_dir: &Path, port: u16) -> Result<(
 
     if spans.is_empty() {
         println!("No trace data found for session {session_id}.");
-        println!("(Traces are recorded when OTEL_EXPORTER_OTLP_ENDPOINT is set, or stored locally.)");
+        println!(
+            "(Traces are recorded when OTEL_EXPORTER_OTLP_ENDPOINT is set, or stored locally.)"
+        );
         return Ok(());
     }
 
@@ -73,7 +75,14 @@ fn print_span_tree(
         let skip_keys = ["span_id", "trace_id", "parent_span_id"];
         for (key, val) in attrs {
             if !skip_keys.contains(&key.as_str()) {
-                let val_str = val.as_str().unwrap_or(&val.to_string());
+                let val_owned;
+                let val_str = match val.as_str() {
+                    Some(s) => s,
+                    None => {
+                        val_owned = val.to_string();
+                        val_owned.as_str()
+                    }
+                };
                 if !val_str.is_empty() && val_str != "null" {
                     println!("{indent}  ↳ {key}: {val_str}");
                 }

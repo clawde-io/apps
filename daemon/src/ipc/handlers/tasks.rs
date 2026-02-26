@@ -924,9 +924,18 @@ pub async fn spawn(params: Value, ctx: &AppContext) -> Result<Value> {
 
     ctx.task_storage
         .add_task(
-            &child_id, &full_title,
-            Some("spawned"), None, None, Some(&parent_id),
-            None, None, None, None, None, None,
+            &child_id,
+            &full_title,
+            Some("spawned"),
+            None,
+            None,
+            Some(&parent_id),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
             "",
         )
         .await?;

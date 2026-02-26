@@ -2,11 +2,11 @@
 // Completion engine unit tests (Sprint GG, CC.9).
 
 use clawd::completion::cache::CompletionCache;
+use clawd::completion::context::extract_context;
 use clawd::completion::engine::{
     build_fim_prompt, detect_language, extract_completion_text, truncate_prefix, truncate_suffix,
     FIM_MIDDLE_TOKEN, FIM_PREFIX_TOKEN, FIM_SUFFIX_TOKEN,
 };
-use clawd::completion::context::extract_context;
 
 // ─── FIM format ───────────────────────────────────────────────────────────────
 
@@ -31,7 +31,10 @@ fn fim_contains_prefix_and_suffix_text() {
 #[test]
 fn fim_language_hint_in_prompt() {
     let prompt = build_fim_prompt("fn main() {", "}", "lib.rs");
-    assert!(prompt.contains("Rust"), "language hint must appear in FIM prompt");
+    assert!(
+        prompt.contains("Rust"),
+        "language hint must appear in FIM prompt"
+    );
 }
 
 // ─── Cache ────────────────────────────────────────────────────────────────────

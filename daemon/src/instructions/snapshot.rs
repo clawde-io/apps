@@ -11,10 +11,7 @@ use std::path::Path;
 /// Write a snapshot of the effective compiled instructions to a golden file.
 ///
 /// Output path: `{base_dir}/.instruction-snapshot.md`
-pub async fn write_snapshot(
-    compiled_content: &str,
-    snapshot_path: &Path,
-) -> Result<()> {
+pub async fn write_snapshot(compiled_content: &str, snapshot_path: &Path) -> Result<()> {
     let header = format!(
         "<!-- instruction-snapshot — do not edit manually\n\
          hash: {}\n\
@@ -120,7 +117,8 @@ mod tests {
 
     #[test]
     fn test_extract_hash() {
-        let snapshot = "<!-- instruction-snapshot\nhash: abc123\ngenerated: 2026-01-01\n-->\n# Content";
+        let snapshot =
+            "<!-- instruction-snapshot\nhash: abc123\ngenerated: 2026-01-01\n-->\n# Content";
         assert_eq!(extract_hash(snapshot), Some("abc123".to_string()));
     }
 }

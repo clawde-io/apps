@@ -26,7 +26,7 @@ pub async fn scan(params: Value, ctx: &AppContext) -> Result<Value> {
     let items = scanner::scan(path).await?;
     let count = items.len();
 
-    let pool = ctx.storage.pool();
+    let pool = ctx.storage.clone_pool();
     storage::clear_unresolved(&pool, &project_path).await?;
     if !items.is_empty() {
         storage::upsert_items(&pool, &items).await?;
@@ -80,7 +80,7 @@ pub async fn list(params: Value, ctx: &AppContext) -> Result<Value> {
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
-    let pool = ctx.storage.pool();
+    let pool = ctx.storage.clone_pool();
     let items = storage::list_items(&pool, &project_path, severity_filter.as_deref()).await?;
 
     let count = items.len();

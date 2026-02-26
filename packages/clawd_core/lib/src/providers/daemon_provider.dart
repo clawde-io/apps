@@ -307,3 +307,29 @@ final daemonPushEventsProvider = StreamProvider<Map<String, dynamic>>((ref) {
   final notifier = ref.watch(daemonProvider.notifier);
   return notifier.client.pushEvents;
 });
+
+/// Provides daemon runtime info as an AsyncValue for the About page (Sprint NN AG.9).
+///
+/// Returns loading while connecting, error on failure, and data with version/uptime
+/// when the daemon is connected and has returned status information.
+final daemonInfoProvider = Provider<AsyncValue<Map<String, dynamic>>>((ref) {
+  final state = ref.watch(daemonProvider);
+  switch (state.status) {
+    case DaemonStatus.connecting:
+    case DaemonStatus.disconnected:
+      return const AsyncValue.loading();
+    case DaemonStatus.error:
+      return AsyncValue.error(
+        state.errorMessage ?? 'Daemon unavailable',
+        StackTrace.empty,
+      );
+    case DaemonStatus.connected:
+      final info = state.daemonInfo;
+      if (info == null) return const AsyncValue.loading();
+      return AsyncValue.data({
+        'version': info.version,
+        'daemon_id': '',
+        'uptime': info.uptime,
+      });
+  }
+});

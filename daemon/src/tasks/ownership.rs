@@ -27,7 +27,9 @@ fn glob_matches_inner(pat: &[u8], text: &[u8]) -> bool {
             star_p = Some(p);
             star_t = t;
             p += 2;
-            if p < pat.len() && pat[p] == b'/' { p += 1; }
+            if p < pat.len() && pat[p] == b'/' {
+                p += 1;
+            }
         } else if p < pat.len() && pat[p] == b'*' {
             // `*` — match any characters except `/`
             star_p = Some(p);
@@ -51,8 +53,12 @@ fn glob_matches_inner(pat: &[u8], text: &[u8]) -> bool {
         }
     }
 
-    while p + 1 < pat.len() && pat[p] == b'*' && pat[p + 1] == b'*' { p += 2; }
-    while p < pat.len() && pat[p] == b'*' { p += 1; }
+    while p + 1 < pat.len() && pat[p] == b'*' && pat[p + 1] == b'*' {
+        p += 2;
+    }
+    while p < pat.len() && pat[p] == b'*' {
+        p += 1;
+    }
 
     p == pat.len()
 }
@@ -133,8 +139,7 @@ pub fn suggest_owned_paths(task_title: &str, task_files: &[&str]) -> Vec<String>
         .iter()
         .filter_map(|f| {
             let p = std::path::Path::new(f);
-            p.parent()
-                .map(|d| format!("{}/**", d.to_string_lossy()))
+            p.parent().map(|d| format!("{}/**", d.to_string_lossy()))
         })
         .collect();
 
@@ -147,10 +152,8 @@ pub fn suggest_owned_paths(task_title: &str, task_files: &[&str]) -> Vec<String>
         .any(|f| f.ends_with(".ts") || f.ends_with(".tsx"));
     let has_dart = task_files.iter().any(|f| f.ends_with(".dart"));
 
-    if has_rust {
-        if task_title.to_lowercase().contains("test") {
-            globs.push("tests/**".to_string());
-        }
+    if has_rust && task_title.to_lowercase().contains("test") {
+        globs.push("tests/**".to_string());
     }
     if has_ts {
         globs.push("**/*.test.ts".to_string());
@@ -190,14 +193,9 @@ pub fn generate_ownership_hook_content(daemon_port: u16) -> String {
 /// Check for owned-path overlaps between two tasks at claim time.
 ///
 /// Returns a list of conflicting path patterns.
-pub fn check_ownership_overlap(
-    claimed_paths_json: &str,
-    existing_paths_json: &str,
-) -> Vec<String> {
-    let claimed: Vec<String> =
-        serde_json::from_str(claimed_paths_json).unwrap_or_default();
-    let existing: Vec<String> =
-        serde_json::from_str(existing_paths_json).unwrap_or_default();
+pub fn check_ownership_overlap(claimed_paths_json: &str, existing_paths_json: &str) -> Vec<String> {
+    let claimed: Vec<String> = serde_json::from_str(claimed_paths_json).unwrap_or_default();
+    let existing: Vec<String> = serde_json::from_str(existing_paths_json).unwrap_or_default();
 
     let mut conflicts = Vec::new();
 
@@ -219,12 +217,8 @@ pub fn check_ownership_overlap(
 /// DR.T03 — CRUNCH budget gate: check if a task touches files outside its declared scope.
 ///
 /// Returns a list of out-of-scope paths.
-pub fn files_outside_ownership(
-    owned_paths_json: &str,
-    touched_paths: &[String],
-) -> Vec<String> {
-    let patterns: Vec<String> =
-        serde_json::from_str(owned_paths_json).unwrap_or_default();
+pub fn files_outside_ownership(owned_paths_json: &str, touched_paths: &[String]) -> Vec<String> {
+    let patterns: Vec<String> = serde_json::from_str(owned_paths_json).unwrap_or_default();
 
     if patterns.is_empty() {
         return Vec::new(); // No restrictions
@@ -233,7 +227,9 @@ pub fn files_outside_ownership(
     touched_paths
         .iter()
         .filter(|path| {
-            !patterns.iter().any(|pat_str| glob_matches(pat_str, path.as_str()))
+            !patterns
+                .iter()
+                .any(|pat_str| glob_matches(pat_str, path.as_str()))
         })
         .cloned()
         .collect()
@@ -241,8 +237,7 @@ pub fn files_outside_ownership(
 
 /// Expand a task's owned_paths JSON array with new patterns.
 pub fn expand_owned_paths(existing_json: &str, new_patterns: &[String]) -> String {
-    let mut existing: Vec<String> =
-        serde_json::from_str(existing_json).unwrap_or_default();
+    let mut existing: Vec<String> = serde_json::from_str(existing_json).unwrap_or_default();
     for p in new_patterns {
         if !existing.contains(p) {
             existing.push(p.clone());
@@ -324,21 +319,15 @@ mod tests {
 
     #[test]
     fn test_check_ownership_allows_matching_glob() {
-        let result = check_path_ownership(
-            "T-001",
-            r#"["src/payments/**"]"#,
-            "src/payments/handler.rs",
-        );
+        let result =
+            check_path_ownership("T-001", r#"["src/payments/**"]"#, "src/payments/handler.rs");
         assert!(result.allowed);
     }
 
     #[test]
     fn test_check_ownership_denies_outside_glob() {
-        let result = check_path_ownership(
-            "T-001",
-            r#"["src/payments/**"]"#,
-            "src/session/manager.rs",
-        );
+        let result =
+            check_path_ownership("T-001", r#"["src/payments/**"]"#, "src/session/manager.rs");
         assert!(!result.allowed);
         assert!(result.denial_reason.is_some());
     }
@@ -358,8 +347,7 @@ mod tests {
 
     #[test]
     fn test_no_overlap() {
-        let conflicts =
-            check_ownership_overlap(r#"["src/session/**"]"#, r#"["src/payments/**"]"#);
+        let conflicts = check_ownership_overlap(r#"["src/session/**"]"#, r#"["src/payments/**"]"#);
         assert!(conflicts.is_empty());
     }
 }

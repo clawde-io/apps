@@ -20,14 +20,13 @@ use crate::AppContext;
 use anyhow::Result;
 use serde_json::{json, Value};
 
-
 pub async fn compile(ctx: &AppContext, params: Value) -> Result<Value> {
     let target_str = params["target"].as_str().unwrap_or("claude");
     let project_path = params["project_path"].as_str().unwrap_or(".");
     let dry_run = params["dry_run"].as_bool().unwrap_or(false);
 
     let compiler = InstructionCompiler::new(&ctx.storage);
-    let target = CompileTarget::from_str(target_str);
+    let target = CompileTarget::parse(target_str);
     let output = compiler.compile(target, project_path).await?;
 
     let mut resp = json!({
@@ -47,7 +46,11 @@ pub async fn compile(ctx: &AppContext, params: Value) -> Result<Value> {
 
     if !dry_run && !output.over_budget {
         // Write to file
-        let output_path = format!("{}/{}", project_path.trim_end_matches('/'), output.target.output_filename());
+        let output_path = format!(
+            "{}/{}",
+            project_path.trim_end_matches('/'),
+            output.target.output_filename()
+        );
         tokio::fs::write(&output_path, &output.content).await?;
         resp["written_to"] = json!(output_path);
     }
@@ -81,8 +84,10 @@ pub async fn budget_report(ctx: &AppContext, params: Value) -> Result<Value> {
     let project_path = params["project_path"].as_str().unwrap_or(".");
 
     let compiler = InstructionCompiler::new(&ctx.storage);
-    let claude_out = compiler.compile(CompileTarget::Claude, project_path).await?;
-    let codex_out  = compiler.compile(CompileTarget::Codex, project_path).await?;
+    let claude_out = compiler
+        .compile(CompileTarget::Claude, project_path)
+        .await?;
+    let codex_out = compiler.compile(CompileTarget::Codex, project_path).await?;
 
     Ok(json!({
         "claude": {
@@ -118,11 +123,10 @@ pub async fn lint(ctx: &AppContext, params: Value) -> Result<Value> {
     let budget_bytes: usize = params["budget_bytes"].as_u64().unwrap_or(8192) as usize;
 
     // Load all nodes
-    let rows = sqlx::query_as::<_, (String, String)>(
-        "SELECT id, content_md FROM instruction_nodes",
-    )
-    .fetch_all(ctx.storage.pool())
-    .await?;
+    let rows =
+        sqlx::query_as::<_, (String, String)>("SELECT id, content_md FROM instruction_nodes")
+            .fetch_all(ctx.storage.pool())
+            .await?;
 
     let nodes: Vec<LintNode> = rows
         .into_iter()
@@ -224,7 +228,10 @@ pub async fn doctor(ctx: &AppContext, params: Value) -> Result<Value> {
 
     let compiler = InstructionCompiler::new(&ctx.storage);
     let output = compiler
-        .compile(crate::instructions::compiler::CompileTarget::Claude, project_path)
+        .compile(
+            crate::instructions::compiler::CompileTarget::Claude,
+            project_path,
+        )
         .await?;
 
     let mut findings: Vec<serde_json::Value> = Vec::new();

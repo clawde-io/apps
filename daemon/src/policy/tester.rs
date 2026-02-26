@@ -5,7 +5,7 @@
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 // ─── YAML test format ─────────────────────────────────────────────────────────
 
@@ -146,7 +146,11 @@ pub async fn run_all_policy_tests(policy_dir: &Path) -> Result<TestSummary> {
     let mut entries = tokio::fs::read_dir(policy_dir).await?;
     while let Some(entry) = entries.next_entry().await? {
         let path = entry.path();
-        if path.extension().map(|e| e == "yaml" || e == "yml").unwrap_or(false) {
+        if path
+            .extension()
+            .map(|e| e == "yaml" || e == "yml")
+            .unwrap_or(false)
+        {
             match load_and_run_test_file(&path).await {
                 Ok(summary) => {
                     passed += summary.passed;
@@ -326,7 +330,12 @@ mod tests {
             .results
             .iter()
             .filter(|r| !r.passed)
-            .map(|r| format!("  [{}] {} → expected {:?}, got {:?}", r.case.category, r.case.command, r.case.expected, r.actual))
+            .map(|r| {
+                format!(
+                    "  [{}] {} → expected {:?}, got {:?}",
+                    r.case.category, r.case.command, r.case.expected, r.actual
+                )
+            })
             .collect();
         assert!(
             failures.is_empty(),

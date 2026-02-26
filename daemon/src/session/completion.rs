@@ -28,9 +28,8 @@ pub fn parse_confidence(content: &str) -> Option<ConfidenceResult> {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = RE.get_or_init(|| {
         // Match "confidence[:][ ]0.N" or bare "0.N" near the word "confidence"
-        Regex::new(
-            r"(?i)(?:confidence[^0-9.]*|my confidence is\s*)([0-9](?:\.[0-9]+)?)"
-        ).expect("confidence regex is valid")
+        Regex::new(r"(?i)(?:confidence[^0-9.]*|my confidence is\s*)([0-9](?:\.[0-9]+)?)")
+            .expect("confidence regex is valid")
     });
 
     let caps = re.captures(content)?;
@@ -51,15 +50,12 @@ pub fn parse_confidence(content: &str) -> Option<ConfidenceResult> {
 fn extract_reasoning_sentence(content: &str, match_start: usize) -> String {
     // Walk back to sentence start.
     let before = &content[..match_start];
-    let sentence_start = before
-        .rfind(|c| c == '.' || c == '\n')
-        .map(|i| i + 1)
-        .unwrap_or(0);
+    let sentence_start = before.rfind(['.', '\n']).map(|i| i + 1).unwrap_or(0);
 
     // Walk forward to sentence end.
     let after_match = &content[match_start..];
     let sentence_end = after_match
-        .find(|c| c == '.' || c == '\n')
+        .find(['.', '\n'])
         .map(|i| match_start + i + 1)
         .unwrap_or(content.len());
 

@@ -74,7 +74,7 @@ pub async fn unpin_message(params: Value, ctx: &AppContext) -> Result<Value> {
 pub async fn context_status(params: Value, ctx: &AppContext) -> Result<Value> {
     let p: ContextStatusParams = serde_json::from_value(params)?;
 
-    let pool = ctx.storage.pool();
+    let pool = ctx.storage.clone_pool();
 
     // Sum token counts stored in the messages table.
     #[derive(FromRow)]

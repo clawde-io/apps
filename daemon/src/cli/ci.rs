@@ -41,10 +41,8 @@ pub async fn run(
     println!("Watching for completion... (Ctrl+C to cancel)");
 
     // Poll status until complete
-    let poll_client = super::client::DaemonClient::new(
-        port,
-        super::client::read_auth_token(data_dir)?,
-    );
+    let poll_client =
+        super::client::DaemonClient::new(port, super::client::read_auth_token(data_dir)?);
     loop {
         tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         let status_result = poll_client

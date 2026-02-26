@@ -178,7 +178,10 @@ fn platform_enable(exe: &std::path::Path) -> Result<()> {
     let exe_str = exe.to_string_lossy();
     // Install via NSSM if available; fallback to sc.exe
     if run_cmd("nssm", &["install", WINDOWS_SERVICE_NAME, &exe_str]).is_ok() {
-        let _ = run_cmd("nssm", &["set", WINDOWS_SERVICE_NAME, "AppParameters", "serve"]);
+        let _ = run_cmd(
+            "nssm",
+            &["set", WINDOWS_SERVICE_NAME, "AppParameters", "serve"],
+        );
         run_cmd("nssm", &["start", WINDOWS_SERVICE_NAME])?;
     } else {
         // sc.exe fallback (requires admin)

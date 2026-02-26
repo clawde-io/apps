@@ -78,6 +78,7 @@ dev_dependencies:
   riverpod_generator: ^2.6.1
 
 flutter:
+  generate: true
   uses-material-design: true
   assets:
     - assets/tray_icon.png

@@ -174,8 +174,18 @@ async fn create_task_from_event(
         info!("automation todo-extractor: creating task '{title}' id={task_id}");
         ctx.task_storage
             .add_task(
-                &task_id, &title,
-                Some("todo"), None, None, None, None, None, None, None, None, None,
+                &task_id,
+                &title,
+                Some("todo"),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
                 "",
             )
             .await?;

@@ -45,11 +45,7 @@ pub fn sign_plugin(binary_path: &Path, key_hex: &str) -> Result<String> {
 ///
 /// `sig_hex` — 128-char hex-encoded signature.
 /// `pubkey_hex` — 64-char hex-encoded public key bytes.
-pub fn verify_plugin_signature(
-    binary_path: &Path,
-    sig_hex: &str,
-    pubkey_hex: &str,
-) -> Result<()> {
+pub fn verify_plugin_signature(binary_path: &Path, sig_hex: &str, pubkey_hex: &str) -> Result<()> {
     let binary = std::fs::read(binary_path)
         .with_context(|| format!("cannot read plugin binary: {}", binary_path.display()))?;
     let _sig_bytes = hex::decode(sig_hex).context("invalid signature hex")?;

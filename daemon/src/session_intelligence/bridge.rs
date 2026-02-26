@@ -122,7 +122,7 @@ struct SessionMetaRow {
 }
 
 pub async fn build_bridge(storage: &Storage, session_id: &str) -> Result<BridgeContext> {
-    let pool = storage.pool();
+    let pool = storage.clone_pool();
 
     // Load messages for this session in chronological order.
     let rows: Vec<MsgRow> = sqlx::query_as(

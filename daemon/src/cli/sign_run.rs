@@ -72,8 +72,8 @@ pub struct SignRunOutput {
 pub fn sign_run(input: &SignRunInput) -> Result<SignRunOutput> {
     // ── 1. Build the SLSA provenance predicate ────────────────────────────────
     let predicate = build_predicate(input);
-    let predicate_str = serde_json::to_string_pretty(&predicate)
-        .context("failed to serialize SLSA predicate")?;
+    let predicate_str =
+        serde_json::to_string_pretty(&predicate).context("failed to serialize SLSA predicate")?;
 
     // ── 2. Write predicate to a temp file ─────────────────────────────────────
     let tmp_dir = tempfile::TempDir::new().context("failed to create temp dir")?;
@@ -98,12 +98,7 @@ pub fn sign_run(input: &SignRunInput) -> Result<SignRunOutput> {
     let bundle_path = attestations_dir.join(format!("{}.cosign.bundle", input.task_id));
 
     // ── 5. Shell out to cosign ────────────────────────────────────────────────
-    let rekor_url = run_cosign(
-        &subject_path,
-        &predicate_path,
-        &bundle_path,
-        &input.task_id,
-    )?;
+    let rekor_url = run_cosign(&subject_path, &predicate_path, &bundle_path, &input.task_id)?;
 
     // ── 6. Also persist the predicate alongside the bundle ────────────────────
     let predicate_dest = attestations_dir.join(format!("{}.predicate.json", input.task_id));
@@ -149,7 +144,10 @@ pub fn run_sign_run_cli(
 
     match sign_run(&input) {
         Ok(out) => {
-            eprintln!("Sigstore attestation written: {}", out.bundle_path.display());
+            eprintln!(
+                "Sigstore attestation written: {}",
+                out.bundle_path.display()
+            );
             if let Some(url) = out.rekor_url {
                 eprintln!("Rekor transparency log entry: {url}");
             }
@@ -238,7 +236,7 @@ fn run_cosign(
             &bundle_path.display().to_string(),
             &subject_path.display().to_string(),
         ])
-        .env("COSIGN_EXPERIMENTAL", "1")  // enable keyless signing
+        .env("COSIGN_EXPERIMENTAL", "1") // enable keyless signing
         .output();
 
     match output {
@@ -250,13 +248,16 @@ fn run_cosign(
                 "cosign not found — stub attestation written to {}",
                 bundle_path.display()
             );
-            return Ok(None);
+            Ok(None)
         }
-        Err(e) => return Err(anyhow::anyhow!("failed to spawn cosign: {e}")),
+        Err(e) => Err(anyhow::anyhow!("failed to spawn cosign: {e}")),
         Ok(out) => {
             if !out.status.success() {
                 let stderr = String::from_utf8_lossy(&out.stderr);
-                return Err(anyhow::anyhow!("cosign exited {:?}: {stderr}", out.status.code()));
+                return Err(anyhow::anyhow!(
+                    "cosign exited {:?}: {stderr}",
+                    out.status.code()
+                ));
             }
 
             // Extract Rekor URL from stdout if present

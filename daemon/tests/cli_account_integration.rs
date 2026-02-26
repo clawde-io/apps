@@ -53,7 +53,6 @@ async fn start_test_daemon(dir: &TempDir) -> (u16, Arc<AppContext>) {
         None,
     ));
     let storage = Arc::new(Storage::new(&data_dir).await.unwrap());
-    let storage_pool = storage.pool();
     let broadcaster = Arc::new(EventBroadcaster::new());
     let repo_registry = Arc::new(RepoRegistry::new(broadcaster.clone()));
     let session_manager = Arc::new(SessionManager::new(
@@ -70,6 +69,10 @@ async fn start_test_daemon(dir: &TempDir) -> (u16, Arc<AppContext>) {
         Arc::clone(&rate_limit_tracker),
     ));
     let token_tracker = TokenTracker::new(storage.clone());
+    let memory_store = clawd::memory::MemoryStore::new(storage.clone_pool());
+    let metrics_store = clawd::metrics::MetricsStore::new(storage.clone_pool());
+    let quality = clawd::connectivity::new_shared_quality();
+    let peer_registry = clawd::connectivity::direct::new_registry();
 
     // Write a known auth token to the data_dir so the CLI can authenticate.
     let auth_token = "test-token-12345".to_string();
@@ -77,7 +80,7 @@ async fn start_test_daemon(dir: &TempDir) -> (u16, Arc<AppContext>) {
 
     let ctx = Arc::new(AppContext {
         config: config.clone(),
-        storage,
+        storage: storage.clone(),
         broadcaster: broadcaster.clone(),
         repo_registry,
         session_manager,
@@ -92,7 +95,7 @@ async fn start_test_daemon(dir: &TempDir) -> (u16, Arc<AppContext>) {
         updater,
         started_at: std::time::Instant::now(),
         auth_token,
-        task_storage: Arc::new(TaskStorage::new(storage_pool)),
+        task_storage: Arc::new(TaskStorage::new(storage.clone_pool())),
         worktree_manager: Arc::new(WorktreeManager::new(&data_dir)),
         account_pool,
         rate_limit_tracker,
@@ -105,6 +108,15 @@ async fn start_test_daemon(dir: &TempDir) -> (u16, Arc<AppContext>) {
             broadcaster.clone(),
         )),
         ide_bridge: clawd::ide::new_shared_bridge(),
+        provider_sessions: clawd::agents::provider_session::new_shared_registry(),
+        recovery_mode: false,
+        automation_engine: clawd::automations::engine::AutomationEngine::new(
+            clawd::automations::builtins::all(),
+        ),
+        quality,
+        peer_registry,
+        memory_store,
+        metrics_store,
     });
 
     let ctx_clone = ctx.clone();

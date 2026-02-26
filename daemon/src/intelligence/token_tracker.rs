@@ -72,7 +72,7 @@ impl TokenTracker {
         let id = Uuid::new_v4().to_string();
         let estimated_cost = cost::estimate_cost(model_id, input_tokens, output_tokens);
         let recorded_at = Utc::now().to_rfc3339();
-        let pool = self.storage.pool();
+        let pool = self.storage.clone_pool();
 
         sqlx::query(
             "INSERT INTO token_usage \
@@ -98,7 +98,7 @@ impl TokenTracker {
     ///
     /// Returns a zeroed `TokenUsage` if the session has no recorded entries.
     pub async fn get_session_usage(&self, session_id: &str) -> Result<TokenUsage> {
-        let pool = self.storage.pool();
+        let pool = self.storage.clone_pool();
         let row = sqlx::query(
             "SELECT \
                COALESCE(SUM(input_tokens),         0)   AS input_tokens, \
@@ -138,7 +138,7 @@ impl TokenTracker {
         let from = from.unwrap_or(&default_from);
         let to = to.unwrap_or(&default_to);
 
-        let pool = self.storage.pool();
+        let pool = self.storage.clone_pool();
         let rows = sqlx::query(
             "SELECT \
                model_id, \
@@ -173,7 +173,7 @@ impl TokenTracker {
     pub async fn get_monthly_total(&self) -> Result<f64> {
         let now = Utc::now();
         let month_start = format!("{}-{:02}-01T00:00:00Z", now.format("%Y"), now.format("%m"));
-        let pool = self.storage.pool();
+        let pool = self.storage.clone_pool();
         let row = sqlx::query(
             "SELECT COALESCE(SUM(estimated_cost_usd), 0.0) AS total \
              FROM token_usage \

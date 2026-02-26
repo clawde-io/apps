@@ -8,15 +8,14 @@ use serde_json::{json, Value};
 ///
 /// Broadcasts `ghost_diff.driftDetected` (GD.4) when drift warnings are found,
 /// so the Flutter UI can show a live indicator without polling.
-pub async fn check(params: Value, ctx: AppContext) -> Result<Value> {
+pub async fn check(params: Value, ctx: &AppContext) -> Result<Value> {
     let repo_path = params
         .get("repoPath")
         .and_then(|v| v.as_str())
         .unwrap_or(".");
     let session_id = params.get("sessionId").and_then(|v| v.as_str());
 
-    let warnings =
-        crate::ghost_diff::engine::check_ghost_drift(repo_path, session_id).await?;
+    let warnings = crate::ghost_diff::engine::check_ghost_drift(repo_path, session_id).await?;
 
     let has_drift = !warnings.is_empty();
     let warnings_json: Vec<Value> = warnings

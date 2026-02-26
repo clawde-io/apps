@@ -7,9 +7,8 @@
 use crate::AppContext;
 use anyhow::Result;
 use serde_json::{json, Value};
-use std::sync::Arc;
 
-pub async fn rate(ctx: Arc<AppContext>, params: Value) -> Result<Value> {
+pub async fn rate(params: Value, ctx: &AppContext) -> Result<Value> {
     let pack_slug = params["pack_slug"]
         .as_str()
         .ok_or_else(|| anyhow::anyhow!("missing pack_slug"))?;

@@ -55,18 +55,12 @@ pub fn build_router(ctx: Arc<AppContext>) -> Router {
             "/api/v1/sessions",
             get(routes::sessions::list_sessions).post(routes::sessions::create_session),
         )
-        .route(
-            "/api/v1/sessions/:id",
-            get(routes::sessions::get_session),
-        )
+        .route("/api/v1/sessions/:id", get(routes::sessions::get_session))
         .route(
             "/api/v1/sessions/:id/tasks",
             post(routes::sessions::submit_task),
         )
-        .route(
-            "/api/v1/sessions/:id/events",
-            get(sse::session_events_sse),
-        )
+        .route("/api/v1/sessions/:id/events", get(sse::session_events_sse))
         // Metrics
         .route("/api/v1/metrics", get(routes::metrics::get_metrics))
         // Memory

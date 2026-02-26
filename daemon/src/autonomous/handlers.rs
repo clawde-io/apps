@@ -102,7 +102,7 @@ pub async fn ae_plan_approve(params: Value, ctx: &AppContext) -> Result<Value> {
     sqlx::query("UPDATE ae_plans SET approved_at = ? WHERE id = ?")
         .bind(&approved_at)
         .bind(&p.plan_id)
-        .execute(&ctx.storage.pool())
+        .execute(ctx.storage.pool())
         .await?;
 
     ctx.broadcaster.broadcast(
@@ -125,7 +125,7 @@ pub async fn ae_plan_get(params: Value, ctx: &AppContext) -> Result<Value> {
          FROM ae_plans WHERE id = ?",
     )
     .bind(&p.plan_id)
-    .fetch_optional(&ctx.storage.pool())
+    .fetch_optional(ctx.storage.pool())
     .await?;
 
     match row {
@@ -171,7 +171,7 @@ pub async fn ae_decision_record(params: Value, ctx: &AppContext) -> Result<Value
     .bind(&p.description)
     .bind(&context_str)
     .bind(&created_at)
-    .execute(&ctx.storage.pool())
+    .execute(ctx.storage.pool())
     .await?;
 
     Ok(json!({
@@ -197,7 +197,7 @@ pub async fn ae_confidence_get(params: Value, ctx: &AppContext) -> Result<Value>
          FROM ae_plans WHERE id = ?",
     )
     .bind(&p.plan_id)
-    .fetch_optional(&ctx.storage.pool())
+    .fetch_optional(ctx.storage.pool())
     .await?;
 
     let plan_row = plan_row.ok_or_else(|| anyhow::anyhow!("ae_plan not found: {}", p.plan_id))?;
@@ -236,7 +236,7 @@ pub async fn ae_confidence_get(params: Value, ctx: &AppContext) -> Result<Value>
          ORDER BY created_at DESC LIMIT 20",
     )
     .bind(&p.session_id)
-    .fetch_all(&ctx.storage.pool())
+    .fetch_all(ctx.storage.pool())
     .await?
     .into_iter()
     .filter_map(|r| r.try_get::<Option<String>, _>("content").ok().flatten())
@@ -343,7 +343,7 @@ async fn persist_plan(ctx: &AppContext, plan: &AePlan) -> Result<()> {
     .bind(&plan.created_at)
     .bind(&plan.approved_at)
     .bind(&plan.parent_task_id)
-    .execute(&ctx.storage.pool())
+    .execute(ctx.storage.pool())
     .await?;
 
     Ok(())

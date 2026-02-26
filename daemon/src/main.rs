@@ -987,15 +987,14 @@ async fn main() -> Result<()> {
                 DaemonConfig::new(None, args.data_dir, Some("error".to_string()), None, None);
             run_account(&config, cmd).await?;
         }
-        Some(Command::SignRun { task_id, sha, notes }) => {
+        Some(Command::SignRun {
+            task_id,
+            sha,
+            notes,
+        }) => {
             let config =
                 DaemonConfig::new(None, args.data_dir, Some("error".to_string()), None, None);
-            clawd::cli::sign_run::run_sign_run_cli(
-                &task_id,
-                &sha,
-                &notes,
-                &config.data_dir,
-            )?;
+            clawd::cli::sign_run::run_sign_run_cli(&task_id, &sha, &notes, &config.data_dir)?;
         }
         Some(Command::Chat {
             resume,
@@ -1046,7 +1045,11 @@ async fn main() -> Result<()> {
             let port = config.port;
             let data_dir = config.data_dir.clone();
             match action {
-                InstructionsAction::Compile { target, project, dry_run } => {
+                InstructionsAction::Compile {
+                    target,
+                    project,
+                    dry_run,
+                } => {
                     let opts = clawd::cli::instructions::CompileOpts {
                         target,
                         project,
@@ -1063,8 +1066,13 @@ async fn main() -> Result<()> {
                 InstructionsAction::Import { project } => {
                     clawd::cli::instructions::import(project, &data_dir, port).await?;
                 }
-                InstructionsAction::Snapshot { path, output, check } => {
-                    clawd::cli::instructions::snapshot(path, output, check, &data_dir, port).await?;
+                InstructionsAction::Snapshot {
+                    path,
+                    output,
+                    check,
+                } => {
+                    clawd::cli::instructions::snapshot(path, output, check, &data_dir, port)
+                        .await?;
                 }
                 InstructionsAction::Doctor { project } => {
                     clawd::cli::instructions::doctor(project, &data_dir, port).await?;
@@ -1077,8 +1085,18 @@ async fn main() -> Result<()> {
             let port = config.port;
             let data_dir = config.data_dir.clone();
             match action {
-                PolicyAction::Test { file, project: _, ci } => {
-                    clawd::cli::policy::test(file.map(std::path::PathBuf::from), ci, &data_dir, port).await?;
+                PolicyAction::Test {
+                    file,
+                    project: _,
+                    ci,
+                } => {
+                    clawd::cli::policy::test(
+                        file.map(std::path::PathBuf::from),
+                        ci,
+                        &data_dir,
+                        port,
+                    )
+                    .await?;
                 }
                 PolicyAction::Seed { project } => {
                     clawd::cli::policy::install_seed_tests(&project).await?;
@@ -1094,7 +1112,10 @@ async fn main() -> Result<()> {
                 BenchAction::Run { task, provider } => {
                     clawd::cli::bench::run(Some(task), Some(provider), &data_dir, port).await?;
                 }
-                BenchAction::Compare { base_ref, provider: _ } => {
+                BenchAction::Compare {
+                    base_ref,
+                    provider: _,
+                } => {
                     let br = base_ref.unwrap_or_else(|| "HEAD~1".to_string());
                     clawd::cli::bench::compare(br, &data_dir, port).await?;
                 }
@@ -1102,7 +1123,9 @@ async fn main() -> Result<()> {
                     // Seed via RPC
                     let token = clawd::cli::client::read_auth_token(&data_dir)?;
                     let client = clawd::cli::client::DaemonClient::new(port, token);
-                    let res = client.call_once("bench.seedTasks", serde_json::json!({})).await?;
+                    let res = client
+                        .call_once("bench.seedTasks", serde_json::json!({}))
+                        .await?;
                     let created = res["created"].as_u64().unwrap_or(0);
                     let skipped = res["skipped"].as_u64().unwrap_or(0);
                     println!("Seed complete: {created} tasks created, {skipped} already present.");
@@ -1122,7 +1145,7 @@ async fn main() -> Result<()> {
         Some(Command::DiffRisk { path }) => {
             let config =
                 DaemonConfig::new(None, args.data_dir, Some("error".to_string()), None, None);
-            let worktree = path.unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+            let worktree = path.map(|p| p.to_string_lossy().into_owned());
             clawd::cli::diff_risk::diff_risk_score(worktree, &config.data_dir, config.port).await?;
         }
         None | Some(Command::Serve) => {
@@ -1784,7 +1807,7 @@ async fn run_account(config: &DaemonConfig, cmd: AccountCmd) -> Result<()> {
 async fn open_task_storage(data_dir: Option<std::path::PathBuf>) -> Result<TaskStorage> {
     let config = DaemonConfig::new(None, data_dir, Some("error".to_string()), None, None);
     let storage = Storage::new(&config.data_dir).await?;
-    Ok(TaskStorage::new(storage.pool().clone()))
+    Ok(TaskStorage::new(storage.clone_pool()))
 }
 
 /// Resolve task ID from positional arg or --task flag.
@@ -2252,7 +2275,7 @@ async fn run_server(
     });
 
     // ── Apply SQLite WAL tuning (Sprint Z — Z.3) ─────────────────────────────
-    if let Err(e) = clawd::perf::wal_tuning::apply_wal_tuning(&storage.pool()).await {
+    if let Err(e) = clawd::perf::wal_tuning::apply_wal_tuning(storage.pool()).await {
         warn!(err = %e, "SQLite WAL tuning failed (non-fatal)");
     }
 
@@ -2362,7 +2385,7 @@ async fn run_server(
     auth::check_token_permissions(&config.data_dir);
 
     // ── Task storage (shared pool from main storage) ──────────────────────────
-    let task_storage = Arc::new(TaskStorage::new(storage.pool().clone()));
+    let task_storage = Arc::new(TaskStorage::new(storage.clone_pool()));
 
     // ── Token tracker (Phase 61 MI.T05) ──────────────────────────────────────
     let token_tracker = TokenTracker::new(storage.clone());
@@ -2386,6 +2409,21 @@ async fn run_server(
 
     // Retain a handle for post-shutdown WAL checkpoint (Sprint Z).
     let storage_for_shutdown = storage.clone();
+
+    // ── Stores for memory and metrics (Sprint OO/PP) ─────────────────────────
+    let memory_store = clawd::memory::MemoryStore::new(storage.clone_pool());
+    let metrics_store = clawd::metrics::MetricsStore::new(storage.clone_pool());
+    if let Err(e) = memory_store.migrate().await {
+        warn!(err = %e, "memory store migration failed");
+    }
+    if let Err(e) = metrics_store.migrate().await {
+        warn!(err = %e, "metrics store migration failed");
+    }
+
+    // ── Connectivity (Sprint JJ) ──────────────────────────────────────────────
+    let quality = clawd::connectivity::new_shared_quality();
+    let peer_registry = clawd::connectivity::direct::new_registry();
+
     let ctx = Arc::new(AppContext {
         config: config.clone(),
         storage,
@@ -2415,12 +2453,16 @@ async fn run_server(
         automation_engine: clawd::automations::engine::AutomationEngine::new(
             clawd::automations::builtins::all(),
         ),
+        quality,
+        peer_registry,
+        memory_store,
+        metrics_store,
     });
 
     // ── Spawn automation engine dispatcher (Sprint CC CA.1) ──────────────────
     {
         let engine = Arc::clone(&ctx.automation_engine);
-        let ctx_for_auto = (**ctx).clone();
+        let ctx_for_auto = (*ctx).clone();
         clawd::automations::engine::AutomationEngine::start_dispatcher(engine, ctx_for_auto);
     }
 
@@ -2479,7 +2521,7 @@ async fn run_server(
 
     // ── WAL checkpoint on clean shutdown (Sprint Z — Z.3) ────────────────────
     if let Err(e) =
-        clawd::perf::wal_tuning::checkpoint_wal(&storage_for_shutdown.pool(), "TRUNCATE").await
+        clawd::perf::wal_tuning::checkpoint_wal(storage_for_shutdown.pool(), "TRUNCATE").await
     {
         tracing::warn!(err = %e, "WAL checkpoint on shutdown failed (non-fatal)");
     }

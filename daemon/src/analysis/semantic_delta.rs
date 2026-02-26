@@ -83,10 +83,7 @@ pub fn classify_change(changed_files: &[String], commit_msg: &str) -> SemanticEv
 
     // Test files.
     if changed_files.iter().any(|f| {
-        f.contains("_test.")
-            || f.contains("_spec.")
-            || f.contains(".test.")
-            || f.contains("tests/")
+        f.contains("_test.") || f.contains("_spec.") || f.contains(".test.") || f.contains("tests/")
     }) || msg_lower.contains("test")
         || msg_lower.contains("spec")
     {
@@ -172,8 +169,7 @@ pub async fn get_pulse(pool: &SqlitePool, days: i64) -> Result<Vec<SemanticEvent
         };
 
         let files_str: String = row.get("affected_files");
-        let affected_files: Vec<String> =
-            serde_json::from_str(&files_str).unwrap_or_default();
+        let affected_files: Vec<String> = serde_json::from_str(&files_str).unwrap_or_default();
 
         events.push(SemanticEvent {
             id: row.get("id"),
@@ -196,30 +192,45 @@ mod tests {
     #[test]
     fn test_classify_dependency() {
         let files = vec!["Cargo.toml".to_string()];
-        assert_eq!(classify_change(&files, "update deps"), SemanticEventType::DependencyUpdated);
+        assert_eq!(
+            classify_change(&files, "update deps"),
+            SemanticEventType::DependencyUpdated
+        );
     }
 
     #[test]
     fn test_classify_bug_fix() {
         let files = vec!["src/auth.rs".to_string()];
-        assert_eq!(classify_change(&files, "fix: token refresh crash"), SemanticEventType::BugFixed);
+        assert_eq!(
+            classify_change(&files, "fix: token refresh crash"),
+            SemanticEventType::BugFixed
+        );
     }
 
     #[test]
     fn test_classify_test_added() {
         let files = vec!["tests/auth_test.rs".to_string()];
-        assert_eq!(classify_change(&files, "add auth tests"), SemanticEventType::TestAdded);
+        assert_eq!(
+            classify_change(&files, "add auth tests"),
+            SemanticEventType::TestAdded
+        );
     }
 
     #[test]
     fn test_classify_feature() {
         let files = vec!["src/features/export.rs".to_string()];
-        assert_eq!(classify_change(&files, "add session export"), SemanticEventType::FeatureAdded);
+        assert_eq!(
+            classify_change(&files, "add session export"),
+            SemanticEventType::FeatureAdded
+        );
     }
 
     #[test]
     fn test_classify_refactor() {
         let files = vec!["src/ipc/mod.rs".to_string()];
-        assert_eq!(classify_change(&files, "refactor: extract handler"), SemanticEventType::Refactored);
+        assert_eq!(
+            classify_change(&files, "refactor: extract handler"),
+            SemanticEventType::Refactored
+        );
     }
 }

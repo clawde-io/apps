@@ -5,7 +5,7 @@ use anyhow::Result;
 use serde_json::{json, Value};
 
 /// `sovereignty.report` — 7-day summary of other AI tools touching the project.
-pub async fn report(_params: Value, ctx: AppContext) -> Result<Value> {
+pub async fn report(_params: Value, ctx: &AppContext) -> Result<Value> {
     let summaries = crate::sovereignty::tracker::get_report(ctx.storage.pool()).await?;
 
     Ok(json!({
@@ -16,14 +16,11 @@ pub async fn report(_params: Value, ctx: AppContext) -> Result<Value> {
 }
 
 /// `sovereignty.events` — raw event list for a tool in the last N days.
-pub async fn events(params: Value, ctx: AppContext) -> Result<Value> {
+pub async fn events(params: Value, ctx: &AppContext) -> Result<Value> {
     use sqlx::Row as _;
 
     let tool_id = params.get("toolId").and_then(|v| v.as_str());
-    let days = params
-        .get("days")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(7);
+    let days = params.get("days").and_then(|v| v.as_i64()).unwrap_or(7);
 
     let rows = if let Some(tool) = tool_id {
         sqlx::query(

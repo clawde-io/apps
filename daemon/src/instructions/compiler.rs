@@ -12,25 +12,25 @@ use std::path::Path;
 /// Target format for compiled instructions
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CompileTarget {
-    Claude,  // CLAUDE.md + .claude/rules/*.md
-    Codex,   // AGENTS.md
-    All,     // Both
+    Claude, // CLAUDE.md + .claude/rules/*.md
+    Codex,  // AGENTS.md
+    All,    // Both
 }
 
 impl CompileTarget {
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse(s: &str) -> Self {
         match s {
             "codex" => Self::Codex,
-            "all"   => Self::All,
-            _       => Self::Claude,
+            "all" => Self::All,
+            _ => Self::Claude,
         }
     }
 
     pub fn output_filename(&self) -> &str {
         match self {
             Self::Claude => "CLAUDE.md",
-            Self::Codex  => "AGENTS.md",
-            Self::All    => "CLAUDE.md",  // "all" writes CLAUDE.md first
+            Self::Codex => "AGENTS.md",
+            Self::All => "CLAUDE.md", // "all" writes CLAUDE.md first
         }
     }
 
@@ -38,7 +38,7 @@ impl CompileTarget {
     pub fn budget_bytes(&self) -> usize {
         match self {
             Self::Codex => 65536,
-            _           => 8192,
+            _ => 8192,
         }
     }
 }
@@ -52,7 +52,7 @@ pub struct CompiledOutput {
     pub budget_bytes: usize,
     pub node_count: usize,
     pub over_budget: bool,
-    pub near_budget: bool,  // > 80%
+    pub near_budget: bool, // > 80%
 }
 
 #[derive(Debug)]
@@ -61,7 +61,7 @@ pub struct NodeSource {
     pub scope: String,
     pub owner: Option<String>,
     pub priority: i64,
-    pub preview: String,  // first 80 chars
+    pub preview: String, // first 80 chars
 }
 
 #[derive(Debug)]
@@ -84,7 +84,11 @@ impl<'a> InstructionCompiler<'a> {
     }
 
     /// Compile instruction nodes for a given target + project path.
-    pub async fn compile(&self, target: CompileTarget, project_path: &str) -> Result<CompiledOutput> {
+    pub async fn compile(
+        &self,
+        target: CompileTarget,
+        project_path: &str,
+    ) -> Result<CompiledOutput> {
         let nodes = self.load_nodes_for_path(project_path).await?;
         let content = self.merge_nodes(&nodes, &target);
         let bytes_used = content.len();
@@ -114,9 +118,9 @@ impl<'a> InstructionCompiler<'a> {
         let node_sources = nodes
             .iter()
             .map(|n| NodeSource {
-                id:      n.id.clone(),
-                scope:   n.scope.clone(),
-                owner:   n.owner.clone(),
+                id: n.id.clone(),
+                scope: n.scope.clone(),
+                owner: n.owner.clone(),
                 priority: n.priority,
                 preview: n.content_md.chars().take(80).collect(),
             })
@@ -177,13 +181,20 @@ impl<'a> InstructionCompiler<'a> {
     fn merge_nodes(&self, nodes: &[InstructionNode], target: &CompileTarget) -> String {
         let header = match target {
             CompileTarget::Claude => "# Compiled Instructions (ClawDE instruction graph)\n\n",
-            CompileTarget::Codex  => "# AGENTS.md — Compiled Instructions (ClawDE instruction graph)\n\n",
-            CompileTarget::All    => "# Compiled Instructions (ClawDE instruction graph)\n\n",
+            CompileTarget::Codex => {
+                "# AGENTS.md — Compiled Instructions (ClawDE instruction graph)\n\n"
+            }
+            CompileTarget::All => "# Compiled Instructions (ClawDE instruction graph)\n\n",
         };
 
         let mut parts = vec![header.to_string()];
         for node in nodes {
-            parts.push(format!("<!-- scope:{} priority:{} -->\n{}\n\n", node.scope, node.priority, node.content_md.trim()));
+            parts.push(format!(
+                "<!-- scope:{} priority:{} -->\n{}\n\n",
+                node.scope,
+                node.priority,
+                node.content_md.trim()
+            ));
         }
         parts.concat()
     }
@@ -192,12 +203,19 @@ impl<'a> InstructionCompiler<'a> {
         let mut conflicts = Vec::new();
 
         // Check for package manager contradictions
-        let has_npm  = nodes.iter().any(|n| n.content_md.contains("use npm") || n.content_md.contains("npm install"));
-        let has_pnpm = nodes.iter().any(|n| n.content_md.contains("use pnpm") || n.content_md.contains("pnpm install"));
-        let has_yarn = nodes.iter().any(|n| n.content_md.contains("use yarn") || n.content_md.contains("yarn install"));
+        let has_npm = nodes
+            .iter()
+            .any(|n| n.content_md.contains("use npm") || n.content_md.contains("npm install"));
+        let has_pnpm = nodes
+            .iter()
+            .any(|n| n.content_md.contains("use pnpm") || n.content_md.contains("pnpm install"));
+        let has_yarn = nodes
+            .iter()
+            .any(|n| n.content_md.contains("use yarn") || n.content_md.contains("yarn install"));
         let pm_count = [has_npm, has_pnpm, has_yarn].iter().filter(|&&b| b).count();
         if pm_count > 1 {
-            conflicts.push("Conflicting package manager rules detected (npm/pnpm/yarn)".to_string());
+            conflicts
+                .push("Conflicting package manager rules detected (npm/pnpm/yarn)".to_string());
         }
 
         conflicts
@@ -206,12 +224,12 @@ impl<'a> InstructionCompiler<'a> {
 
 #[derive(Debug, sqlx::FromRow)]
 struct InstructionNode {
-    pub id:           String,
-    pub scope:        String,
-    pub scope_path:   Option<String>,
-    pub priority:     i64,
-    pub owner:        Option<String>,
+    pub id: String,
+    pub scope: String,
+    pub scope_path: Option<String>,
+    pub priority: i64,
+    pub owner: Option<String>,
     #[allow(dead_code)]
     pub mode_overlays: Option<String>,
-    pub content_md:   String,
+    pub content_md: String,
 }

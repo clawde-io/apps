@@ -53,7 +53,7 @@ pub async fn personal(params: Value, ctx: &AppContext) -> Result<Value> {
         from
     };
 
-    let storage = AnalyticsStorage::new(ctx.storage.pool());
+    let storage = AnalyticsStorage::new(ctx.storage.clone_pool());
     let analytics = storage.get_personal_analytics(from).await?;
 
     Ok(json!({
@@ -96,7 +96,7 @@ pub async fn provider_breakdown(params: Value, ctx: &AppContext) -> Result<Value
         from
     };
 
-    let storage = AnalyticsStorage::new(ctx.storage.pool());
+    let storage = AnalyticsStorage::new(ctx.storage.clone_pool());
     let breakdown = storage.get_provider_breakdown(from).await?;
 
     let result: Vec<Value> = breakdown
@@ -140,7 +140,7 @@ pub async fn session(params: Value, ctx: &AppContext) -> Result<Value> {
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("sessionId required"))?;
 
-    let storage = AnalyticsStorage::new(ctx.storage.pool());
+    let storage = AnalyticsStorage::new(ctx.storage.clone_pool());
     let sa = storage.get_session_analytics(session_id).await?;
 
     Ok(json!({
@@ -172,7 +172,7 @@ pub async fn session(params: Value, ctx: &AppContext) -> Result<Value> {
 /// ]
 /// ```
 pub async fn achievements_list(_params: Value, ctx: &AppContext) -> Result<Value> {
-    let storage = AnalyticsStorage::new(ctx.storage.pool());
+    let storage = AnalyticsStorage::new(ctx.storage.clone_pool());
     let achievements = storage.list_achievements().await?;
 
     let result: Vec<Value> = achievements

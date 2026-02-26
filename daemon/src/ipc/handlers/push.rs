@@ -10,10 +10,9 @@
 use crate::AppContext;
 use anyhow::Result;
 use serde_json::{json, Value};
-use std::sync::Arc;
 use tracing::info;
 
-pub async fn register(ctx: Arc<AppContext>, params: Value) -> Result<Value> {
+pub async fn register(params: Value, ctx: &AppContext) -> Result<Value> {
     let device_id = params["device_id"]
         .as_str()
         .ok_or_else(|| anyhow::anyhow!("missing device_id"))?
@@ -22,10 +21,7 @@ pub async fn register(ctx: Arc<AppContext>, params: Value) -> Result<Value> {
         .as_str()
         .ok_or_else(|| anyhow::anyhow!("missing token"))?
         .to_string();
-    let platform = params["platform"]
-        .as_str()
-        .unwrap_or("fcm")
-        .to_string();
+    let platform = params["platform"].as_str().unwrap_or("fcm").to_string();
 
     // Persist to storage so the relay can look it up
     ctx.storage
@@ -37,7 +33,7 @@ pub async fn register(ctx: Arc<AppContext>, params: Value) -> Result<Value> {
     Ok(json!({ "registered": true }))
 }
 
-pub async fn unregister(ctx: Arc<AppContext>, params: Value) -> Result<Value> {
+pub async fn unregister(params: Value, ctx: &AppContext) -> Result<Value> {
     let device_id = params["device_id"]
         .as_str()
         .ok_or_else(|| anyhow::anyhow!("missing device_id"))?;

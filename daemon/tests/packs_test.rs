@@ -6,7 +6,7 @@
 //!   - PackInstaller local install creates the expected directory structure
 //!   - PackSigner stub sign + verify round-trip
 //!   - REGISTRY.17: tarball SHA-256 digest, extraction (happy path + path-traversal security),
-//!                  local install with registry_url constructor, remove lifecycle
+//!     local install with registry_url constructor, remove lifecycle
 
 use clawd::packs::{
     installer::PackInstaller,
@@ -367,14 +367,15 @@ fn test_tarball_extract_roundtrip() {
         .collect();
 
     // The tarball should contain the prefixed pack.toml.
-    let has_manifest = entries
-        .iter()
-        .any(|p| p.ends_with("pack.toml"));
+    let has_manifest = entries.iter().any(|p| p.ends_with("pack.toml"));
     assert!(has_manifest, "tarball must contain pack.toml: {entries:?}");
 
     // And the rules/ file.
     let has_rule = entries.iter().any(|p| p.ends_with("example.md"));
-    assert!(has_rule, "tarball must contain rules/example.md: {entries:?}");
+    assert!(
+        has_rule,
+        "tarball must contain rules/example.md: {entries:?}"
+    );
 }
 
 /// REGISTRY.17 — Test 3: extraction strips top-level directory prefix.

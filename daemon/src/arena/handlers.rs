@@ -104,7 +104,7 @@ pub async fn create_arena_session(params: Value, ctx: &AppContext) -> Result<Val
     );
 
     // Persist the arena session record.
-    let arena_storage = ArenaStorage::new(ctx.storage.pool());
+    let arena_storage = ArenaStorage::new(ctx.storage.clone_pool());
     let arena = arena_storage
         .create_session(
             &session_a.id,
@@ -171,7 +171,7 @@ pub async fn record_vote(params: Value, ctx: &AppContext) -> Result<Value> {
         );
     }
 
-    let arena_storage = ArenaStorage::new(ctx.storage.pool());
+    let arena_storage = ArenaStorage::new(ctx.storage.clone_pool());
     let vote = arena_storage
         .record_vote(&p.arena_session_id, &p.winner_provider, &task_type)
         .await?;
@@ -231,7 +231,7 @@ pub async fn get_leaderboard(params: Value, ctx: &AppContext) -> Result<Value> {
         }
     }
 
-    let arena_storage = ArenaStorage::new(ctx.storage.pool());
+    let arena_storage = ArenaStorage::new(ctx.storage.clone_pool());
     let entries = arena_storage
         .get_leaderboard(p.task_type.as_deref())
         .await?;

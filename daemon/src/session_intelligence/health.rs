@@ -145,7 +145,7 @@ impl From<SessionHealthRow> for SessionHealthState {
 
 /// Load (or create) a `SessionHealthState` row for `session_id`.
 pub async fn load_or_create(storage: &Storage, session_id: &str) -> Result<SessionHealthState> {
-    let pool = storage.pool();
+    let pool = storage.clone_pool();
 
     // Insert a default row if it doesn't exist.
     sqlx::query("INSERT OR IGNORE INTO session_health (session_id) VALUES (?)")
@@ -201,7 +201,7 @@ pub async fn record_signal(
 
     state.health_score = state.recompute_score();
 
-    let pool = storage.pool();
+    let pool = storage.clone_pool();
 
     // Persist updated counters.
     sqlx::query(

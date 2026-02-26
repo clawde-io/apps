@@ -64,13 +64,10 @@ async fn run_non_interactive(
     let token = crate::cli::client::read_auth_token(&config.data_dir)?;
     let url = format!("ws://127.0.0.1:{}", config.port);
 
-    let (mut ws, _) = tokio::time::timeout(
-        std::time::Duration::from_secs(5),
-        connect_async(&url),
-    )
-    .await
-    .context("timed out connecting to daemon")?
-    .context("failed to connect to daemon")?;
+    let (mut ws, _) = tokio::time::timeout(std::time::Duration::from_secs(5), connect_async(&url))
+        .await
+        .context("timed out connecting to daemon")?
+        .context("failed to connect to daemon")?;
 
     // Authenticate.
     ws_send(
@@ -114,14 +111,11 @@ async fn run_non_interactive(
     // Collect streaming deltas until message.complete.
     let mut response = String::new();
     loop {
-        let msg = tokio::time::timeout(
-            std::time::Duration::from_secs(120),
-            ws.next(),
-        )
-        .await
-        .context("timed out waiting for response")?
-        .context("stream ended")?
-        .context("ws error")?;
+        let msg = tokio::time::timeout(std::time::Duration::from_secs(120), ws.next())
+            .await
+            .context("timed out waiting for response")?
+            .context("stream ended")?
+            .context("ws error")?;
 
         if let Message::Text(text) = msg {
             let v: Value = serde_json::from_str(&text)?;
@@ -169,7 +163,10 @@ async fn pick_session(config: &DaemonConfig) -> Result<String> {
         let status = s["status"].as_str().unwrap_or("idle");
         println!("  [{i}] {title}  ({status})  {id}");
     }
-    print!("Pick a session [0-{}], or Enter for new: ", sessions.len() - 1);
+    print!(
+        "Pick a session [0-{}], or Enter for new: ",
+        sessions.len() - 1
+    );
     io::stdout().flush()?;
 
     let mut input = String::new();
@@ -207,9 +204,8 @@ async fn create_session(provider: &Option<String>, config: &DaemonConfig) -> Res
 
 // ─── WebSocket helpers ────────────────────────────────────────────────────────
 
-type WsStream = tokio_tungstenite::WebSocketStream<
-    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
->;
+type WsStream =
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
 async fn ws_send(ws: &mut WsStream, value: &Value) -> Result<()> {
     ws.send(Message::Text(serde_json::to_string(value)?))

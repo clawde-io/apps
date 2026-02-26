@@ -98,7 +98,7 @@ impl ResourceGovernor {
         // Estimate daemon RAM (process memory - rough heuristic)
         let daemon_ram: i64 = 100 * 1024 * 1024; // ~100 MB estimate
 
-        let pool_ref = self.storage.pool();
+        let pool_ref = self.storage.clone_pool();
         sqlx::query(
             "INSERT INTO resource_metrics \
              (total_ram_bytes, used_ram_bytes, daemon_ram_bytes, \
@@ -208,7 +208,7 @@ pub async fn run_governor_loop(
 }
 
 async fn count_session_tiers(storage: &Storage) -> anyhow::Result<(i64, i64, i64)> {
-    let pool = storage.pool();
+    let pool = storage.clone_pool();
     let active: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM sessions WHERE tier = 'active'")
         .fetch_one(&pool)
         .await?;

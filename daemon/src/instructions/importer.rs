@@ -5,7 +5,7 @@
 
 use crate::storage::Storage;
 use anyhow::{Context, Result};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use tokio::fs;
 
 pub struct InstructionImporter<'a> {
@@ -39,7 +39,11 @@ impl<'a> InstructionImporter<'a> {
                 .context("read CLAUDE.md")?;
             files_scanned += 1;
             let created = self.upsert_node("project", None, 100, &content).await?;
-            if created { nodes_created += 1; } else { nodes_skipped += 1; }
+            if created {
+                nodes_created += 1;
+            } else {
+                nodes_skipped += 1;
+            }
         }
 
         // .claude/CLAUDE.md
@@ -50,7 +54,11 @@ impl<'a> InstructionImporter<'a> {
                 .context("read .claude/CLAUDE.md")?;
             files_scanned += 1;
             let created = self.upsert_node("project", None, 90, &content).await?;
-            if created { nodes_created += 1; } else { nodes_skipped += 1; }
+            if created {
+                nodes_created += 1;
+            } else {
+                nodes_skipped += 1;
+            }
         }
 
         // .claude/rules/ directory — path-scoped rules
@@ -60,21 +68,33 @@ impl<'a> InstructionImporter<'a> {
             while let Some(entry) = dir.next_entry().await? {
                 let path = entry.path();
                 if path.extension().and_then(|e| e.to_str()) == Some("md") {
-                    let content = fs::read_to_string(&path)
-                        .await
-                        .context("read rules file")?;
+                    let content = fs::read_to_string(&path).await.context("read rules file")?;
                     files_scanned += 1;
                     // Derive scope_path from filename (e.g. "rust.md" → no path scope, "src-payments.md" → src/payments/)
                     let created = self.upsert_node("app", None, 80, &content).await?;
-                    if created { nodes_created += 1; } else { nodes_skipped += 1; }
+                    if created {
+                        nodes_created += 1;
+                    } else {
+                        nodes_skipped += 1;
+                    }
                 }
             }
         }
 
-        Ok(ImportResult { files_scanned, nodes_created, nodes_skipped })
+        Ok(ImportResult {
+            files_scanned,
+            nodes_created,
+            nodes_skipped,
+        })
     }
 
-    async fn upsert_node(&self, scope: &str, scope_path: Option<&str>, priority: i64, content: &str) -> Result<bool> {
+    async fn upsert_node(
+        &self,
+        scope: &str,
+        scope_path: Option<&str>,
+        priority: i64,
+        content: &str,
+    ) -> Result<bool> {
         // Skip very short content (probably empty)
         if content.trim().len() < 10 {
             return Ok(false);

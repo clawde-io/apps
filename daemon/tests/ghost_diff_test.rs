@@ -36,9 +36,9 @@ fn spec_parser_empty_dir_returns_empty() {
 
 #[test]
 fn spec_parser_nonexistent_dir_returns_empty() {
-    let specs = clawd::ghost_diff::spec_parser::load_specs(
-        std::path::Path::new("/nonexistent/path/to/specs"),
-    )
+    let specs = clawd::ghost_diff::spec_parser::load_specs(std::path::Path::new(
+        "/nonexistent/path/to/specs",
+    ))
     .unwrap();
     assert!(specs.is_empty());
 }
@@ -47,10 +47,9 @@ fn spec_parser_nonexistent_dir_returns_empty() {
 async fn ghost_diff_skips_when_no_specs_dir() {
     let dir = TempDir::new().unwrap();
     // No .claw/specs/ directory — should return empty warnings.
-    let warnings =
-        clawd::ghost_diff::engine::check_ghost_drift(dir.path().to_str().unwrap(), None)
-            .await
-            .unwrap();
+    let warnings = clawd::ghost_diff::engine::check_ghost_drift(dir.path().to_str().unwrap(), None)
+        .await
+        .unwrap();
     assert!(warnings.is_empty(), "no specs = no warnings");
 }
 
@@ -70,9 +69,11 @@ async fn ghost_diff_no_false_positive_on_matching_code() {
     );
 
     // No git diff in temp dir, so changed_files will be empty — should return no warnings.
-    let warnings =
-        clawd::ghost_diff::engine::check_ghost_drift(dir.path().to_str().unwrap(), None)
-            .await
-            .unwrap();
-    assert!(warnings.is_empty(), "no git diff = no changed files = no warnings");
+    let warnings = clawd::ghost_diff::engine::check_ghost_drift(dir.path().to_str().unwrap(), None)
+        .await
+        .unwrap();
+    assert!(
+        warnings.is_empty(),
+        "no git diff = no changed files = no warnings"
+    );
 }

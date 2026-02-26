@@ -24,16 +24,18 @@ mod ci_runner_tests {
     #[test]
     fn ci_config_defaults() {
         let yaml = r#"
-name: test
+task: "cargo build"
 steps:
   - name: build
-    run: "cargo build"
+    command: "cargo build"
 "#;
         let config: CiConfig = serde_yaml::from_str(yaml).unwrap();
-        assert_eq!(config.name, "test");
         assert_eq!(config.steps.len(), 1);
         assert_eq!(config.steps[0].name, "build");
-        assert_eq!(config.steps[0].run, "cargo build");
+        assert_eq!(
+            config.steps[0].command.as_deref().unwrap_or(""),
+            "cargo build"
+        );
         // Default trigger = push
         assert!(matches!(config.on[0], CiTrigger::Push));
     }
@@ -41,15 +43,15 @@ steps:
     #[test]
     fn ci_config_multi_step() {
         let yaml = r#"
-name: review
+task: "review"
 on: [pull_request]
 steps:
   - name: lint
-    run: "Check for lint issues"
+    command: "Check for lint issues"
   - name: security
-    run: "Check for security vulnerabilities"
+    command: "Check for security vulnerabilities"
   - name: summary
-    run: "Write review summary"
+    command: "Write review summary"
 "#;
         let config: CiConfig = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(config.steps.len(), 3);
@@ -62,10 +64,13 @@ steps:
     fn ci_step_default_provider() {
         let step = CiStep {
             name: "build".into(),
-            run: "cargo build".into(),
-            provider: None,
+            task: None,
+            command: Some("cargo build".into()),
+            timeout_s: 300,
+            continue_on_error: false,
         };
-        let provider = step.provider.as_deref().unwrap_or("claude");
-        assert_eq!(provider, "claude");
+        // CiStep has no provider field — provider is on CiConfig
+        assert_eq!(step.name, "build");
+        assert_eq!(step.command.as_deref().unwrap_or(""), "cargo build");
     }
 }

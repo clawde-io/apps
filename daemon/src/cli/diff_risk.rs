@@ -37,13 +37,11 @@ pub async fn diff_risk_score(
     };
 
     println!("Diff Risk Score: {total_score:.1} — {status}");
-    println!(
-        "  Thresholds: warn={warn_threshold:.0}, block={block_threshold:.0}"
-    );
+    println!("  Thresholds: warn={warn_threshold:.0}, block={block_threshold:.0}");
 
     if !files.is_empty() {
         println!("\nFile breakdown (highest risk first):");
-        println!("  {:<50} {:>8}  {}", "File", "Score", "Category");
+        println!("  {:<50} {:>8}  Category", "File", "Score");
         println!("  {}", "─".repeat(70));
 
         let mut sorted = files.clone();

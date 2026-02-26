@@ -8,7 +8,6 @@ use crate::AppContext;
 use anyhow::Result;
 use serde_json::{json, Value};
 
-
 /// EP.T04 — `artifacts.evidencePack(task_id)` RPC
 pub async fn evidence_pack(ctx: &AppContext, params: Value) -> Result<Value> {
     let task_id = params["task_id"]
@@ -17,8 +16,10 @@ pub async fn evidence_pack(ctx: &AppContext, params: Value) -> Result<Value> {
 
     match get_evidence_pack(&ctx.storage, task_id).await? {
         None => {
-            anyhow::bail!("No evidence pack found for task '{task_id}'. \
-                           The task may not be completed or no evidence was recorded.")
+            anyhow::bail!(
+                "No evidence pack found for task '{task_id}'. \
+                           The task may not be completed or no evidence was recorded."
+            )
         }
         Some(pack) => Ok(json!({
             "task_id": pack.task_id,

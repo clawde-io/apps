@@ -46,14 +46,13 @@ pub async fn generate_today(pool: &SqlitePool) -> Result<DailyDigest> {
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
 
     // Count sessions started today
-    let sessions_run: i64 = sqlx::query(
-        "SELECT COUNT(*) as cnt FROM sessions WHERE date(created_at) = ?",
-    )
-    .bind(&today)
-    .fetch_one(pool)
-    .await
-    .map(|r| r.get::<i64, _>("cnt"))
-    .unwrap_or(0);
+    let sessions_run: i64 =
+        sqlx::query("SELECT COUNT(*) as cnt FROM sessions WHERE date(created_at) = ?")
+            .bind(&today)
+            .fetch_one(pool)
+            .await
+            .map(|r| r.get::<i64, _>("cnt"))
+            .unwrap_or(0);
 
     // Get session entries for today
     let session_rows = sqlx::query(
@@ -72,12 +71,13 @@ pub async fn generate_today(pool: &SqlitePool) -> Result<DailyDigest> {
         .iter()
         .map(|r| {
             let session_id: String = r.get("id");
-            let provider: String = r.get::<Option<String>, _>("provider")
+            let provider: String = r
+                .get::<Option<String>, _>("provider")
                 .unwrap_or_else(|| "claude".to_string());
-            let status: String = r.get::<Option<String>, _>("status")
+            let status: String = r
+                .get::<Option<String>, _>("status")
                 .unwrap_or_else(|| "idle".to_string());
-            let started_at: String = r.get::<Option<String>, _>("created_at")
-                .unwrap_or_default();
+            let started_at: String = r.get::<Option<String>, _>("created_at").unwrap_or_default();
             let ended_at: Option<String> = r.get("updated_at");
 
             DigestEntry {
@@ -94,9 +94,10 @@ pub async fn generate_today(pool: &SqlitePool) -> Result<DailyDigest> {
         .collect();
 
     let tasks_completed = sessions.iter().map(|s| s.tasks_completed).sum();
-    let tasks_in_progress = sessions.iter().filter(|s| {
-        s.ended_at.is_none() || s.session_id.contains("running")
-    }).count() as i64;
+    let tasks_in_progress = sessions
+        .iter()
+        .filter(|s| s.ended_at.is_none() || s.session_id.contains("running"))
+        .count() as i64;
 
     let metrics = DigestMetrics {
         sessions_run,

@@ -93,7 +93,7 @@ pub async fn mailbox_send(params: Value, ctx: &AppContext) -> Result<Value> {
     }
 
     // ── Write message file (atomic: .tmp → .md) ───────────────────────────────
-    let storage = MailboxStorage::new(ctx.storage.pool());
+    let storage = MailboxStorage::new(ctx.storage.clone_pool());
     let msg = storage
         .send_message(
             &p.from_repo,
@@ -117,7 +117,7 @@ pub async fn mailbox_list(params: Value, ctx: &AppContext) -> Result<Value> {
     let p: RepoPathParams = serde_json::from_value(params)?;
     validate_path("repoPath", &p.repo_path)?;
 
-    let storage = MailboxStorage::new(ctx.storage.pool());
+    let storage = MailboxStorage::new(ctx.storage.clone_pool());
     let messages = storage.list_messages(&p.repo_path).await?;
 
     Ok(json!({
@@ -137,7 +137,7 @@ pub async fn mailbox_archive(params: Value, ctx: &AppContext) -> Result<Value> {
         bail!("id is required");
     }
 
-    let storage = MailboxStorage::new(ctx.storage.pool());
+    let storage = MailboxStorage::new(ctx.storage.clone_pool());
     storage.archive_message(&p.id).await?;
 
     Ok(json!({ "archived": true, "id": p.id }))

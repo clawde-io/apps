@@ -5,7 +5,7 @@ use anyhow::Result;
 use serde_json::{json, Value};
 
 /// `eval.list` — list available eval files in `.claw/evals/`.
-pub async fn eval_list(params: Value, _ctx: AppContext) -> Result<Value> {
+pub async fn eval_list(params: Value, _ctx: &AppContext) -> Result<Value> {
     let repo_path = params
         .get("repoPath")
         .and_then(|v| v.as_str())
@@ -34,7 +34,7 @@ pub async fn eval_list(params: Value, _ctx: AppContext) -> Result<Value> {
 }
 
 /// `eval.run` — run evals from a YAML file against the current session config.
-pub async fn eval_run(params: Value, ctx: AppContext) -> Result<Value> {
+pub async fn eval_run(params: Value, ctx: &AppContext) -> Result<Value> {
     let repo_path = params
         .get("repoPath")
         .and_then(|v| v.as_str())
@@ -48,8 +48,7 @@ pub async fn eval_run(params: Value, ctx: AppContext) -> Result<Value> {
         .and_then(|v| v.as_f64())
         .unwrap_or(0.0);
 
-    let results =
-        crate::evals::session_eval::run_evals(repo_path, eval_file, &ctx).await?;
+    let results = crate::evals::session_eval::run_evals(repo_path, eval_file, ctx).await?;
 
     let total = results.len();
     let passed = results.iter().filter(|r| r.passed).count();

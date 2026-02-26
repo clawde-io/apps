@@ -86,11 +86,7 @@ impl ProviderSessionRegistry {
 
     /// Return a mutable reference to the provider session for a ClawDE
     /// session, creating a fresh one if none exists. Evicts stale sessions.
-    pub fn get_or_create(
-        &mut self,
-        session_id: &str,
-        provider: Provider,
-    ) -> &mut ProviderSession {
+    pub fn get_or_create(&mut self, session_id: &str, provider: Provider) -> &mut ProviderSession {
         self.evict_stale();
         self.sessions
             .entry(session_id.to_string())
@@ -171,10 +167,7 @@ mod tests {
         let mut reg = ProviderSessionRegistry::new();
         reg.get_or_create("sess-1", Provider::Codex);
         reg.update_response_id("sess-1", "resp-abc123".to_string());
-        assert_eq!(
-            reg.previous_response_id("sess-1"),
-            Some("resp-abc123")
-        );
+        assert_eq!(reg.previous_response_id("sess-1"), Some("resp-abc123"));
     }
 
     #[test]

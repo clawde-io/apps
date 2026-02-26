@@ -31,7 +31,7 @@ struct MetricsRow {
 
 /// `system.resources` — return current RAM usage and session tier counts.
 pub async fn resources(_params: Value, ctx: &AppContext) -> Result<Value> {
-    let pool = ctx.storage.pool();
+    let pool = ctx.storage.clone_pool();
 
     // Count sessions by tier
     let active_count: (i64,) =
@@ -98,7 +98,7 @@ pub async fn resource_history(params: Value, ctx: &AppContext) -> Result<Value> 
         .unwrap_or(60)
         .clamp(1, 1440); // max 24h at 1-min intervals
 
-    let pool = ctx.storage.pool();
+    let pool = ctx.storage.clone_pool();
     let rows: Vec<MetricsRow> = sqlx::query_as(
         "SELECT timestamp, total_ram_bytes, used_ram_bytes, daemon_ram_bytes, \
                 active_session_count, warm_session_count, cold_session_count, \
