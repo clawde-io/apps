@@ -64,6 +64,12 @@ Widget _wrapSidebar({
 
 void main() {
   testWidgets('app renders without crashing', (WidgetTester tester) async {
+    // NavigationRail has 10 destinations — needs a desktop-sized viewport.
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
