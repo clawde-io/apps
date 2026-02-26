@@ -33,4 +33,5 @@
 
 **Contributing**
 - [[Contributing]]
+- [[Code-of-Conduct]]
 - [[Changelog]]
