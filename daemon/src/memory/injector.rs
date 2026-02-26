@@ -28,7 +28,7 @@ pub fn build_memory_prefix(entries: &[MemoryEntry], token_budget: usize) -> Stri
         return String::new();
     }
 
-    let char_budget = token_budget * CHARS_PER_TOKEN - OVERHEAD_CHARS;
+    let char_budget = (token_budget * CHARS_PER_TOKEN).saturating_sub(OVERHEAD_CHARS);
     let mut lines: Vec<String> = Vec::new();
     let mut chars_used = 0;
 

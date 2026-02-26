@@ -192,8 +192,8 @@ pub fn sanitize_content(content: &str, analysis: &ContentAnalysis) -> (String, V
     ];
 
     for pattern in &high_risk_patterns {
-        let lower = sanitized.to_lowercase();
-        while let Some(idx) = lower.find(pattern) {
+        // Recompute lowercase on each iteration — sanitized changes as we strip.
+        while let Some(idx) = sanitized.to_lowercase().find(pattern) {
             // Find end of the injection sentence/line
             let end = sanitized[idx..]
                 .find(['.', '\n', '!', '?'])

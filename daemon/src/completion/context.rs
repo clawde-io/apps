@@ -77,6 +77,9 @@ fn is_import_line(line: &str, ext: &str) -> bool {
 
 /// Find the nearest definition (fn/class/struct/def/func) at or above the cursor line.
 fn nearest_definition(lines: &[&str], cursor_line: usize, ext: &str) -> Option<String> {
+    if lines.is_empty() {
+        return None;
+    }
     // Walk backwards from cursor_line.
     for i in (0..=cursor_line.min(lines.len().saturating_sub(1))).rev() {
         let line = lines[i].trim();

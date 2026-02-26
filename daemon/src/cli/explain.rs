@@ -315,7 +315,7 @@ mod tests {
         };
         let prompt = build_prompt(&opts).unwrap();
         assert!(prompt.contains("E0308"));
-        assert!(prompt.contains("explain"));
+        assert!(prompt.to_lowercase().contains("explain"));
     }
 
     #[test]

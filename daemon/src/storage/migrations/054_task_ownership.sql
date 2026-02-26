@@ -1,13 +1,13 @@
 -- Migration 054: task file ownership + lease heartbeats (Sprint ZZ FO.T01 + LH.T01)
 
 -- File ownership: glob patterns restricting which paths a task may modify
-ALTER TABLE agent_tasks ADD COLUMN IF NOT EXISTS owned_paths_json TEXT;
+ALTER TABLE agent_tasks ADD COLUMN owned_paths_json TEXT;
 -- e.g. '["src/payments/**","tests/payments/**"]'
 
 -- Lease fields: heartbeat-based lease for parallel agent coordination
-ALTER TABLE agent_tasks ADD COLUMN IF NOT EXISTS claimed_by_agent_id TEXT;
-ALTER TABLE agent_tasks ADD COLUMN IF NOT EXISTS lease_expires_at INTEGER;   -- unix timestamp
-ALTER TABLE agent_tasks ADD COLUMN IF NOT EXISTS last_heartbeat_at INTEGER;  -- unix timestamp
+ALTER TABLE agent_tasks ADD COLUMN claimed_by_agent_id TEXT;
+ALTER TABLE agent_tasks ADD COLUMN lease_expires_at INTEGER;   -- unix timestamp
+ALTER TABLE agent_tasks ADD COLUMN last_heartbeat_at INTEGER;  -- unix timestamp
 
 -- Index for lease janitor query
 CREATE INDEX IF NOT EXISTS idx_agent_tasks_lease ON agent_tasks (lease_expires_at, status);

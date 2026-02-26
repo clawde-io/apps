@@ -48,16 +48,14 @@ pub fn parse_confidence(content: &str) -> Option<ConfidenceResult> {
 /// Extract the sentence (or up to 200 chars) surrounding the confidence match
 /// to use as the reasoning text.
 fn extract_reasoning_sentence(content: &str, match_start: usize) -> String {
-    // Walk back to sentence start.
+    // Walk back to sentence start — stop at newline or period followed by a space.
     let before = &content[..match_start];
-    let sentence_start = before.rfind(['.', '\n']).map(|i| i + 1).unwrap_or(0);
+    let sentence_start = find_sentence_start(before);
 
-    // Walk forward to sentence end.
+    // Walk forward to sentence end — stop at newline or period followed by
+    // space/end (avoid breaking on decimal points like "0.9").
     let after_match = &content[match_start..];
-    let sentence_end = after_match
-        .find(['.', '\n'])
-        .map(|i| match_start + i + 1)
-        .unwrap_or(content.len());
+    let sentence_end = find_sentence_end(after_match, match_start).unwrap_or(content.len());
 
     let sentence = &content[sentence_start..sentence_end.min(content.len())];
     let trimmed = sentence.trim().to_string();
@@ -68,6 +66,39 @@ fn extract_reasoning_sentence(content: &str, match_start: usize) -> String {
     } else {
         trimmed
     }
+}
+
+fn find_sentence_start(before: &str) -> usize {
+    // Scan backwards for '\n' or '. ' (period followed by space — end of previous sentence).
+    let bytes = before.as_bytes();
+    let mut i = bytes.len();
+    while i > 0 {
+        i -= 1;
+        if bytes[i] == b'\n' {
+            return i + 1;
+        }
+        if bytes[i] == b'.' && i + 1 < bytes.len() && bytes[i + 1] == b' ' {
+            return i + 1;
+        }
+    }
+    0
+}
+
+fn find_sentence_end(after: &str, offset: usize) -> Option<usize> {
+    // Find '\n' or a period followed by a space or end-of-string.
+    let bytes = after.as_bytes();
+    for i in 0..bytes.len() {
+        if bytes[i] == b'\n' {
+            return Some(offset + i + 1);
+        }
+        if bytes[i] == b'.' {
+            // Period at end of string or followed by whitespace = sentence end.
+            if i + 1 >= bytes.len() || bytes[i + 1] == b' ' || bytes[i + 1] == b'\n' {
+                return Some(offset + i + 1);
+            }
+        }
+    }
+    None
 }
 
 #[cfg(test)]

@@ -28,7 +28,7 @@ impl Default for ClawdCapabilities {
     fn default() -> Self {
         Self {
             tools: true,
-            resources: true,
+            resources: false,
             prompts: false,
             sampling: false,
         }

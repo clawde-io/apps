@@ -79,10 +79,11 @@ pub fn evaluate_policy(command: &str) -> (PolicyOutcome, Option<String>) {
         ("/etc/shadow", "secret_file_read_shadow"),
         ("~/.ssh/id_", "secret_file_read_ssh_key"),
         ("~/.aws/credentials", "secret_file_read_aws"),
-        // Network exfiltration
-        ("curl | sh", "network_pipe_exec"),
-        ("wget | sh", "network_pipe_exec"),
-        ("curl | bash", "network_pipe_exec"),
+        // Network exfiltration (pipe to shell — URL may appear between tool and pipe)
+        ("| sh", "network_pipe_exec"),
+        ("| bash", "network_pipe_exec"),
+        ("|sh", "network_pipe_exec"),
+        ("|bash", "network_pipe_exec"),
         // Path escape attempts
         ("../../../etc", "path_traversal"),
         ("..\\..\\windows\\system32", "path_traversal_windows"),
