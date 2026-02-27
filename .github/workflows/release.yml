@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  # workflow_call support (e.g. for testing release pipeline from CI).
+  # Declaring SPARKLE_PRIVATE_KEY here also suppresses linter warnings.
+  workflow_call:
+    secrets:
+      SPARKLE_PRIVATE_KEY:
+        required: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

@@ -21,11 +21,31 @@ on:
         description: "Release tag to notarize (e.g. v0.2.0)"
         required: true
         type: string
+  # workflow_call allows this workflow to be called from release.yml once
+  # Apple certs are configured. Secrets declared here also suppress linter
+  # warnings for the secrets.* references below.
+  workflow_call:
+    secrets:
+      APPLE_DEVELOPER_CERT_BASE64:
+        required: true
+      APPLE_DEVELOPER_CERT_PASSWORD:
+        required: true
+      APPLE_TEAM_ID:
+        required: true
+      APPLE_NOTARY_KEY_ID:
+        required: true
+      APPLE_NOTARY_KEY_ISSUER_ID:
+        required: true
+      APPLE_NOTARY_KEY_BASE64:
+        required: true
 
 jobs:
   notarize:
     name: Notarize macOS App
     runs-on: macos-latest
+    # Disabled until Apple Developer certs are configured in repository secrets.
+    # Remove this line to enable: see NOTARY.1-4 task.
+    if: false
 
     steps:
       - uses: actions/checkout@v4
@@ -47,10 +67,13 @@ jobs:
           fi
 
       - name: Import signing certificate
+        env:
+          APPLE_CERT_B64: ${{ secrets.APPLE_DEVELOPER_CERT_BASE64 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_DEVELOPER_CERT_PASSWORD }}
         run: |
-          echo "${{ secrets.APPLE_DEVELOPER_CERT_BASE64 || '' }}" | base64 --decode > cert.p12
+          echo "${APPLE_CERT_B64}" | base64 --decode > cert.p12
           security create-keychain -p "" build.keychain
-          security import cert.p12 -k build.keychain -P "${{ secrets.APPLE_DEVELOPER_CERT_PASSWORD || '' }}" -T /usr/bin/codesign
+          security import cert.p12 -k build.keychain -P "${APPLE_CERT_PASSWORD}" -T /usr/bin/codesign
           security set-keychain-settings -t 3600 -u build.keychain
           security list-keychains -s build.keychain
           security default-keychain -s build.keychain
@@ -64,8 +87,10 @@ jobs:
           chmod +x clawd
 
       - name: Code-sign binary
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          codesign --sign \"Developer ID Application: ClawDE (${{ secrets.APPLE_TEAM_ID || '' }})\" \
+          codesign --sign "Developer ID Application: ClawDE (${APPLE_TEAM_ID})" \
             --options runtime \
             --timestamp \
             --force \
