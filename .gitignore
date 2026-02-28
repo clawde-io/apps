@@ -4,6 +4,12 @@
 .cursor/
 .claw/
 .agents/
+.aider/
+.aider.chat.history.md
+.continue/
+.windsurf/
+.gemini/
+.codeium/
 
 # IDE project files
 *.iml
@@ -14,7 +20,8 @@
 Thumbs.db
 
 # IDE & editors
-.vscode/
+.vscode/*
+!.vscode/settings.json
 *.swp
 *.swo
 *~
@@ -40,23 +47,23 @@ target/
 .flutter-plugins-dependencies
 
 # Flutter apps — platform-generated files
-desktop/build/
-desktop/macos/Pods/
-desktop/windows/flutter/generated_plugin_registrant.cc
-desktop/windows/flutter/generated_plugins.cmake
-desktop/linux/flutter/generated_plugin_registrant.cc
-desktop/linux/flutter/generated_plugins.cmake
+apps/desktop/build/
+apps/desktop/macos/Pods/
+apps/desktop/windows/flutter/generated_plugin_registrant.cc
+apps/desktop/windows/flutter/generated_plugins.cmake
+apps/desktop/linux/flutter/generated_plugin_registrant.cc
+apps/desktop/linux/flutter/generated_plugins.cmake
 
-mobile/build/
-mobile/ios/Pods/
-mobile/ios/.symlinks/
-mobile/android/.gradle/
-mobile/android/local.properties
-mobile/android/GeneratedPluginRegistrant.java
+apps/mobile/build/
+apps/mobile/ios/Pods/
+apps/mobile/ios/.symlinks/
+apps/mobile/android/.gradle/
+apps/mobile/android/local.properties
+apps/mobile/android/GeneratedPluginRegistrant.java
 
 # Dart packages — don't track lock files (apps commit theirs)
-packages/*/pubspec.lock
-packages/*/build/
+apps/packages/*/pubspec.lock
+apps/packages/*/build/
 
 # Logs
 *.log
@@ -79,3 +86,4 @@ FEEDBACK.md
 NEXT.md
 TRACKING.md
 PLAN.md
+.vscode/*
