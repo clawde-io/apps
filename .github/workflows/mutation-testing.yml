@@ -10,16 +10,16 @@ on:
   push:
     branches: [main]
     paths:
-      - "daemon/src/session/**"
-      - "daemon/src/security/**"
-      - "daemon/src/policy/**"
-      - "daemon/src/license/**"
-      - "daemon/src/ipc/auth.rs"
-      - "daemon/src/intelligence/**"
-      - "daemon/src/agents/routing.rs"
-      - "daemon/src/agents/capabilities.rs"
-      - "daemon/src/agents/prompt_cache.rs"
-      - "daemon/src/agents/provider_session.rs"
+      - "apps/daemon/src/session/**"
+      - "apps/daemon/src/security/**"
+      - "apps/daemon/src/policy/**"
+      - "apps/daemon/src/license/**"
+      - "apps/daemon/src/ipc/auth.rs"
+      - "apps/daemon/src/intelligence/**"
+      - "apps/daemon/src/agents/routing.rs"
+      - "apps/daemon/src/agents/capabilities.rs"
+      - "apps/daemon/src/agents/prompt_cache.rs"
+      - "apps/daemon/src/agents/provider_session.rs"
   workflow_dispatch:
 
 jobs:
@@ -41,13 +41,13 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo-mutants-${{ hashFiles('daemon/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-mutants-${{ hashFiles('apps/daemon/Cargo.lock') }}
 
       - name: Install cargo-mutants
         run: cargo install cargo-mutants --locked
 
       - name: Run mutation tests
-        working-directory: daemon
+        working-directory: apps/daemon
         run: |
           cargo mutants \
             --output mutants-out \
@@ -55,7 +55,7 @@ jobs:
             2>&1 | tee mutants-report.txt
 
       - name: Check kill rate
-        working-directory: daemon
+        working-directory: apps/daemon
         run: |
           if [ -f mutants-out/mutants.out ]; then
             python3 - <<'EOF'
@@ -84,5 +84,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mutation-report
-          path: daemon/mutants-out/
+          path: apps/daemon/mutants-out/
           retention-days: 30

@@ -31,7 +31,13 @@
 - [[Features/Coding-Standards|Coding standards]]
 - [[Roadmap]]
 
+**Branding**
+- [[Branding]]
+- [[Branding/Guide|Brand Guide]]
+- [[Branding/Assets|Asset Index]]
+
 **Contributing**
 - [[Contributing]]
+- [[Contributors]]
 - [[Code-of-Conduct]]
 - [[Changelog]]

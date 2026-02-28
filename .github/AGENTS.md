@@ -32,9 +32,9 @@ All edits happen inside the worktree. Main checkout is read-only.
 
 This repo is Flutter + Rust only. No TypeScript, no Node.js.
 
-- Daemon: `daemon/` — Rust/Tokio, Cargo
-- Desktop: `desktop/` — Flutter
-- Mobile: `mobile/` — Flutter
-- Packages: `packages/` — Dart pub
+- Daemon: `apps/daemon/` — Rust/Tokio, Cargo
+- Desktop: `apps/desktop/` — Flutter
+- Mobile: `apps/mobile/` — Flutter
+- Packages: `apps/packages/` — Dart pub
 
 Never create or modify files outside the claimed task's worktree.

@@ -15,6 +15,9 @@ jobs:
   dart:
     name: Dart · analyze + test
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps
     steps:
       - uses: actions/checkout@v4
 
@@ -39,6 +42,9 @@ jobs:
   flutter-desktop:
     name: Flutter · desktop build (macOS)
     runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: apps
     steps:
       - uses: actions/checkout@v4
 
@@ -58,7 +64,7 @@ jobs:
 
       - name: Build macOS debug (compile check)
         run: flutter build macos --debug
-        working-directory: desktop
+        working-directory: apps/desktop
 
   # ─── Rust daemon ──────────────────────────────────────────────────
   rust:
@@ -77,28 +83,28 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            daemon/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('daemon/Cargo.lock') }}
+            apps/daemon/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('apps/daemon/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
 
       - name: Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
-        working-directory: daemon
+        working-directory: apps/daemon
 
       - name: Test
         run: cargo test
-        working-directory: daemon
+        working-directory: apps/daemon
 
       - name: Security audit (cargo-audit)
         run: |
           cargo install cargo-audit --quiet 2>/dev/null || true
           cargo audit --deny=unmaintained --deny=yanked
-        working-directory: daemon
+        working-directory: apps/daemon
         continue-on-error: true
 
       - name: Check secret logging
         run: bash scripts/check-secret-logging.sh src
-        working-directory: daemon
+        working-directory: apps/daemon
 
   # ─── Rust security policy (cargo-deny) ────────────────────────────
   rust-deny:
@@ -110,7 +116,7 @@ jobs:
       - name: cargo deny check
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
-          manifest-path: daemon/Cargo.toml
+          manifest-path: apps/daemon/Cargo.toml
           arguments: --all-features
           command: check
           command-arguments: advisories licenses bans sources
@@ -129,12 +135,12 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            daemon/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('daemon/Cargo.lock') }}
+            apps/daemon/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('apps/daemon/Cargo.lock') }}
 
       - name: Build daemon (release)
         run: cargo build --release
-        working-directory: daemon
+        working-directory: apps/daemon
 
       - name: Start daemon + run policy tests (PT.T04)
         run: |
@@ -144,12 +150,12 @@ jobs:
           sleep 2
           ./target/release/clawd policy test --ci --port 14300 || true
           kill $CLAWD_PID 2>/dev/null || true
-        working-directory: daemon
+        working-directory: apps/daemon
         continue-on-error: true
 
       - name: Run policy + snapshot unit tests (IL.T04)
         run: cargo test --lib instructions snapshot policy
-        working-directory: daemon
+        working-directory: apps/daemon
         continue-on-error: true
 
   # ─── Sprint ZZ: Benchmark regression gate (EH.T06) ───────────────
@@ -170,13 +176,13 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            daemon/target
-          key: ${{ runner.os }}-cargo-bench-${{ hashFiles('daemon/Cargo.lock') }}
+            apps/daemon/target
+          key: ${{ runner.os }}-cargo-bench-${{ hashFiles('apps/daemon/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-bench-
 
       - name: Build daemon (release)
         run: cargo build --release
-        working-directory: daemon
+        working-directory: apps/daemon
 
       - name: Benchmark regression gate (EH.T06)
         run: |
@@ -187,7 +193,7 @@ jobs:
           BASE_REF="${{ github.event.pull_request.base.sha }}"
           ./target/release/clawd bench compare --base "$BASE_REF" --port 14301 || true
           kill $CLAWD_PID 2>/dev/null || true
-        working-directory: daemon
+        working-directory: apps/daemon
         continue-on-error: true
 
   # ─── Rust format check ────────────────────────────────────────────
@@ -201,4 +207,4 @@ jobs:
           components: rustfmt
       - name: Check formatting
         run: cargo fmt --check
-        working-directory: daemon
+        working-directory: apps/daemon

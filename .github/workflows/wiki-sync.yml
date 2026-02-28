@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - ".wiki/**"
+      - ".github/wiki/**"
 
 concurrency:
   group: wiki-sync
@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   sync:
-    name: Push .wiki/ to GitHub Wiki
+    name: Push .github/wiki/ to GitHub Wiki
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -37,7 +37,8 @@ jobs:
 
           cd /tmp
           git clone "${WIKI_URL}" wiki 2>&1
-          cp -rf "$GITHUB_WORKSPACE/.wiki/." wiki/
+          # Copy wiki pages but exclude brand/ binary assets (they stay in main repo only)
+          rsync -a --exclude='brand/' "$GITHUB_WORKSPACE/.github/wiki/" wiki/
           cd wiki
           git add -A
           if git diff --staged --quiet; then

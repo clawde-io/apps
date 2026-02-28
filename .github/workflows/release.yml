@@ -51,22 +51,22 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            daemon/target
-          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('daemon/Cargo.lock') }}
+            apps/daemon/target
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('apps/daemon/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.target }}-cargo-
             ${{ runner.os }}-cargo-
 
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }}
-        working-directory: daemon
+        working-directory: apps/daemon
 
       # ─── Unix: compute SHA256 and stage artifacts ──────────────────────────
       - name: Stage artifacts (Unix)
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          BIN="daemon/target/${{ matrix.target }}/release/clawd"
+          BIN="apps/daemon/target/${{ matrix.target }}/release/clawd"
           DEST_BIN="clawd-${{ matrix.target }}"
           DEST_SHA="clawd-${{ matrix.target }}.sha256"
 
@@ -87,7 +87,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $binSrc  = "daemon/target/${{ matrix.target }}/release/clawd.exe"
+          $binSrc  = "apps/daemon/target/${{ matrix.target }}/release/clawd.exe"
           $destBin = "clawd-${{ matrix.target }}.exe"
           $destSha = "clawd-${{ matrix.target }}.sha256"
 

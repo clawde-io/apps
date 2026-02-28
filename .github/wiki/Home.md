@@ -58,7 +58,9 @@ All releases: [github.com/clawde-io/apps/releases](https://github.com/clawde-io/
 - [[Features]] — full feature list with status
 - [[Contributing]] — how to contribute code
 - [[Changelog]] — version history
+- [[Contributors]] — project contributors
 - [[FAQ]] — common questions
+- [[Branding]] — brand guide and asset downloads
 
 ## Distribution
 

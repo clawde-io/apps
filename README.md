@@ -22,6 +22,7 @@ git clone https://github.com/clawde-io/apps.git
 cd apps
 
 # Bootstrap Dart/Flutter workspace
+cd apps
 dart pub global activate melos
 melos bootstrap
 
@@ -29,10 +30,22 @@ melos bootstrap
 cd daemon && cargo build --release
 
 # Run the desktop app
-cd desktop && flutter run
+cd ../desktop && flutter run
 ```
 
 See [Getting Started](https://github.com/clawde-io/apps/wiki/Getting-Started) for full setup instructions.
+
+## Structure
+
+```text
+apps/         # All application code
+  daemon/     # clawd — Rust/Tokio daemon
+  desktop/    # Flutter desktop app (macOS/Windows/Linux)
+  mobile/     # Flutter mobile app (iOS/Android)
+  packages/   # Shared Dart packages
+web/          # Website (clawde.io)
+.github/      # CI/CD workflows, wiki source, brand assets
+```
 
 ## License
 
