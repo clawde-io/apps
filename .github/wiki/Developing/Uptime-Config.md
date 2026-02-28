@@ -52,4 +52,4 @@ Check `status` field — `running` is healthy.
 
 ## Status Page URL
 
-Public: `https://status.clawde.io` (Cloudflare Worker, see `web/backend/workers/status/`)
+Public: `https://status.clawde.io` (Cloudflare Worker, see `site/backend/workers/status/`)

@@ -1,6 +1,6 @@
 # Brand Assets
 
-All source files live in `.github/wiki/brand/`. Copy from here into `web/`, Flutter assets, or any consumer as needed.
+All source files live in `.github/wiki/brand/`. Copy from here into `site/`, Flutter assets, or any consumer as needed.
 
 ## Root files
 

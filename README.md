@@ -43,7 +43,7 @@ apps/         # All application code
   desktop/    # Flutter desktop app (macOS/Windows/Linux)
   mobile/     # Flutter mobile app (iOS/Android)
   packages/   # Shared Dart packages
-web/          # Website (clawde.io)
+site/         # Website (clawde.io)
 .github/      # CI/CD workflows, wiki source, brand assets
 ```
 

@@ -80,7 +80,7 @@ clawde/                          # Repository root (clawde-io/apps)
 │   ├── melos.yaml               # Dart monorepo workspace manager
 │   └── pubspec.yaml             # Dart workspace root
 │
-├── web/                         # Website (clawde.io) — coming soon
+├── site/                        # Website (clawde.io) — coming soon
 │
 ├── .github/
 │   ├── workflows/ci.yml         # Dart analyze+test · cargo clippy+test

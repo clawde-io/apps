@@ -20,4 +20,4 @@ ClawDE brand assets and guidelines for contributors, integrators, and press.
 
 ## Files
 
-All source PNGs live in `.github/wiki/brand/`. Copy from there into `web/`, Flutter assets, or any other consumer. The wiki folder is the single source of truth for brand images.
+All source PNGs live in `.github/wiki/brand/`. Copy from there into `site/`, Flutter assets, or any other consumer. The wiki folder is the single source of truth for brand images.

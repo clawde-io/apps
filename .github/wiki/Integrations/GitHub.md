@@ -52,5 +52,5 @@ Payloads are verified using HMAC-SHA256 with the `GITHUB_WEBHOOK_SECRET`.
 
 ## Source
 
-- Webhook handler: [`web/backend/services/clawde-api/services/github-app/`](https://github.com/clawde-io/web)
-- Admin UI: [`web/base/src/app/(dashboard)/integrations/github/`](https://github.com/clawde-io/web)
+- Webhook handler: [`site/backend/services/clawde-api/services/github-app/`](https://github.com/clawde-io/web)
+- Admin UI: [`site/base/src/app/(dashboard)/integrations/github/`](https://github.com/clawde-io/web)
